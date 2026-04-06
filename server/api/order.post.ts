@@ -164,7 +164,7 @@ Total: ${total} MDL
     })
   }
 
-  await saveOrder({
+  await saveOrder(event, {
     id: orderId,
     createdAt: new Date().toISOString(),
     customer,

@@ -1,75 +1,65 @@
-# Nuxt Minimal Starter
+# ONE STYLE FOREVER
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+Nuxt 4 e-commerce storefront with checkout, admin panel, multilingual UI, and Supabase backend for orders.
 
-## Setup
-
-Make sure to install dependencies:
+## 1) Install
 
 ```bash
-# npm
 npm install
-
-# pnpm
-pnpm install
-
-# yarn
-yarn install
-
-# bun
-bun install
 ```
 
-## Development Server
+## 2) Configure Environment
 
-Start the development server on `http://localhost:3000`:
+Create `.env` from template:
 
 ```bash
-# npm
+cp .env.example .env
+```
+
+Required variables:
+
+- `NUXT_ADMIN_KEY` - key for `/admin` access
+- `NUXT_SUPABASE_URL` - Supabase project URL
+- `NUXT_SUPABASE_SERVICE_ROLE_KEY` - server-only service role key
+- `NUXT_TELEGRAM_BOT_TOKEN` - Telegram bot token for order notifications
+- `NUXT_TELEGRAM_CHAT_ID` - Telegram chat ID for order notifications
+- `NUXT_RESEND_API_KEY` - Resend API key
+- `NUXT_ORDER_EMAIL_TO` - where order notifications are sent
+- `NUXT_ORDER_EMAIL_FROM` - sender email
+
+## 3) Prepare Supabase Database
+
+Open Supabase SQL Editor and run:
+
+`supabase/schema.sql`
+
+This creates:
+
+- `orders`
+- `order_items`
+- `order_status_history`
+- indexes + update trigger
+
+## 4) Run Project
+
+```bash
 npm run dev
-
-# pnpm
-pnpm dev
-
-# yarn
-yarn dev
-
-# bun
-bun run dev
 ```
 
-## Production
+App: `http://localhost:3000`  
+Admin: `http://localhost:3000/admin`
 
-Build the application for production:
+## 5) Production Build
 
 ```bash
-# npm
 npm run build
-
-# pnpm
-pnpm build
-
-# yarn
-yarn build
-
-# bun
-bun run build
-```
-
-Locally preview production build:
-
-```bash
-# npm
 npm run preview
-
-# pnpm
-pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
 ```
 
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+## Backend Notes
+
+- Orders are saved in Supabase from `POST /api/order`
+- Admin list: `GET /api/admin/orders`
+- Admin status update: `PATCH /api/admin/orders/:id`
+- Admin routes are protected by `x-admin-key` / `NUXT_ADMIN_KEY`
+- Server uses Supabase service role key, so keep it private (never expose in client code)

@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const actor = (getHeader(event, 'x-admin-actor') || '').trim() || 'admin'
-  const updated = await patchOrderStatus(id, status, body?.note, actor)
+  const updated = await patchOrderStatus(event, id, status, body?.note, actor)
 
   if (!updated) {
     throw createError({ statusCode: 404, statusMessage: 'Order not found' })

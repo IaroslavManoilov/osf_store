@@ -8,11 +8,10 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const status = typeof query.status === 'string' ? query.status.trim() : ''
 
-  const orders = await readOrders()
-  const filtered = status ? orders.filter((item) => item.status === status) : orders
+  const orders = await readOrders(event, status)
 
   return {
     success: true,
-    orders: filtered
+    orders
   }
 })
