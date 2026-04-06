@@ -1119,7 +1119,7 @@ useHead(
   aspect-ratio: 1 / 1;
   padding: 58px 14px 14px;
   border-radius: 20px;
-  background: #fff;
+  background: #f2f7f3;
   overflow: hidden;
 }
 

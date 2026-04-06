@@ -220,7 +220,8 @@ const ui = computed<WishlistUi>(() => {
 .wishlist-image {
   min-height: 260px;
   border-radius: 24px;
-  background: #eef4ef;
+  background: #fff;
+  border: 1px solid var(--border);
   display: grid;
   place-items: center;
   padding: 20px;

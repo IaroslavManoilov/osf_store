@@ -1032,7 +1032,7 @@ useHead(
   min-height: 520px;
   border-radius: 28px;
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, #fff 0%, #f9fcfa 100%);
+  background: #fff;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -1054,7 +1054,7 @@ useHead(
   position: absolute;
   inset: 12% 10%;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(47, 108, 71, 0.14), transparent 68%);
+  background: radial-gradient(circle, rgba(16, 24, 40, 0.06), transparent 68%);
   filter: blur(12px);
   pointer-events: none;
   transition: transform 0.2s ease;
