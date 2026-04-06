@@ -343,21 +343,23 @@ onMounted(() => {
 }
 
 .brand-mark {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: #f7fbf6;
+  border: 1px solid #c8d6c8;
+  background: #ffffff;
   display: grid;
   place-items: center;
   overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9);
 }
 
 .brand-mark img {
-  width: 40px;
-  height: 40px;
+  width: 52px;
+  height: 52px;
   object-fit: contain;
   object-position: center;
+  filter: contrast(1.15) saturate(1.1);
 }
 
 .brand-text {
@@ -623,13 +625,13 @@ onMounted(() => {
   }
 
   .brand-mark {
-    width: 50px;
-    height: 50px;
+    width: 56px;
+    height: 56px;
   }
 
   .brand-mark img {
-    width: 36px;
-    height: 36px;
+    width: 46px;
+    height: 46px;
   }
 
   .brand-text strong {
