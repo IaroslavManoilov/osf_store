@@ -963,8 +963,8 @@ useHead(
 .filters-box {
   padding: 24px;
   align-self: start;
-  position: sticky;
-  top: 16px;
+  position: static;
+  top: auto;
 }
 
 .filters-head {

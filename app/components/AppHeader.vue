@@ -322,9 +322,9 @@ onMounted(() => {
 }
 
 .header-box {
-  margin-top: 12px;
-  min-height: 74px;
-  padding: 12px 16px;
+  margin-top: 10px;
+  min-height: 68px;
+  padding: 9px 14px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: color-mix(in srgb, #fff 90%, #eef5ee);
@@ -343,8 +343,8 @@ onMounted(() => {
 }
 
 .brand-mark {
-  width: 64px;
-  height: 64px;
+  width: 58px;
+  height: 58px;
   border-radius: 999px;
   border: 1px solid #c8d6c8;
   background: #ffffff;
@@ -355,8 +355,8 @@ onMounted(() => {
 }
 
 .brand-mark img {
-  width: 52px;
-  height: 52px;
+  width: 46px;
+  height: 46px;
   object-fit: contain;
   object-position: center;
   filter: contrast(1.15) saturate(1.1);
@@ -405,20 +405,20 @@ onMounted(() => {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .icon-btn,
 .cart-btn,
 .notify-btn {
-  min-height: 44px;
+  min-height: 42px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: #fff;
 }
 
 .icon-btn {
-  width: 44px;
+  width: 42px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -432,7 +432,7 @@ onMounted(() => {
 }
 
 .notify-btn {
-  width: 44px;
+  width: 42px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -477,8 +477,8 @@ onMounted(() => {
 }
 
 .lang-link {
-  min-width: 36px;
-  min-height: 36px;
+  min-width: 34px;
+  min-height: 34px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
@@ -495,7 +495,7 @@ onMounted(() => {
 
 .cart-btn {
   position: relative;
-  padding: 0 16px;
+  padding: 0 14px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -594,8 +594,8 @@ onMounted(() => {
   }
 
   .cart-btn {
-    width: 44px;
-    min-height: 44px;
+    width: 42px;
+    min-height: 42px;
     padding: 0;
     justify-content: center;
   }
@@ -616,7 +616,7 @@ onMounted(() => {
 @media (max-width: 680px) {
   .header-box {
     border-radius: 22px;
-    padding: 10px;
+    padding: 8px;
     gap: 8px;
   }
 
@@ -625,13 +625,13 @@ onMounted(() => {
   }
 
   .brand-mark {
-    width: 56px;
-    height: 56px;
+    width: 50px;
+    height: 50px;
   }
 
   .brand-mark img {
-    width: 46px;
-    height: 46px;
+    width: 40px;
+    height: 40px;
   }
 
   .brand-text strong {
@@ -651,9 +651,9 @@ onMounted(() => {
   .notify-btn,
   .cart-btn,
   .burger-btn {
-    width: 40px;
-    height: 40px;
-    min-height: 40px;
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
   }
 
   .lang-switch {
