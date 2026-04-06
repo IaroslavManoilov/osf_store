@@ -13,7 +13,7 @@
       <div class="header-box">
         <NuxtLink :to="localePath('/')" class="brand" @click="closeMobileMenu">
           <span class="brand-mark">
-            <img src="/logo-mark.png" alt="ONE STYLE FOREVER" />
+            <span class="brand-mark-letter">OS</span>
           </span>
 
           <span class="brand-text">
@@ -49,19 +49,6 @@
         </nav>
 
         <div class="header-actions">
-          <NuxtLink :to="localePath('/wishlist')" class="icon-btn" :aria-label="$t('nav.wishlist')">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M12 21s-6.5-4.35-8.5-8.02C1.94 9.98 3.58 6 7.45 6c1.93 0 3.17 1.02 4.05 2.3C12.38 7.02 13.62 6 15.55 6c3.87 0 5.51 3.98 3.95 6.98C18.5 16.65 12 21 12 21Z"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linejoin="round"
-              />
-            </svg>
-            <span v-if="shopStore.wishlistCount" class="icon-count">{{ shopStore.wishlistCount }}</span>
-          </NuxtLink>
-
           <button
             type="button"
             class="notify-btn"
@@ -99,6 +86,19 @@
             </NuxtLink>
           </div>
 
+          <NuxtLink :to="localePath('/wishlist')" class="icon-btn" :aria-label="$t('nav.wishlist')">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M12 21s-6.5-4.35-8.5-8.02C1.94 9.98 3.58 6 7.45 6c1.93 0 3.17 1.02 4.05 2.3C12.38 7.02 13.62 6 15.55 6c3.87 0 5.51 3.98 3.95 6.98C18.5 16.65 12 21 12 21Z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <span v-if="shopStore.wishlistCount" class="icon-count">{{ shopStore.wishlistCount }}</span>
+          </NuxtLink>
+
           <NuxtLink :to="localePath('/cart')" class="cart-btn">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path
@@ -112,7 +112,8 @@
               <circle cx="10" cy="19" r="1.5" fill="currentColor" />
               <circle cx="18" cy="19" r="1.5" fill="currentColor" />
             </svg>
-            <span>{{ $t('nav.cart') }} · {{ shopStore.cartCount }}</span>
+            <span class="cart-text">{{ $t('nav.cart') }} · {{ shopStore.cartCount }}</span>
+            <span v-if="shopStore.cartCount" class="icon-count cart-count">{{ shopStore.cartCount }}</span>
           </NuxtLink>
 
           <button
@@ -342,8 +343,8 @@ onMounted(() => {
 }
 
 .brand-mark {
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: #f7fbf6;
@@ -351,10 +352,12 @@ onMounted(() => {
   place-items: center;
 }
 
-.brand-mark img {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
+.brand-mark-letter {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #1f5f3d;
 }
 
 .brand-text {
@@ -489,12 +492,17 @@ onMounted(() => {
 }
 
 .cart-btn {
+  position: relative;
   padding: 0 16px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   font-size: 14px;
   font-weight: 800;
+}
+
+.cart-count {
+  display: none;
 }
 
 .cart-btn svg {
@@ -572,14 +580,29 @@ onMounted(() => {
 }
 
 @media (max-width: 1160px) {
-  .desktop-nav,
-  .cart-btn,
-  .lang-switch,
-  .icon-btn {
+  .desktop-nav {
     display: none;
   }
 
-  .notify-btn {
+  .notify-btn,
+  .lang-switch,
+  .icon-btn,
+  .cart-btn {
+    display: inline-flex;
+  }
+
+  .cart-btn {
+    width: 44px;
+    min-height: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .cart-text {
+    display: none;
+  }
+
+  .cart-count {
     display: inline-flex;
   }
 
@@ -591,10 +614,53 @@ onMounted(() => {
 @media (max-width: 680px) {
   .header-box {
     border-radius: 22px;
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .brand-mark {
+    width: 50px;
+    height: 50px;
+  }
+
+  .brand-mark-letter {
+    font-size: 18px;
+  }
+
+  .brand-text strong {
+    font-size: 14px;
+    letter-spacing: 0.05em;
   }
 
   .brand-text span {
     display: none;
+  }
+
+  .header-actions {
+    gap: 6px;
+  }
+
+  .icon-btn,
+  .notify-btn,
+  .cart-btn,
+  .burger-btn {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+  }
+
+  .lang-switch {
+    padding: 2px;
+  }
+
+  .lang-link {
+    min-width: 30px;
+    min-height: 30px;
+    font-size: 11px;
   }
 
   .topline-inner {
