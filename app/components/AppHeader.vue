@@ -13,7 +13,7 @@
       <div class="header-box">
         <NuxtLink :to="localePath('/')" class="brand" @click="closeMobileMenu">
           <span class="brand-mark">
-            <span class="brand-mark-letter">OS</span>
+            <img src="/logo-mark.png" alt="ONE STYLE FOREVER" />
           </span>
 
           <span class="brand-text">
@@ -352,12 +352,10 @@ onMounted(() => {
   place-items: center;
 }
 
-.brand-mark-letter {
-  font-size: 20px;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: 0.02em;
-  color: #1f5f3d;
+.brand-mark img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
 }
 
 .brand-text {
@@ -627,8 +625,9 @@ onMounted(() => {
     height: 50px;
   }
 
-  .brand-mark-letter {
-    font-size: 18px;
+  .brand-mark img {
+    width: 28px;
+    height: 28px;
   }
 
   .brand-text strong {
