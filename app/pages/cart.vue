@@ -361,7 +361,8 @@ const cartItemKey = (item: CartItem) => `${item.id}-${item.selectedSize}`
 .cart-image-wrap {
   min-height: 220px;
   border-radius: 26px;
-  background: #eef4ef;
+  background: #fff;
+  border: 1px solid var(--border);
   display: grid;
   place-items: center;
   padding: 22px;

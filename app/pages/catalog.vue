@@ -1100,7 +1100,7 @@ useHead(
   position: relative;
   min-height: 0;
   aspect-ratio: 1 / 1;
-  background: linear-gradient(180deg, #fff 0%, #f8fbf9 100%);
+  background: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1503,15 +1503,15 @@ useHead(
 
 @media (max-width: 900px) {
   .mobile-sticky-filters {
-    position: sticky;
-    top: 84px;
-    z-index: 30;
+    position: static;
+    top: auto;
+    z-index: 1;
     margin-bottom: 10px;
     padding: 10px;
     border: 1px solid var(--border);
     border-radius: 16px;
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(8px);
+    background: #fff;
+    backdrop-filter: none;
     display: flex;
     align-items: center;
     gap: 8px;
