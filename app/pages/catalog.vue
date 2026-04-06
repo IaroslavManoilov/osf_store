@@ -1114,12 +1114,12 @@ useHead(
   display: flex;
   align-items: center;
   justify-content: center;
-  width: min(100%, 420px);
+  width: 100%;
   height: 100%;
   aspect-ratio: 1 / 1;
-  padding: 58px 14px 14px;
-  border-radius: 20px;
-  background: #f2f7f3;
+  padding: 48px 8px 8px;
+  border-radius: 18px;
+  background: #fff;
   overflow: hidden;
 }
 
@@ -1131,6 +1131,7 @@ useHead(
   object-fit: contain;
   object-position: center;
   display: block;
+  transform: scale(1.1);
   filter: drop-shadow(0 8px 14px rgba(13, 27, 18, 0.08));
 }
 
@@ -1599,12 +1600,12 @@ useHead(
   }
 
   .product-media {
-    padding: 10px;
+    padding: 8px;
   }
 
   .product-media-link {
-    width: min(100%, 360px);
-    padding: 52px 10px 10px;
+    width: 100%;
+    padding: 44px 6px 6px;
     border-radius: 16px;
   }
 
