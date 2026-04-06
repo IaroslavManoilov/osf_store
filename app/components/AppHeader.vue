@@ -17,8 +17,9 @@
           </span>
 
           <span class="brand-text">
-            <strong>ONE STYLE</strong>
-            <span>FOREVER</span>
+            <strong class="brand-full">ONE STYLE</strong>
+            <span class="brand-forever">FOREVER</span>
+            <strong class="brand-mobile">OSF</strong>
           </span>
         </NuxtLink>
 
@@ -314,11 +315,21 @@ onMounted(() => {
   align-items: center;
   font-size: 13px;
   font-weight: 700;
+  min-width: 0;
+}
+
+.topline-inner span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .topline-link {
   color: #fff;
   border-bottom: 1px solid rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .header-box {
@@ -333,6 +344,7 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
+  position: relative;
 }
 
 .brand {
@@ -372,17 +384,29 @@ onMounted(() => {
   letter-spacing: 0.08em;
 }
 
-.brand-text span {
+.brand-forever {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.24em;
   color: var(--muted);
 }
 
+.brand-mobile {
+  display: none;
+}
+
 .desktop-nav {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+@media (min-width: 1161px) {
+  .desktop-nav {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
 }
 
 .nav-link {
@@ -406,6 +430,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
+  min-width: 0;
 }
 
 .icon-btn,
@@ -634,13 +660,18 @@ onMounted(() => {
     height: 40px;
   }
 
-  .brand-text strong {
-    font-size: 14px;
-    letter-spacing: 0.05em;
+  .brand-full {
+    display: none;
   }
 
-  .brand-text span {
+  .brand-forever {
     display: none;
+  }
+
+  .brand-mobile {
+    display: block;
+    font-size: 14px;
+    letter-spacing: 0.08em;
   }
 
   .header-actions {
@@ -669,6 +700,55 @@ onMounted(() => {
   .topline-inner {
     min-height: 34px;
     font-size: 12px;
+  }
+}
+
+@media (max-width: 980px) {
+  .header-box {
+    padding: 8px 10px;
+    gap: 10px;
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .brand-mark {
+    width: 54px;
+    height: 54px;
+  }
+
+  .brand-mark img {
+    width: 42px;
+    height: 42px;
+  }
+
+  .brand-full,
+  .brand-mobile {
+    font-size: 14px;
+    letter-spacing: 0.06em;
+  }
+
+  .header-actions {
+    gap: 6px;
+  }
+
+  .icon-btn,
+  .notify-btn,
+  .cart-btn,
+  .burger-btn {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+  }
+
+  .lang-switch {
+    padding: 2px;
+  }
+
+  .lang-link {
+    min-width: 32px;
+    min-height: 32px;
   }
 }
 </style>

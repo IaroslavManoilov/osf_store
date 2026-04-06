@@ -373,7 +373,7 @@ const localePath = useLocalePath()
 
 .visual-box img {
   width: 100%;
-  max-width: 220px;
+  max-width: 360px;
   object-fit: contain;
 }
 
@@ -598,6 +598,10 @@ const localePath = useLocalePath()
   .visual-box {
     min-height: 210px;
     border-radius: 22px;
+  }
+
+  .visual-box img {
+    max-width: 340px;
   }
 
   .value-card {

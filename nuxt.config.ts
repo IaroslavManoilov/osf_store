@@ -29,13 +29,18 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: 'ONE STYLE FOREVER',
+      title: 'OSF',
+      titleTemplate: 'OSF',
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
         {
           name: 'description',
           content: 'ONE STYLE FOREVER — modern online clothing store from Moldova.'
         }
+      ],
+      link: [
+        { rel: 'icon', type: 'image/png', href: '/logo-mark.png' },
+        { rel: 'apple-touch-icon', href: '/logo-mark.png' }
       ]
     }
   },

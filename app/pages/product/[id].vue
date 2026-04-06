@@ -1719,19 +1719,63 @@ useHead(
     padding: 18px;
   }
 
+  .product-layout {
+    grid-template-columns: minmax(150px, 44%) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+  }
+
   .main-image {
-    min-height: 310px;
+    min-height: 272px;
     border-radius: 18px;
+    padding: 10px;
+  }
+
+  .main-image-media {
+    max-width: 248px;
+    max-height: 268px;
+  }
+
+  .product-title {
+    font-size: 24px;
+    line-height: 1.02;
+  }
+
+  .product-description {
+    margin-top: 8px;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  .price-block {
+    margin-top: 10px;
+  }
+
+  .price-block strong {
+    font-size: 30px;
   }
 
   .gallery-counter {
     top: 12px;
     right: 12px;
+    font-size: 10px;
   }
 
   .zoom-hint-btn {
     right: 12px;
     bottom: 12px;
+    min-height: 30px;
+    font-size: 11px;
+  }
+
+  .thumbs {
+    gap: 6px;
+  }
+
+  .thumb-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
   }
 
   .actions-row {

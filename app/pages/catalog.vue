@@ -1117,7 +1117,7 @@ useHead(
   width: 100%;
   height: 100%;
   aspect-ratio: 1 / 1;
-  padding: 58px 12px 12px;
+  padding: 64px 12px 12px;
   border-radius: 18px;
   background: #fff;
   overflow: hidden;
@@ -1126,20 +1126,20 @@ useHead(
 .product-media img {
   width: 100%;
   height: 100%;
-  max-width: none;
-  max-height: none;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   object-position: center;
   display: block;
-  transform: scale(1.03);
+  transform: none;
   filter: drop-shadow(0 8px 14px rgba(13, 27, 18, 0.08));
 }
 
 .product-badge {
   position: absolute;
-  top: 16px;
+  top: 14px;
   left: 16px;
-  z-index: 3;
+  z-index: 7;
   min-height: 36px;
   padding: 0 14px;
   border-radius: 999px;
@@ -1148,6 +1148,7 @@ useHead(
   background: #fff;
   border: 1px solid var(--border);
   font-size: 13px;
+  line-height: 1.1;
   font-weight: 800;
 }
 
@@ -1157,9 +1158,9 @@ useHead(
 
 .wishlist-toggle {
   position: absolute;
-  top: 16px;
+  top: 14px;
   right: 16px;
-  z-index: 3;
+  z-index: 7;
   width: 42px;
   height: 42px;
   border-radius: 999px;
@@ -1516,6 +1517,7 @@ useHead(
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
   }
 
   .mobile-filter-btn {
@@ -1545,6 +1547,9 @@ useHead(
     font-weight: 700;
     color: #58697f;
     white-space: nowrap;
+    flex: 1 0 100%;
+    text-align: right;
+    margin-left: 0;
   }
 
   .filters-box {
@@ -1558,7 +1563,67 @@ useHead(
   .catalog-intro,
   .filters-box,
   .empty-box {
-    padding: 24px;
+    padding: 20px;
+  }
+
+  .catalog-intro-top {
+    gap: 14px;
+  }
+
+  .catalog-title {
+    font-size: clamp(34px, 7vw, 46px);
+    line-height: 0.98;
+  }
+
+  .catalog-subtitle {
+    margin-top: 10px;
+    font-size: 17px;
+  }
+
+  .catalog-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .summary-item {
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+
+  .summary-item strong {
+    margin-bottom: 3px;
+    font-size: 18px;
+  }
+
+  .summary-item span {
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  .catalog-toolbar {
+    margin-top: 14px;
+    gap: 10px;
+  }
+
+  .search-box,
+  .sort-select {
+    min-height: 50px;
+    border-radius: 16px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .catalog-benefits {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    gap: 6px;
+  }
+
+  .catalog-benefits span {
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 11px;
   }
 
   .catalog-toolbar {
@@ -1649,30 +1714,127 @@ useHead(
   .catalog-intro,
   .filters-box,
   .empty-box {
-    padding: 18px;
+    padding: 14px;
+  }
+
+  .catalog-intro-top {
+    gap: 10px;
   }
 
   .catalog-title {
-    font-size: 40px;
-    line-height: 1;
+    font-size: clamp(30px, 10vw, 38px);
+    line-height: 0.96;
   }
 
   .catalog-subtitle {
+    margin-top: 8px;
+    font-size: 15px;
+  }
+
+  .catalog-summary {
+    gap: 6px;
+  }
+
+  .summary-item {
+    padding: 10px 12px;
+    border-radius: 14px;
+  }
+
+  .summary-item strong {
+    margin-bottom: 2px;
     font-size: 16px;
   }
 
+  .summary-item span {
+    font-size: 13px;
+  }
+
+  .catalog-toolbar {
+    margin-top: 10px;
+    gap: 8px;
+  }
+
+  .search-box,
+  .sort-select {
+    min-height: 44px;
+    border-radius: 14px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .search-box svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .catalog-benefits {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 14px;
+  }
+
+  .catalog-benefits span {
+    min-height: 28px;
+    font-size: 10px;
+    padding: 0 9px;
+  }
+
+  .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .product-card {
+    display: block;
+    border-radius: 16px;
+  }
+
   .product-media {
-    padding: 10px;
+    min-height: 0;
+    aspect-ratio: 1 / 1;
+    padding: 6px;
   }
 
   .product-media-link {
     width: 100%;
-    padding: 52px 8px 8px;
-    border-radius: 16px;
+    height: 100%;
+    min-height: 0;
+    aspect-ratio: 1 / 1;
+    padding: 44px 4px 4px;
+    border-radius: 14px;
+  }
+
+  .product-media img {
+    transform: scale(1.16);
+    transform-origin: center;
   }
 
   .product-body {
     padding: 10px;
+  }
+
+  .product-meta-row {
+    margin-bottom: 6px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .product-options {
+    display: block;
+    margin-top: 6px;
+  }
+
+  .product-options .option-row:first-child {
+    display: none;
+  }
+
+  .option-label {
+    font-size: 12px;
+  }
+
+  .size-list {
+    gap: 6px;
   }
 
   .product-title-link h3 {

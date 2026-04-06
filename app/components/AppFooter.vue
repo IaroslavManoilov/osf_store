@@ -178,6 +178,8 @@ const localePath = useLocalePath()
 .footer-section a {
   color: #a9b5c3;
   font-size: 14px;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .footer-section a:hover {
@@ -202,13 +204,15 @@ const localePath = useLocalePath()
 
 @media (max-width: 880px) {
   .footer-content {
-    grid-template-columns: 1fr;
-    gap: 32px;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    gap: 22px;
   }
 
   .footer-links {
-    gap: 24px;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    justify-content: stretch;
   }
 }
 
@@ -217,17 +221,100 @@ const localePath = useLocalePath()
     padding: 38px 0 22px;
   }
 
+  .footer-content {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+  }
+
   .footer-brand h3 {
-    font-size: 24px;
+    font-size: 22px;
+    margin-bottom: 10px;
+  }
+
+  .footer-brand p {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .trust-row {
+    margin-top: 14px;
+    gap: 6px;
+  }
+
+  .trust-pill {
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .footer-social {
+    margin-top: 12px;
   }
 
   .footer-links {
-    flex-direction: column;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .footer-section h4 {
+    margin-bottom: 10px;
+    font-size: 12px;
+  }
+
+  .footer-section li {
+    margin-bottom: 6px;
+  }
+
+  .footer-section a {
+    font-size: 13px;
   }
 
   .footer-bottom {
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .footer-bottom p {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 540px) {
+  .footer-content {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .footer-links {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .footer-brand h3 {
+    font-size: 20px;
+  }
+
+  .footer-brand p {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .footer-section h4 {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+  }
+
+  .footer-section a {
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  .footer-bottom {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
   }
 }
 </style>

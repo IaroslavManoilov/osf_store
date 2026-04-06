@@ -76,13 +76,12 @@
             <article v-for="product in featuredProducts" :key="product.id" class="product-card">
               <div class="product-media">
                 <span class="product-badge" :class="{ hot: product.badge === 'HOT' }">{{ product.badge }}</span>
-
                 <button
                   type="button"
                   class="wishlist-toggle"
                   :class="{ active: isWishlisted(product.id) }"
-                  @click="toggleProductWishlist(product)"
                   :aria-label="wishlistButtonLabel(product.id)"
+                  @click="toggleProductWishlist(product)"
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path
@@ -560,7 +559,7 @@ useHead(
 
 .intro-visual-main img {
   width: 100%;
-  max-width: 240px;
+  max-width: 360px;
   object-fit: contain;
 }
 
@@ -651,38 +650,61 @@ useHead(
   position: relative;
   display: grid;
   place-items: center;
-  padding: 16px;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.product-media-link {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 52px 12px 12px;
+  border-radius: 18px;
+  background: #fff;
+  overflow: hidden;
 }
 
 .product-media img {
-  max-width: 200px;
+  width: 100%;
+  height: 100%;
+  max-width: 220px;
   max-height: 220px;
   object-fit: contain;
+  object-position: center;
+  display: block;
 }
 
 .product-badge {
   position: absolute;
-  top: 14px;
-  left: 14px;
+  top: 16px;
+  left: 16px;
+  z-index: 5;
   min-height: 28px;
   padding: 0 10px;
   border-radius: 999px;
-  background: var(--success);
-  color: #fff;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--primary);
   font-size: 11px;
+  line-height: 1.1;
   font-weight: 800;
   display: inline-flex;
   align-items: center;
 }
 
 .product-badge.hot {
-  background: #d05d37;
+  color: #9a4b3d;
 }
 
 .wishlist-toggle {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 16px;
+  right: 16px;
+  z-index: 5;
   width: 36px;
   height: 36px;
   border-radius: 999px;
@@ -784,6 +806,9 @@ useHead(
 
 .quick-btn,
 .buy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 38px;
   padding: 0 12px;
   border-radius: 999px;
@@ -939,18 +964,25 @@ useHead(
 
   .product-card {
     display: grid;
-    grid-template-columns: minmax(300px, 38%) minmax(0, 1fr);
+    grid-template-columns: minmax(330px, 44%) minmax(0, 1fr);
     align-items: stretch;
   }
 
   .product-media {
-    min-height: 300px;
-    padding: 18px;
+    min-height: 330px;
+    padding: 8px;
+  }
+
+  .product-media-link {
+    padding: 28px 4px 4px;
   }
 
   .product-media img {
-    max-width: 280px;
-    max-height: 280px;
+    width: 100%;
+    max-width: 420px;
+    max-height: 420px;
+    transform: scale(1.14);
+    margin: 0 auto;
   }
 
   .product-body {
@@ -986,12 +1018,73 @@ useHead(
 }
 
 @media (max-width: 760px) {
+  .home-page {
+    padding-top: 12px;
+  }
+
+  .intro-grid {
+    gap: 12px;
+  }
+
   .intro-card,
   .intro-visual-card,
   .featured-box,
   .philosophy-box,
   .final-box {
-    padding: 18px;
+    padding: 14px;
+  }
+
+  .intro-badges,
+  .intro-features,
+  .intro-actions {
+    gap: 8px;
+  }
+
+  .intro-badges {
+    margin-bottom: 10px;
+  }
+
+  .intro-title {
+    font-size: clamp(34px, 11vw, 46px);
+    line-height: 0.95;
+  }
+
+  .intro-text {
+    margin: 10px 0 14px;
+    font-size: 16px;
+  }
+
+  .intro-features {
+    margin-top: 12px;
+  }
+
+  .intro-visual-card {
+    gap: 10px;
+  }
+
+  .intro-visual-main {
+    min-height: 200px;
+    border-radius: 20px;
+    padding: 12px;
+  }
+
+  .intro-visual-main img {
+    max-width: 340px;
+  }
+
+  .intro-quote {
+    padding: 14px 16px;
+    border-radius: 18px;
+  }
+
+  .intro-quote strong {
+    margin-bottom: 6px;
+    font-size: 18px;
+  }
+
+  .intro-quote p {
+    font-size: 15px;
+    line-height: 1.45;
   }
 
   .section-head {
@@ -1000,16 +1093,35 @@ useHead(
   }
 
   .product-card {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(140px, 42%) minmax(0, 1fr);
   }
 
   .product-media {
-    min-height: 220px;
+    min-height: 100%;
+    padding: 8px;
+  }
+
+  .product-media-link {
+    min-height: 170px;
+    height: 100%;
+    padding: 30px 4px 4px;
+    border-radius: 12px;
   }
 
   .product-media img {
     max-width: 220px;
     max-height: 220px;
+    margin: 0 auto;
+  }
+
+  .product-badge {
+    top: 12px;
+    left: 12px;
+  }
+
+  .wishlist-toggle {
+    top: 12px;
+    right: 12px;
   }
 
   .product-title-link h3 {
