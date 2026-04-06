@@ -354,11 +354,10 @@ onMounted(() => {
 }
 
 .brand-mark img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
   object-position: center;
-  transform: scale(3.1);
 }
 
 .brand-text {
@@ -629,9 +628,8 @@ onMounted(() => {
   }
 
   .brand-mark img {
-    width: 100%;
-    height: 100%;
-    transform: scale(3);
+    width: 34px;
+    height: 34px;
   }
 
   .brand-text strong {
