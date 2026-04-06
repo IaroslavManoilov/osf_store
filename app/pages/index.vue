@@ -772,8 +772,9 @@ useHead(
 }
 
 .product-bottom strong {
-  font-size: 24px;
-  line-height: 1;
+  font-size: 22px;
+  line-height: 1.05;
+  white-space: nowrap;
 }
 
 .product-actions {
@@ -971,7 +972,7 @@ useHead(
   }
 
   .product-bottom strong {
-    font-size: 42px;
+    font-size: 30px;
   }
 
   .intro-grid,
@@ -1021,7 +1022,7 @@ useHead(
   }
 
   .product-bottom strong {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .product-actions,
