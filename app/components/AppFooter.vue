@@ -1,30 +1,76 @@
 <template>
-  <footer class="footer-wrap">
+  <footer class="app-footer">
     <div class="site-container">
-      <div class="surface-card footer-box">
-        <div class="footer-grid">
-          <div class="footer-brand">
-            <div class="footer-logo">
-              <img src="/logo-mark.png" alt="ONE STYLE FOREVER" />
-            </div>
+      <div class="footer-content">
+        <div class="footer-brand">
+          <h3>ONE STYLE FOREVER</h3>
+          <p>{{ $t('footer.description') }}</p>
 
-            <div class="footer-brand-text">
-              <strong>ONE_STYLE</strong>
-              <span>FOREVER</span>
-            </div>
+          <div class="trust-row">
+            <span class="trust-pill">{{ $t('footer.trustShipping') }}</span>
+            <span class="trust-pill">{{ $t('footer.trustPayment') }}</span>
+            <span class="trust-pill">{{ $t('footer.trustSupport') }}</span>
           </div>
 
-          <nav class="footer-nav">
-            <NuxtLink :to="localePath('/')">{{ $t('nav.home') }}</NuxtLink>
-            <NuxtLink :to="localePath('/catalog')">{{ $t('nav.catalog') }}</NuxtLink>
-            <NuxtLink :to="localePath('/about')">{{ $t('nav.about') }}</NuxtLink>
-            <NuxtLink :to="localePath('/cart')">{{ $t('nav.cart') }}</NuxtLink>
-          </nav>
+          <div class="footer-social">
+            <a
+              href="https://www.instagram.com/iaroslav_manoilov_/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Instagram"
+              class="social-link"
+            >
+              IG
+            </a>
+            <a
+              href="https://t.me/iaroslav_manoilov"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Telegram"
+              class="social-link"
+            >
+              TG
+            </a>
+          </div>
         </div>
 
-        <div class="footer-bottom">
-          <p>{{ $t('footer.text') }}</p>
+        <div class="footer-links">
+          <div class="footer-section">
+            <h4>{{ $t('footer.shop') }}</h4>
+            <ul>
+              <li><NuxtLink :to="localePath('/catalog')">{{ $t('nav.catalog') }}</NuxtLink></li>
+              <li><NuxtLink :to="localePath('/wishlist')">{{ $t('nav.wishlist') }}</NuxtLink></li>
+              <li><NuxtLink :to="localePath('/cart')">{{ $t('nav.cart') }}</NuxtLink></li>
+              <li><NuxtLink :to="localePath('/checkout')">{{ $t('nav.checkout') }}</NuxtLink></li>
+            </ul>
+          </div>
+
+          <div class="footer-section">
+            <h4>{{ $t('footer.company') }}</h4>
+            <ul>
+              <li><NuxtLink :to="localePath('/about')">{{ $t('nav.about') }}</NuxtLink></li>
+              <li><NuxtLink :to="localePath('/contacts')">{{ $t('footer.contact') }}</NuxtLink></li>
+              <li><NuxtLink :to="localePath('/shipping')">{{ $t('footer.shipping') }}</NuxtLink></li>
+              <li><NuxtLink :to="localePath('/returns')">{{ $t('footer.returns') }}</NuxtLink></li>
+              <li><NuxtLink :to="localePath('/admin')">Admin</NuxtLink></li>
+            </ul>
+          </div>
+
+          <div class="footer-section">
+            <h4>{{ $t('footer.support') }}</h4>
+            <ul>
+              <li><NuxtLink :to="localePath('/faq')">{{ $t('footer.faq') }}</NuxtLink></li>
+              <li><NuxtLink :to="localePath('/size-guide')">{{ $t('footer.sizeGuide') }}</NuxtLink></li>
+              <li><NuxtLink :to="localePath('/care')">{{ $t('footer.care') }}</NuxtLink></li>
+              <li><NuxtLink :to="localePath('/privacy')">{{ $t('footer.privacy') }}</NuxtLink></li>
+            </ul>
+          </div>
         </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p>{{ $t('footer.copyright') }}</p>
+        <p>{{ $t('footer.paymentLine') }}</p>
       </div>
     </div>
   </footer>
@@ -35,100 +81,152 @@ const localePath = useLocalePath()
 </script>
 
 <style scoped>
-.footer-wrap {
-  padding: 0 0 24px;
+.app-footer {
+  background: linear-gradient(135deg, #131a20, #0f151a);
+  color: #f5f7fa;
+  padding: 54px 0 26px;
+  margin-top: auto;
 }
 
-.footer-box {
-  padding: 26px 28px;
-}
-
-.footer-grid {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 22px;
-}
-
-.footer-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.footer-logo {
-  width: 52px;
-  height: 52px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: #f8faf8;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.footer-logo img {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-}
-
-.footer-brand-text {
+.footer-content {
   display: grid;
-  line-height: 1;
+  grid-template-columns: 1fr auto;
+  gap: 48px;
+  margin-bottom: 28px;
 }
 
-.footer-brand-text strong {
-  font-size: 18px;
+.footer-brand h3 {
+  font-size: 30px;
+  margin: 0 0 14px;
   letter-spacing: -0.03em;
 }
 
-.footer-brand-text span {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 14px;
+.footer-brand p {
+  max-width: 560px;
+  margin: 0;
+  color: #a1acb9;
+  line-height: 1.7;
 }
 
-.footer-nav {
+.trust-row {
+  margin-top: 20px;
   display: flex;
-  gap: 18px;
   flex-wrap: wrap;
+  gap: 8px;
 }
 
-.footer-nav a {
+.trust-pill {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid #313f4d;
+  color: #cfdae6;
+  font-size: 12px;
   font-weight: 700;
-  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+}
+
+.footer-social {
+  margin-top: 18px;
+  display: flex;
+  gap: 10px;
+}
+
+.social-link {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid #334152;
+  color: #ecf2f8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
   transition: 0.2s ease;
 }
 
-.footer-nav a:hover {
-  color: var(--text);
+.social-link:hover {
+  background: #216640;
+  border-color: #216640;
+}
+
+.footer-links {
+  display: flex;
+  gap: 46px;
+}
+
+.footer-section h4 {
+  margin: 0 0 16px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #d8e3ef;
+}
+
+.footer-section ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.footer-section li {
+  margin-bottom: 8px;
+}
+
+.footer-section a {
+  color: #a9b5c3;
+  font-size: 14px;
+}
+
+.footer-section a:hover {
+  color: #eef4fb;
 }
 
 .footer-bottom {
-  margin-top: 22px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid #2f3d4d;
+  padding-top: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .footer-bottom p {
   margin: 0;
-  color: var(--muted);
-  line-height: 1.6;
+  color: #8f9baa;
+  font-size: 13px;
 }
 
-@media (max-width: 760px) {
-  .footer-box {
-    padding: 20px 18px;
+@media (max-width: 880px) {
+  .footer-content {
+    grid-template-columns: 1fr;
+    gap: 32px;
   }
 
-  .footer-grid {
+  .footer-links {
+    gap: 24px;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 680px) {
+  .app-footer {
+    padding: 38px 0 22px;
+  }
+
+  .footer-brand h3 {
+    font-size: 24px;
+  }
+
+  .footer-links {
     flex-direction: column;
-    align-items: flex-start;
   }
 
-  .footer-nav {
-    gap: 12px;
+  .footer-bottom {
+    align-items: flex-start;
     flex-direction: column;
   }
 }

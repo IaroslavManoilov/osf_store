@@ -20,9 +20,9 @@
                   {{ t('about.ctaCatalog') }}
                 </NuxtLink>
 
-                <a href="#contacts" class="btn-alt">
+                <NuxtLink :to="localePath('/contacts')" class="btn-alt">
                   {{ t('about.ctaContacts') }}
-                </a>
+                </NuxtLink>
               </div>
             </div>
 

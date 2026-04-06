@@ -7,26 +7,16 @@
             <div class="intro-badges">
               <span class="pill">{{ ui.badgeLocation }}</span>
               <span class="pill">{{ ui.badgeBrand }}</span>
+              <span class="pill">{{ ui.abBadge }}</span>
             </div>
 
             <span class="section-label">{{ ui.label }}</span>
-
-            <h1 class="section-title intro-title">
-              {{ ui.title }}
-            </h1>
-
-            <p class="section-text intro-text">
-              {{ ui.subtitle }}
-            </p>
+            <h1 class="section-title intro-title">{{ ui.title }}</h1>
+            <p class="section-text intro-text">{{ ui.subtitle }}</p>
 
             <div class="intro-actions">
-              <NuxtLink :to="localePath('/catalog')" class="btn-main">
-                {{ ui.ctaCatalog }}
-              </NuxtLink>
-
-              <NuxtLink :to="localePath('/about')" class="btn-alt">
-                {{ ui.ctaAbout }}
-              </NuxtLink>
+              <NuxtLink :to="localePath('/catalog')" class="btn-main cta-pulse">{{ ui.ctaCatalog }}</NuxtLink>
+              <NuxtLink :to="localePath('/about')" class="btn-alt">{{ ui.ctaAbout }}</NuxtLink>
             </div>
 
             <div class="intro-features">
@@ -47,6 +37,25 @@
             </div>
           </div>
         </div>
+
+        <div class="surface-card stats-strip">
+          <div class="stat-item">
+            <strong>{{ featuredProducts.length }}</strong>
+            <span>{{ ui.stat1 }}</span>
+          </div>
+          <div class="stat-item">
+            <strong>2-3</strong>
+            <span>{{ ui.stat2 }}</span>
+          </div>
+          <div class="stat-item">
+            <strong>14</strong>
+            <span>{{ ui.stat3 }}</span>
+          </div>
+          <div class="stat-item">
+            <strong>24/7</strong>
+            <span>{{ ui.stat4 }}</span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -57,26 +66,16 @@
             <div>
               <span class="section-label">{{ ui.featuredLabel }}</span>
               <h2 class="block-title">{{ ui.featuredTitle }}</h2>
-              <p class="section-text block-text">
-                {{ ui.featuredText }}
-              </p>
+              <p class="section-text block-text">{{ ui.featuredText }}</p>
             </div>
 
-            <NuxtLink :to="localePath('/catalog')" class="btn-alt">
-              {{ ui.featuredAction }}
-            </NuxtLink>
+            <NuxtLink :to="localePath('/catalog')" class="btn-alt">{{ ui.featuredAction }}</NuxtLink>
           </div>
 
           <div class="product-grid">
-            <article
-              v-for="product in featuredProducts"
-              :key="product.id"
-              class="product-card"
-            >
+            <article v-for="product in featuredProducts" :key="product.id" class="product-card">
               <div class="product-media">
-                <span class="product-badge" :class="{ hot: product.badge === 'HOT' }">
-                  {{ product.badge }}
-                </span>
+                <span class="product-badge" :class="{ hot: product.badge === 'HOT' }">{{ product.badge }}</span>
 
                 <button
                   type="button"
@@ -111,41 +110,27 @@
                   <h3>{{ product.title }}</h3>
                 </NuxtLink>
 
-                <p>{{ product.description }}</p>
+                <p>{{ product.shortDescription }}</p>
 
-                <div class="product-options">
-                  <div class="option-row">
-                    <span class="option-label">{{ ui.size }}</span>
-
-                    <div class="size-list">
-                      <button
-                        v-for="size in product.sizes"
-                        :key="`${product.id}-${size}`"
-                        type="button"
-                        class="size-pill"
-                        :class="{ active: getSelectedSize(product.id) === size }"
-                        @click="selectSize(product.id, size)"
-                      >
-                        {{ size }}
-                      </button>
-                    </div>
-                  </div>
+                <div class="size-list">
+                  <button
+                    v-for="size in product.sizes"
+                    :key="`${product.id}-${size}`"
+                    type="button"
+                    class="size-pill"
+                    :class="{ active: getSelectedSize(product.id) === size }"
+                    @click="selectSize(product.id, size)"
+                  >
+                    {{ size }}
+                  </button>
                 </div>
 
                 <div class="product-bottom">
                   <strong>{{ product.price }} MDL</strong>
 
                   <div class="product-actions">
-                    <NuxtLink :to="localePath(`/product/${product.id}`)" class="quick-btn">
-                      {{ ui.quickView }}
-                    </NuxtLink>
-
-                    <button
-                      type="button"
-                      class="buy-btn"
-                      :disabled="!getSelectedSize(product.id)"
-                      @click="addFeaturedToCart(product)"
-                    >
+                    <NuxtLink :to="localePath(`/product/${product.id}`)" class="quick-btn">{{ ui.quickView }}</NuxtLink>
+                    <button type="button" class="buy-btn" :disabled="!getSelectedSize(product.id)" @click="addFeaturedToCart(product)">
                       {{ getSelectedSize(product.id) ? ui.addToCart : ui.chooseSize }}
                     </button>
                   </div>
@@ -162,26 +147,18 @@
         <div class="surface-card philosophy-box">
           <div class="philosophy-content">
             <span class="section-label">{{ ui.philosophyLabel }}</span>
-
-            <h2 class="block-title philosophy-title">
-              {{ ui.philosophyTitle }}
-            </h2>
-
-            <p class="section-text philosophy-text">
-              {{ ui.philosophyText }}
-            </p>
+            <h2 class="block-title philosophy-title">{{ ui.philosophyTitle }}</h2>
+            <p class="section-text philosophy-text">{{ ui.philosophyText }}</p>
 
             <div class="philosophy-list">
               <div class="philosophy-item">
                 <strong>{{ ui.philosophyItem1Title }}</strong>
                 <span>{{ ui.philosophyItem1Text }}</span>
               </div>
-
               <div class="philosophy-item">
                 <strong>{{ ui.philosophyItem2Title }}</strong>
                 <span>{{ ui.philosophyItem2Text }}</span>
               </div>
-
               <div class="philosophy-item">
                 <strong>{{ ui.philosophyItem3Title }}</strong>
                 <span>{{ ui.philosophyItem3Text }}</span>
@@ -196,28 +173,56 @@
       </div>
     </section>
 
+    <section class="features-section">
+      <div class="site-container">
+        <div class="features-grid">
+          <article class="feature-card">
+            <h3>{{ $t('home.features.quality.title') }}</h3>
+            <p>{{ $t('home.features.quality.text') }}</p>
+          </article>
+          <article class="feature-card">
+            <h3>{{ $t('home.features.delivery.title') }}</h3>
+            <p>{{ $t('home.features.delivery.text') }}</p>
+          </article>
+          <article class="feature-card">
+            <h3>{{ $t('home.features.support.title') }}</h3>
+            <p>{{ $t('home.features.support.text') }}</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="rating-section">
+      <div class="site-container">
+        <div class="rating-panel">
+          <div>
+            <span class="section-label">{{ ui.ratingLabel }}</span>
+            <h2 class="block-title">{{ ui.ratingTitle }}</h2>
+            <p class="section-text">{{ ui.ratingText }}</p>
+          </div>
+
+          <div class="rating-score">
+            <div class="rating-stars" aria-hidden="true">
+              <span v-for="star in 5" :key="`home-rating-${star}`" :class="{ active: star <= 5 }">★</span>
+            </div>
+            <strong>0.0 / 5</strong>
+            <span>{{ ui.ratingEmpty }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="section-space">
       <div class="site-container">
         <div class="surface-card final-box">
           <div class="final-content">
             <span class="section-label">{{ ui.finalLabel }}</span>
-
-            <h2 class="block-title final-title">
-              {{ ui.finalTitle }}
-            </h2>
-
-            <p class="section-text final-text">
-              {{ ui.finalText }}
-            </p>
+            <h2 class="block-title final-title">{{ ui.finalTitle }}</h2>
+            <p class="section-text final-text">{{ ui.finalText }}</p>
 
             <div class="intro-actions">
-              <NuxtLink :to="localePath('/catalog')" class="btn-main">
-                {{ ui.finalCatalog }}
-              </NuxtLink>
-
-              <NuxtLink :to="localePath('/about')" class="btn-alt">
-                {{ ui.finalAbout }}
-              </NuxtLink>
+              <NuxtLink :to="localePath('/catalog')" class="btn-main cta-pulse">{{ ui.finalCatalog }}</NuxtLink>
+              <NuxtLink :to="localePath('/about')" class="btn-alt">{{ ui.finalAbout }}</NuxtLink>
             </div>
           </div>
         </div>
@@ -227,7 +232,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getProducts } from '~/data/products'
 import type { ProductItem } from '~/stores/shop'
@@ -237,91 +242,130 @@ const localePath = useLocalePath()
 const shopStore = useShopStore()
 const { getSelectedSize, selectSize, addProductWithSize, selectedSizes } = useProductActions()
 
+const abVariant = ref<'A' | 'B'>('A')
+
+onMounted(() => {
+  const key = 'osf_home_ab_v1'
+  let stored: string | null = null
+
+  try {
+    stored = window.localStorage.getItem(key)
+  } catch {
+    stored = null
+  }
+
+  if (stored === 'A' || stored === 'B') {
+    abVariant.value = stored
+    return
+  }
+
+  abVariant.value = Math.random() > 0.5 ? 'B' : 'A'
+  try {
+    window.localStorage.setItem(key, abVariant.value)
+  } catch {
+    // Ignore storage write failures.
+  }
+})
+
 const ui = computed(() => {
   if (locale.value === 'ro') {
     return {
       badgeLocation: 'Moldova • Chișinău',
-      badgeBrand: 'Brand selection',
+      badgeBrand: 'Selecția săptămânii',
+      abBadge: abVariant.value === 'B' ? 'Oferta B • focus pe beneficii' : 'Oferta A • focus pe brand',
       label: 'ONE STYLE FOREVER',
-      title: 'Brand modern de haine cu prezentare curată',
-      subtitle:
-        'ONE STYLE FOREVER este mai mult decât haine — este stil, identitate vizuală și un mod clar de a construi un brand recognoscibil.',
-      ctaCatalog: 'Vezi catalogul',
+      title: abVariant.value === 'B' ? 'Ținute premium pentru fiecare zi' : 'Brand modern de haine',
+      subtitle: abVariant.value === 'B'
+        ? 'Alege rapid modelele potrivite.'
+        : 'Stil curat, confort și cumpărare simplă.',
+      ctaCatalog: abVariant.value === 'B' ? 'Alege look-ul meu' : 'Vezi catalogul',
       ctaAbout: 'Despre brand',
-      feature1: 'Clean style',
-      feature2: 'Everyday comfort',
-      feature3: 'Strong identity',
+      feature1: 'Design curat',
+      feature2: 'Confort zilnic',
+      feature3: 'Identitate puternică',
+      stat1: 'produse recomandate',
+      stat2: 'zile livrare',
+      stat3: 'zile retur',
+      stat4: 'suport clienți',
       visualTitle: 'Un stil. Pentru totdeauna.',
-      visualText:
-        'Construim un brand în care hainele, accesoriile și prezentarea lucrează împreună.',
+      visualText: 'Construim un brand în care produsul, prezentarea și serviciile funcționează împreună.',
       featuredLabel: 'Selecție',
       featuredTitle: 'Produse populare',
-      featuredText: 'Piese alese pentru o prezentare clară și un stil ușor de purtat.',
+      featuredText: 'Modele alese pentru un look curat și o alegere rapidă.',
       featuredAction: 'Tot catalogul',
       inStock: 'În stoc',
-      quickView: 'Vezi rapid',
+      quickView: 'Vezi produs',
       addToCart: 'În coș',
       chooseSize: 'Alege mărimea',
-      size: 'Mărime',
       philosophyLabel: 'Filosofie',
-      philosophyTitle: 'ONE STYLE FOREVER înseamnă ordine, stil și continuitate',
-      philosophyText:
-        'Nu construim doar produse separate. Construim un brand coerent care poate crește prin haine, accesorii, ambalaj și atmosferă.',
-      philosophyItem1Title: 'Design curat',
-      philosophyItem1Text: 'Mai puțin zgomot vizual, mai multă claritate.',
-      philosophyItem2Title: 'Stil recognoscibil',
-      philosophyItem2Text: 'Fiecare piesă trebuie să întărească imaginea brandului.',
-      philosophyItem3Title: 'Experiență atentă',
-      philosophyItem3Text: 'De la site până la produs, totul trebuie să se simtă ordonat.',
+      philosophyTitle: 'ONE STYLE FOREVER înseamnă claritate, stil și dezvoltare',
+      philosophyText: 'De la prima vizită pe site până la comandă, experiența trebuie să fie simplă și memorabilă.',
+      philosophyItem1Title: 'Design coerent',
+      philosophyItem1Text: 'Toate elementele păstrează aceeași direcție vizuală.',
+      philosophyItem2Title: 'Selecție practică',
+      philosophyItem2Text: 'Produse esențiale, ușor de combinat în garderobă.',
+      philosophyItem3Title: 'Serviciu profesionist',
+      philosophyItem3Text: 'Livrare rapidă, suport clar și retur simplu.',
       finalLabel: 'Următorul pas',
-      finalTitle: 'Alege piesele care se potrivesc stilului tău',
-      finalText: 'Intră în catalog și explorează baza vizuală ONE STYLE FOREVER.',
-      finalCatalog: 'Deschide catalogul',
+      finalTitle: abVariant.value === 'B' ? 'Comandă în câteva click-uri și poartă stilul tău zilnic' : 'Alege piesele care se potrivesc stilului tău',
+      finalText: 'Intră în catalog și creează-ți selecția ONE STYLE FOREVER.',
+      finalCatalog: abVariant.value === 'B' ? 'Merg la cumpărare' : 'Deschide catalogul',
       finalAbout: 'Citește despre brand',
-      addedToCart: 'Produsul a fost adăugat în coș'
+      ratingLabel: 'Rating real',
+      ratingTitle: 'Recenzii reale după cumpărare',
+      ratingText: 'Doar evaluări reale după cumpărare.',
+      ratingEmpty: 'Încă fără review-uri',
+      addedToCart: 'Produs adăugat în coș'
     }
   }
 
   if (locale.value === 'en') {
     return {
       badgeLocation: 'Moldova • Chișinău',
-      badgeBrand: 'Brand selection',
+      badgeBrand: 'Weekly selection',
+      abBadge: abVariant.value === 'B' ? 'B Offer • benefit first' : 'A Offer • brand first',
       label: 'ONE STYLE FOREVER',
-      title: 'Modern clothing brand with clean presentation',
-      subtitle:
-        'ONE STYLE FOREVER is more than clothing — it is style, visual identity, and a clear way to build a recognizable brand.',
-      ctaCatalog: 'View catalog',
+      title: abVariant.value === 'B' ? 'Premium looks for every day' : 'Modern fashion brand',
+      subtitle: abVariant.value === 'B'
+        ? 'Choose your essentials in a few clicks.'
+        : 'Clean style, comfort, and simple shopping.',
+      ctaCatalog: abVariant.value === 'B' ? 'Shop my look' : 'View catalog',
       ctaAbout: 'About brand',
-      feature1: 'Clean style',
-      feature2: 'Everyday comfort',
+      feature1: 'Clean design',
+      feature2: 'Daily comfort',
       feature3: 'Strong identity',
+      stat1: 'featured products',
+      stat2: 'delivery days',
+      stat3: 'return days',
+      stat4: 'customer support',
       visualTitle: 'One style. Forever.',
-      visualText:
-        'We are building a brand where clothing, accessories, and presentation work together.',
+      visualText: 'We build a brand where product, presentation, and service work together.',
       featuredLabel: 'Selection',
       featuredTitle: 'Popular products',
-      featuredText: 'Selected pieces for clean presentation and easy everyday styling.',
+      featuredText: 'Curated pieces for clear styling and easy choice.',
       featuredAction: 'Full catalog',
       inStock: 'In stock',
-      quickView: 'Quick view',
+      quickView: 'View product',
       addToCart: 'Add to cart',
       chooseSize: 'Choose size',
-      size: 'Size',
       philosophyLabel: 'Philosophy',
-      philosophyTitle: 'ONE STYLE FOREVER means order, style, and continuity',
-      philosophyText:
-        'We are not building separate items only. We are building a coherent brand that can grow through clothing, accessories, packaging, and atmosphere.',
-      philosophyItem1Title: 'Clean design',
-      philosophyItem1Text: 'Less visual noise, more clarity.',
-      philosophyItem2Title: 'Recognizable style',
-      philosophyItem2Text: 'Each piece should strengthen the brand image.',
-      philosophyItem3Title: 'Thoughtful experience',
-      philosophyItem3Text: 'From website to product, everything should feel ordered.',
+      philosophyTitle: 'ONE STYLE FOREVER means clarity, style, and growth',
+      philosophyText: 'From first visit to checkout, the experience should feel simple and memorable.',
+      philosophyItem1Title: 'Consistent design',
+      philosophyItem1Text: 'Every element follows the same visual direction.',
+      philosophyItem2Title: 'Practical selection',
+      philosophyItem2Text: 'Essential pieces that are easy to combine.',
+      philosophyItem3Title: 'Professional service',
+      philosophyItem3Text: 'Fast delivery, clear support, and simple returns.',
       finalLabel: 'Next step',
-      finalTitle: 'Choose the pieces that fit your style',
-      finalText: 'Open the catalog and explore the visual base of ONE STYLE FOREVER.',
-      finalCatalog: 'Open catalog',
-      finalAbout: 'Read about the brand',
+      finalTitle: abVariant.value === 'B' ? 'Checkout in minutes and wear your signature style' : 'Choose the pieces that fit your style',
+      finalText: 'Open the catalog and build your ONE STYLE FOREVER selection.',
+      finalCatalog: abVariant.value === 'B' ? 'Start shopping now' : 'Open catalog',
+      finalAbout: 'Read about brand',
+      ratingLabel: 'Real rating',
+      ratingTitle: 'Only verified reviews after purchase',
+      ratingText: 'Only verified reviews after purchase.',
+      ratingEmpty: 'No reviews yet',
       addedToCart: 'Product added to cart'
     }
   }
@@ -329,42 +373,49 @@ const ui = computed(() => {
   return {
     badgeLocation: 'Moldova • Chișinău',
     badgeBrand: 'Выбор недели',
+    abBadge: abVariant.value === 'B' ? 'Оффер B • выгоды сразу' : 'Оффер A • акцент на бренд',
     label: 'ONE STYLE FOREVER',
-    title: 'Современный бренд одежды с чистой подачей',
-    subtitle:
-      'ONE STYLE FOREVER — это больше, чем одежда. Это стиль, визуальная идентичность и понятный способ строить узнаваемый бренд.',
-    ctaCatalog: 'Смотреть каталог',
+    title: abVariant.value === 'B' ? 'Премиальные образы на каждый день' : 'Современный бренд одежды',
+    subtitle: abVariant.value === 'B'
+      ? 'Выбирай быстро и без лишних шагов.'
+      : 'Чистый стиль, комфорт и простая покупка.',
+    ctaCatalog: abVariant.value === 'B' ? 'Подобрать мой образ' : 'Смотреть каталог',
     ctaAbout: 'О бренде',
-    feature1: 'Чистый стиль',
+    feature1: 'Чистый дизайн',
     feature2: 'Комфорт каждый день',
     feature3: 'Сильная идентичность',
+    stat1: 'товаров в подборке',
+    stat2: 'дня доставка',
+    stat3: 'дней на возврат',
+    stat4: 'поддержка клиентов',
     visualTitle: 'Один стиль. Навсегда.',
-    visualText:
-      'Мы строим бренд, где одежда, аксессуары и подача работают вместе.',
+    visualText: 'Мы строим бренд, где товар, подача и сервис работают вместе.',
     featuredLabel: 'Подборка',
     featuredTitle: 'Популярные товары',
-    featuredText: 'Выбранные модели с чистой подачей и понятным стилем.',
+    featuredText: 'Выбранные модели для чистого образа и простого выбора.',
     featuredAction: 'Весь каталог',
     inStock: 'В наличии',
-    quickView: 'Быстрый просмотр',
+    quickView: 'Смотреть товар',
     addToCart: 'В корзину',
     chooseSize: 'Выбери размер',
-    size: 'Размер',
     philosophyLabel: 'Философия',
-    philosophyTitle: 'ONE STYLE FOREVER — это порядок, стиль и развитие',
-    philosophyText:
-      'Мы строим не набор отдельных вещей, а цельный бренд, который может развиваться через одежду, аксессуары, упаковку и атмосферу.',
-    philosophyItem1Title: 'Чистый дизайн',
-    philosophyItem1Text: 'Меньше визуального шума, больше ясности.',
-    philosophyItem2Title: 'Узнаваемый стиль',
-    philosophyItem2Text: 'Каждая вещь должна усиливать образ бренда.',
-    philosophyItem3Title: 'Продуманный опыт',
-    philosophyItem3Text: 'От сайта до продукта всё должно ощущаться собранно.',
+    philosophyTitle: 'ONE STYLE FOREVER — это ясность, стиль и рост бренда',
+    philosophyText: 'От первого посещения сайта до оформления заказа всё должно быть простым и запоминающимся.',
+    philosophyItem1Title: 'Цельный дизайн',
+    philosophyItem1Text: 'Все элементы поддерживают единый визуальный язык.',
+    philosophyItem2Title: 'Практичная подборка',
+    philosophyItem2Text: 'Базовые модели, которые легко сочетать.',
+    philosophyItem3Title: 'Профессиональный сервис',
+    philosophyItem3Text: 'Быстрая доставка, понятная поддержка и лёгкий возврат.',
     finalLabel: 'Следующий шаг',
-    finalTitle: 'Выбери вещи, которые подходят твоему стилю',
-    finalText: 'Открой каталог и изучи визуальную основу ONE STYLE FOREVER.',
-    finalCatalog: 'Открыть каталог',
+    finalTitle: abVariant.value === 'B' ? 'Оформи заказ за пару минут и носи свой лучший образ' : 'Выбери вещи, которые подходят твоему стилю',
+    finalText: 'Открой каталог и собери свою подборку ONE STYLE FOREVER.',
+    finalCatalog: abVariant.value === 'B' ? 'Начать покупку' : 'Открыть каталог',
     finalAbout: 'Читать о бренде',
+    ratingLabel: 'Честный рейтинг',
+    ratingTitle: 'Только реальные отзывы после покупки',
+    ratingText: 'Только реальные оценки после покупки.',
+    ratingEmpty: 'Пока без отзывов',
     addedToCart: 'Товар добавлен в корзину'
   }
 })
@@ -375,6 +426,8 @@ const addFeaturedToCart = (product: ProductItem) => {
   const added = addProductWithSize(product, {
     chooseSize: ui.value.chooseSize,
     added: ui.value.addedToCart
+  }, {
+    source: 'home'
   })
 
   if (added) {
@@ -386,23 +439,57 @@ const toggleProductWishlist = (product: ProductItem) => {
   shopStore.toggleWishlist(product)
 }
 
-const isWishlisted = (productId: string) => {
-  return shopStore.isInWishlist(productId)
-}
+const isWishlisted = (productId: string) => shopStore.isInWishlist(productId)
 
 const wishlistButtonLabel = (productId: string) => {
   const active = isWishlisted(productId)
 
-  if (locale.value === 'ro') {
-    return active ? 'Elimină din favorite' : 'Adaugă la favorite'
-  }
-
-  if (locale.value === 'en') {
-    return active ? 'Remove from wishlist' : 'Add to wishlist'
-  }
-
+  if (locale.value === 'ro') return active ? 'Elimină din favorite' : 'Adaugă la favorite'
+  if (locale.value === 'en') return active ? 'Remove from wishlist' : 'Add to wishlist'
   return active ? 'Убрать из избранного' : 'Добавить в избранное'
 }
+
+const siteUrl = 'https://onestyleforever.com'
+const previewImage = `${siteUrl}/logo-preview.png`
+
+useSeoMeta({
+  title: () => `ONE STYLE FOREVER | ${ui.value.title}`,
+  description: () => ui.value.subtitle,
+  ogTitle: () => `ONE STYLE FOREVER | ${ui.value.title}`,
+  ogDescription: () => ui.value.subtitle,
+  ogImage: previewImage,
+  ogType: 'website',
+  twitterCard: 'summary_large_image',
+  twitterImage: previewImage
+})
+
+useHead(
+  computed(() => ({
+    script: [
+      {
+        type: 'application/ld+json',
+        children: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: 'ONE STYLE FOREVER',
+          url: siteUrl,
+          description: ui.value.subtitle,
+          hasPart: featuredProducts.value.map((p) => ({
+            '@type': 'Product',
+            name: p.title,
+            image: `${siteUrl}${p.image}`,
+            offers: {
+              '@type': 'Offer',
+              priceCurrency: 'MDL',
+              price: p.price,
+              availability: 'https://schema.org/InStock'
+            }
+          }))
+        })
+      }
+    ]
+  }))
+)
 </script>
 
 <style scoped>
@@ -422,6 +509,10 @@ const wishlistButtonLabel = (productId: string) => {
 .philosophy-box,
 .final-box {
   padding: 32px;
+}
+
+.intro-card {
+  background: linear-gradient(165deg, #ffffff, #fbfdfb);
 }
 
 .intro-badges,
@@ -461,7 +552,7 @@ const wishlistButtonLabel = (productId: string) => {
   min-height: 320px;
   border-radius: 28px;
   border: 1px solid var(--border);
-  background: var(--surface-soft);
+  background: #fff;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -476,414 +567,399 @@ const wishlistButtonLabel = (productId: string) => {
 .intro-quote {
   padding: 20px 22px;
   border-radius: 24px;
-  background: #dcecdf;
-  border: 1px solid #cfe0d3;
+  background: #fff;
+  border: 1px solid #dbe4da;
 }
 
 .intro-quote strong {
   display: block;
   margin-bottom: 8px;
   font-size: 22px;
-  color: #356747;
+  color: #275339;
 }
 
 .intro-quote p {
   margin: 0;
-  color: #4f6679;
-  line-height: 1.7;
+  color: #3f5568;
+  line-height: 1.6;
+}
+
+.stats-strip {
+  margin-top: 16px;
+  padding: 18px;
+  border-radius: 24px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stat-item {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: #fff;
+  display: grid;
+  gap: 6px;
+}
+
+.stat-item strong {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.stat-item span {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .section-head {
   display: flex;
   justify-content: space-between;
+  gap: 18px;
   align-items: end;
-  gap: 20px;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
 
 .block-title {
   margin: 0;
-  font-size: 44px;
+  font-size: clamp(30px, 3.4vw, 42px);
   line-height: 1;
-  font-weight: 900;
-  letter-spacing: -0.03em;
 }
 
 .block-text {
+  margin: 12px 0 0;
   max-width: 720px;
-  margin-top: 12px;
 }
 
 .product-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  gap: 16px;
 }
 
 .product-card {
-  border-radius: 28px;
-  overflow: hidden;
   border: 1px solid var(--border);
+  border-radius: 24px;
   background: #fff;
+  overflow: hidden;
+  box-shadow: 0 10px 24px rgba(18, 30, 22, 0.07);
 }
 
 .product-media {
+  min-height: 250px;
+  background: #fff;
   position: relative;
-  min-height: 320px;
-  background: #edf3ee;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
-.product-media-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 16px;
 }
 
 .product-media img {
-  width: 100%;
-  max-width: 260px;
-  max-height: 280px;
+  max-width: 200px;
+  max-height: 220px;
   object-fit: contain;
 }
 
 .product-badge {
   position: absolute;
-  top: 16px;
-  left: 16px;
-  min-height: 36px;
-  padding: 0 14px;
+  top: 14px;
+  left: 14px;
+  min-height: 28px;
+  padding: 0 10px;
   border-radius: 999px;
+  background: var(--success);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
   display: inline-flex;
   align-items: center;
-  background: #fff;
-  border: 1px solid var(--border);
-  font-size: 13px;
-  font-weight: 800;
 }
 
 .product-badge.hot {
-  color: #9a4b3d;
+  background: #d05d37;
 }
 
 .wishlist-toggle {
   position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 42px;
-  height: 42px;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: #fff;
-  color: var(--text);
+  color: #4b5d73;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: 0.2s ease;
-}
-
-.wishlist-toggle svg {
-  width: 20px;
-  height: 20px;
 }
 
 .wishlist-toggle.active {
-  border-color: #bfd5c4;
-  background: #f1f7f2;
-  color: #2f6c47;
+  color: #c03a4a;
+}
+
+.wishlist-toggle svg {
+  width: 17px;
+  height: 17px;
 }
 
 .product-body {
-  padding: 22px;
-  background: #fff;
+  padding: 16px;
+  display: grid;
+  gap: 10px;
 }
 
 .product-meta {
   display: flex;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  margin-bottom: 14px;
+}
+
+.product-chip,
+.product-stock {
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .product-chip {
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  display: inline-flex;
-  align-items: center;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--muted);
+  color: var(--primary);
 }
 
 .product-stock {
-  color: var(--primary);
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.product-title-link {
-  display: block;
-  color: inherit;
+  color: #58708b;
 }
 
 .product-title-link h3 {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 22px;
-  line-height: 1.15;
-  transition: 0.2s ease;
-}
-
-.product-title-link:hover h3 {
-  color: #2f6c47;
+  line-height: 1.06;
 }
 
 .product-body p {
   margin: 0;
-  color: var(--muted);
-  line-height: 1.7;
-}
-
-.product-options {
-  display: grid;
-  gap: 14px;
-  margin-top: 18px;
-}
-
-.option-row {
-  display: grid;
-  gap: 8px;
-}
-
-.option-label {
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--text);
+  color: #4a5a70;
+  line-height: 1.6;
 }
 
 .size-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .size-pill {
-  min-width: 42px;
-  height: 42px;
-  padding: 0 12px;
+  min-width: 44px;
+  min-height: 36px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: #fff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  font-size: 12px;
   font-weight: 800;
-  cursor: pointer;
-  transition: 0.2s ease;
 }
 
 .size-pill.active {
-  background: #2f6c47;
+  background: var(--primary);
+  border-color: var(--primary);
   color: #fff;
-  border-color: #2f6c47;
 }
 
 .product-bottom {
-  display: grid;
-  gap: 16px;
-  margin-top: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 12px;
 }
 
 .product-bottom strong {
   font-size: 24px;
+  line-height: 1;
 }
 
 .product-actions {
-  display: grid;
-  gap: 10px;
+  display: flex;
+  gap: 8px;
 }
 
 .quick-btn,
 .buy-btn {
-  min-height: 42px;
-  padding: 0 14px;
+  min-height: 38px;
+  padding: 0 12px;
   border-radius: 999px;
-  font-weight: 800;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: 0.2s ease;
-}
-
-.quick-btn {
   border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 800;
   background: #fff;
-  color: var(--text);
 }
 
 .buy-btn {
-  border: none;
   background: var(--primary);
+  border-color: var(--primary);
   color: #fff;
 }
 
 .buy-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .philosophy-box {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
-  gap: 24px;
-  align-items: center;
-}
-
-.philosophy-title {
-  max-width: 720px;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 20px;
 }
 
 .philosophy-text {
-  max-width: 760px;
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .philosophy-list {
+  margin-top: 20px;
   display: grid;
-  gap: 14px;
-  margin-top: 24px;
+  gap: 10px;
 }
 
 .philosophy-item {
-  padding: 18px 20px;
-  border-radius: 20px;
+  padding: 16px;
+  border-radius: 16px;
+  background: #f5f8f4;
   border: 1px solid var(--border);
-  background: #f8faf8;
 }
 
 .philosophy-item strong {
   display: block;
-  margin-bottom: 6px;
-  font-size: 18px;
+  margin-bottom: 4px;
 }
 
 .philosophy-item span {
   color: var(--muted);
+  line-height: 1.6;
 }
 
 .philosophy-visual {
-  min-height: 260px;
-  border-radius: 28px;
+  border-radius: 24px;
   border: 1px solid var(--border);
-  background: var(--surface-soft);
+  background: linear-gradient(180deg, #f5faf4, #ebf2e8);
   display: grid;
   place-items: center;
   padding: 20px;
 }
 
 .philosophy-visual img {
-  width: 100%;
-  max-width: 160px;
-  object-fit: contain;
+  max-width: 140px;
 }
 
-.final-title {
-  max-width: 760px;
+.features-section,
+.rating-section {
+  padding: 48px 0;
+}
+
+.features-grid,
+.rating-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.feature-card {
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: #fff;
+  padding: 20px;
+}
+
+.feature-card h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+.feature-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.rating-panel {
+  grid-template-columns: minmax(0, 1fr) 280px;
+  align-items: center;
+  border: 1px solid #d3dfd5;
+  border-radius: 24px;
+  background: linear-gradient(160deg, #ffffff, #f6faf6);
+  padding: 24px;
+}
+
+.rating-score {
+  border: 1px solid #d3dfd5;
+  border-radius: 20px;
+  background: #fff;
+  padding: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.rating-stars {
+  display: flex;
+  gap: 5px;
+}
+
+.rating-stars span {
+  font-size: 22px;
+  color: #9cb2a1;
+  line-height: 1;
+}
+
+.rating-stars span.active {
+  color: #2b7b4f;
+}
+
+.rating-score strong {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.rating-score span {
+  color: #4f6757;
+  font-size: 13px;
+}
+
+.final-box {
+  background: linear-gradient(165deg, #ffffff, #f4f8f4);
 }
 
 .final-text {
-  margin-top: 16px;
-  max-width: 560px;
+  margin: 12px 0 20px;
+  max-width: 700px;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1100px) {
   .intro-grid,
+  .philosophy-box,
   .product-grid,
-  .philosophy-box {
+  .features-grid,
+  .rating-panel,
+  .stats-strip {
     grid-template-columns: 1fr;
   }
 
+}
+
+@media (max-width: 760px) {
+  .intro-card,
+  .intro-visual-card,
+  .featured-box,
+  .philosophy-box,
+  .final-box {
+    padding: 18px;
+  }
+
   .section-head {
+    align-items: start;
     flex-direction: column;
-    align-items: flex-start;
-  }
-}
-
-@media (max-width: 900px) {
-  .intro-card,
-  .intro-visual-card,
-  .featured-box,
-  .philosophy-box,
-  .final-box {
-    padding: 24px;
   }
 
-  .block-title {
-    font-size: 36px;
-  }
-}
-
-@media (max-width: 640px) {
-  .home-page {
-    padding-top: 12px;
-  }
-
-  .intro-card,
-  .intro-visual-card,
-  .featured-box,
-  .philosophy-box,
-  .final-box {
-    padding: 18px;
-  }
-
-  .intro-title {
-    font-size: 42px;
-    line-height: 0.98;
-  }
-
-  .intro-text,
-  .philosophy-text,
-  .final-text {
-    font-size: 16px;
-  }
-
-  .block-title {
-    font-size: 30px;
-  }
-
-  .intro-visual-main,
-  .philosophy-visual {
-    min-height: 200px;
-    border-radius: 22px;
-  }
-
-  .product-media {
-    min-height: 240px;
-  }
-
-  .product-body {
-    padding: 18px;
-  }
-
-  .product-title-link h3 {
-    font-size: 20px;
-  }
-
-  .product-body p {
-    font-size: 15px;
-  }
-
-  .product-bottom strong {
-    font-size: 22px;
+  .product-actions,
+  .product-bottom {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .quick-btn,

@@ -8,6 +8,18 @@
           <p class="section-text checkout-text">
             {{ ui.subtitle }}
           </p>
+
+          <div class="checkout-steps" v-if="shopStore.cart.length">
+            <div
+              v-for="(step, index) in progressSteps"
+              :key="step"
+              class="step-pill"
+              :class="{ active: index <= activeStep }"
+            >
+              <span>{{ index + 1 }}</span>
+              <strong>{{ step }}</strong>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -18,41 +30,59 @@
           <div class="surface-card checkout-form-box">
             <h2>{{ ui.formTitle }}</h2>
 
-            <form class="checkout-form" @submit.prevent="submitOrder">
+            <div class="checkout-trust">
+              <span>{{ ui.trust1 }}</span>
+              <span>{{ ui.trust2 }}</span>
+              <span>{{ ui.trust3 }}</span>
+            </div>
+
+            <form id="checkoutForm" class="checkout-form" @submit.prevent="submitOrder">
               <div class="form-grid">
                 <label class="field">
                   <span>{{ ui.name }}</span>
-                  <input v-model.trim="form.name" type="text" required />
+                  <input v-model.trim="form.name" type="text" autocomplete="name" required />
                 </label>
 
                 <label class="field">
                   <span>{{ ui.phone }}</span>
-                  <input v-model.trim="form.phone" type="tel" required />
-                </label>
-
-                <label class="field field-full">
-                  <span>{{ ui.email }}</span>
-                  <input v-model.trim="form.email" type="email" />
+                  <input v-model.trim="form.phone" type="tel" autocomplete="tel" required />
                 </label>
 
                 <label class="field field-full">
                   <span>{{ ui.address }}</span>
-                  <input v-model.trim="form.address" type="text" required />
-                </label>
-
-                <label class="field field-full">
-                  <span>{{ ui.comment }}</span>
-                  <textarea v-model.trim="form.comment" rows="5" />
+                  <input v-model.trim="form.address" type="text" autocomplete="street-address" required />
                 </label>
               </div>
 
+              <details class="optional-fields">
+                <summary>{{ ui.optionalTitle }}</summary>
+
+                <div class="form-grid optional-grid">
+                  <label class="field field-full">
+                    <span>{{ ui.email }}</span>
+                    <input v-model.trim="form.email" type="email" autocomplete="email" />
+                  </label>
+
+                  <label class="field field-full">
+                    <span>{{ ui.comment }}</span>
+                    <textarea v-model.trim="form.comment" rows="5" />
+                  </label>
+                </div>
+              </details>
+
               <button
                 type="submit"
-                class="btn-main submit-btn"
+                class="btn-main submit-btn cta-pulse"
                 :disabled="isSubmitting"
               >
                 {{ isSubmitting ? ui.submitting : ui.submit }}
               </button>
+
+              <div class="mini-trust">
+                <span>{{ ui.miniTrust1 }}</span>
+                <span>{{ ui.miniTrust2 }}</span>
+                <span>{{ ui.miniTrust3 }}</span>
+              </div>
             </form>
 
             <p v-if="successMessage" class="success-text">
@@ -91,6 +121,11 @@
               <strong>{{ shopStore.cartTotal }} MDL</strong>
             </div>
 
+            <div class="checkout-guarantee">
+              <strong>{{ ui.guaranteeTitle }}</strong>
+              <p>{{ ui.guaranteeText }}</p>
+            </div>
+
             <NuxtLink :to="localePath('/cart')" class="btn-alt summary-link">
               {{ ui.backToCart }}
             </NuxtLink>
@@ -111,11 +146,22 @@
         </div>
       </div>
     </section>
+
+    <div class="checkout-sticky-bar" v-if="shopStore.cart.length">
+      <div class="sticky-total">
+        <span>{{ ui.total }}</span>
+        <strong>{{ shopStore.cartTotal }} MDL</strong>
+      </div>
+
+      <button form="checkoutForm" type="submit" class="btn-main sticky-submit cta-pulse" :disabled="isSubmitting">
+        {{ isSubmitting ? ui.submitting : ui.submit }}
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 type OrderResponse = {
@@ -134,8 +180,20 @@ type CheckoutUi = {
   email: string
   address: string
   comment: string
+  optionalTitle: string
   submit: string
   submitting: string
+  trust1: string
+  trust2: string
+  trust3: string
+  stepCart: string
+  stepDetails: string
+  stepConfirm: string
+  guaranteeTitle: string
+  guaranteeText: string
+  miniTrust1: string
+  miniTrust2: string
+  miniTrust3: string
   successPrefix: string
   fallbackError: string
   summaryLabel: string
@@ -168,6 +226,8 @@ const form = reactive<CheckoutForm>({
   comment: ''
 })
 
+const profileStorageKey = 'osf_checkout_profile_v1'
+
 const isSubmitting = ref(false)
 const successMessage = ref('')
 const errorMessage = ref('')
@@ -184,8 +244,20 @@ const ui = computed<CheckoutUi>(() => {
       email: 'Email',
       address: 'Adresă',
       comment: 'Comentariu',
+      optionalTitle: 'Câmpuri opționale',
       submit: 'Trimite comanda',
       submitting: 'Se trimite...',
+      trust1: 'Plată sigură',
+      trust2: 'Retur în 14 zile',
+      trust3: 'Confirmare rapidă',
+      stepCart: 'Coș',
+      stepDetails: 'Un singur pas',
+      stepConfirm: 'Finalizare',
+      guaranteeTitle: 'Garanție de cumpărare sigură',
+      guaranteeText: 'Datele comenzii sunt procesate confidențial. Te contactăm rapid pentru confirmare.',
+      miniTrust1: 'Comandă securizată',
+      miniTrust2: 'Livrare 2-3 zile',
+      miniTrust3: 'Suport Telegram',
       successPrefix: 'Comanda a fost trimisă. Număr comandă:',
       fallbackError: 'A apărut o eroare la trimiterea comenzii.',
       summaryLabel: 'Sumar',
@@ -210,8 +282,20 @@ const ui = computed<CheckoutUi>(() => {
       email: 'Email',
       address: 'Address',
       comment: 'Comment',
+      optionalTitle: 'Optional fields',
       submit: 'Submit order',
       submitting: 'Submitting...',
+      trust1: 'Secure payment',
+      trust2: '14-day returns',
+      trust3: 'Fast confirmation',
+      stepCart: 'Cart',
+      stepDetails: 'One step',
+      stepConfirm: 'Complete',
+      guaranteeTitle: 'Safe purchase guarantee',
+      guaranteeText: 'Your order details are processed securely. Our team contacts you quickly for confirmation.',
+      miniTrust1: 'Secure order',
+      miniTrust2: '2-3 day delivery',
+      miniTrust3: 'Telegram support',
       successPrefix: 'Order submitted successfully. Order ID:',
       fallbackError: 'An error occurred while submitting the order.',
       summaryLabel: 'Summary',
@@ -235,8 +319,20 @@ const ui = computed<CheckoutUi>(() => {
     email: 'Email',
     address: 'Адрес',
     comment: 'Комментарий',
+    optionalTitle: 'Дополнительные поля',
     submit: 'Отправить заказ',
     submitting: 'Отправка...',
+    trust1: 'Безопасная оплата',
+    trust2: 'Возврат 14 дней',
+    trust3: 'Быстрое подтверждение',
+    stepCart: 'Корзина',
+    stepDetails: 'Один шаг',
+    stepConfirm: 'Готово',
+    guaranteeTitle: 'Гарантия безопасной покупки',
+    guaranteeText: 'Данные заказа обрабатываются конфиденциально. Мы быстро связываемся для подтверждения.',
+    miniTrust1: 'Безопасный заказ',
+    miniTrust2: 'Доставка 2-3 дня',
+    miniTrust3: 'Поддержка в Telegram',
     successPrefix: 'Заказ успешно отправлен. Номер заказа:',
     fallbackError: 'Произошла ошибка при отправке заказа.',
     summaryLabel: 'Сводка',
@@ -257,6 +353,71 @@ const resetForm = () => {
   form.address = ''
   form.comment = ''
 }
+
+const loadCheckoutProfile = () => {
+  if (!import.meta.client) return
+
+  try {
+    const raw = window.localStorage.getItem(profileStorageKey)
+    const parsed = raw ? JSON.parse(raw) : null
+    if (!parsed || typeof parsed !== 'object') return
+
+    const profile = parsed as Partial<CheckoutForm>
+    if (typeof profile.name === 'string') form.name = profile.name
+    if (typeof profile.phone === 'string') form.phone = profile.phone
+    if (typeof profile.email === 'string') form.email = profile.email
+    if (typeof profile.address === 'string') form.address = profile.address
+    if (typeof profile.comment === 'string') form.comment = profile.comment
+  } catch {
+    // Ignore invalid persisted profile.
+  }
+}
+
+const saveCheckoutProfile = () => {
+  if (!import.meta.client) return
+
+  try {
+    window.localStorage.setItem(profileStorageKey, JSON.stringify({
+      name: form.name,
+      phone: form.phone,
+      email: form.email,
+      address: form.address
+    }))
+  } catch {
+    // Ignore storage write failures.
+  }
+}
+
+const markPurchasedProducts = (ids: string[]) => {
+  if (!import.meta.client || !ids.length) return
+
+  const storageKey = 'osf_purchased_products_v1'
+  let parsed: string[] = []
+
+  try {
+    const raw = window.localStorage.getItem(storageKey)
+    const data = raw ? JSON.parse(raw) : []
+    parsed = Array.isArray(data) ? data.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    parsed = []
+  }
+
+  const merged = Array.from(new Set([...parsed, ...ids]))
+
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(merged))
+  } catch {
+    // Ignore storage write failures to avoid checkout crashes.
+  }
+}
+
+const progressSteps = computed(() => [ui.value.stepDetails])
+
+const activeStep = computed(() => {
+  if (successMessage.value) return 0
+  if (isSubmitting.value) return 0
+  return 0
+})
 
 const getErrorMessage = (error: unknown) => {
   if (typeof error === 'object' && error !== null) {
@@ -281,6 +442,8 @@ const submitOrder = async () => {
   isSubmitting.value = true
 
   try {
+    const purchasedIds = shopStore.cart.map((item) => item.id)
+
     const response = await $fetch<OrderResponse>('/api/order', {
       method: 'POST',
       body: {
@@ -303,6 +466,8 @@ const submitOrder = async () => {
     })
 
     successMessage.value = `${ui.value.successPrefix} ${response.orderId}`
+    markPurchasedProducts(purchasedIds)
+    saveCheckoutProfile()
     resetForm()
     shopStore.clearCart()
   } catch (error: unknown) {
@@ -311,11 +476,30 @@ const submitOrder = async () => {
     isSubmitting.value = false
   }
 }
+
+const siteUrl = 'https://onestyleforever.com'
+const previewImage = `${siteUrl}/logo-preview.png`
+
+onMounted(() => {
+  loadCheckoutProfile()
+})
+
+useSeoMeta({
+  title: () => `ONE STYLE FOREVER | ${ui.value.title}`,
+  description: () => ui.value.subtitle,
+  ogTitle: () => `ONE STYLE FOREVER | ${ui.value.title}`,
+  ogDescription: () => ui.value.subtitle,
+  ogImage: previewImage,
+  ogType: 'website',
+  twitterCard: 'summary_large_image',
+  twitterImage: previewImage
+})
 </script>
 
 <style scoped>
 .checkout-page {
   padding-top: 18px;
+  padding-bottom: 84px;
 }
 
 .checkout-intro,
@@ -335,6 +519,53 @@ const submitOrder = async () => {
   margin-top: 14px;
 }
 
+.checkout-steps {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.step-pill {
+  min-height: 38px;
+  padding: 0 12px 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #5f6d82;
+}
+
+.step-pill span {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.step-pill strong {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.step-pill.active {
+  border-color: #bed8c4;
+  background: #eef8f0;
+  color: #1f5e3b;
+}
+
+.step-pill.active span {
+  border-color: #9fc2a8;
+  background: #dff0e4;
+}
+
 .checkout-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
@@ -350,6 +581,45 @@ const submitOrder = async () => {
 
 .checkout-form {
   margin-top: 24px;
+}
+
+.optional-fields {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fff;
+  padding: 12px 14px;
+}
+
+.optional-fields summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  color: #445972;
+}
+
+.optional-grid {
+  margin-top: 12px;
+}
+
+.checkout-trust {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.checkout-trust span {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  color: #42576f;
+  display: inline-flex;
+  align-items: center;
 }
 
 .form-grid {
@@ -399,6 +669,26 @@ const submitOrder = async () => {
 .submit-btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+.mini-trust {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mini-trust span {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #d4e2d4;
+  background: #f8fbf8;
+  font-size: 11px;
+  font-weight: 700;
+  color: #41586c;
+  display: inline-flex;
+  align-items: center;
 }
 
 .success-text {
@@ -457,6 +747,27 @@ const submitOrder = async () => {
   width: 100%;
 }
 
+.checkout-guarantee {
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid #dbe6d7;
+  background: #f4f8f3;
+}
+
+.checkout-guarantee strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 15px;
+}
+
+.checkout-guarantee p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 14px;
+}
+
 .empty-box h2 {
   margin: 0 0 10px;
   font-size: 34px;
@@ -466,6 +777,41 @@ const submitOrder = async () => {
   margin: 0 0 18px;
   color: var(--muted);
   line-height: 1.7;
+}
+
+.checkout-sticky-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 90;
+  background: rgba(255, 255, 255, 0.98);
+  border-top: 1px solid var(--border);
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sticky-total {
+  display: grid;
+  gap: 2px;
+}
+
+.sticky-total span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.sticky-total strong {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.sticky-submit {
+  min-height: 44px;
+  white-space: nowrap;
 }
 
 @media (max-width: 1100px) {
@@ -493,6 +839,10 @@ const submitOrder = async () => {
   .summary-product {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .checkout-sticky-bar {
+    display: flex;
   }
 }
 </style>

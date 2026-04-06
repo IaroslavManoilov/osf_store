@@ -1,14 +1,23 @@
 <template>
   <header class="header-wrap">
+    <div class="header-topline">
+      <div class="site-container topline-inner">
+        <span>{{ $t('nav.topline') }}</span>
+        <NuxtLink :to="localePath('/catalog')" class="topline-link">
+          {{ $t('nav.explore') }}
+        </NuxtLink>
+      </div>
+    </div>
+
     <div class="site-container">
       <div class="header-box">
-        <NuxtLink :to="localePath('/')" class="brand">
+        <NuxtLink :to="localePath('/')" class="brand" @click="closeMobileMenu">
           <span class="brand-mark">
             <img src="/logo-mark.png" alt="ONE STYLE FOREVER" />
           </span>
 
           <span class="brand-text">
-            <strong>ONE_STYLE</strong>
+            <strong>ONE STYLE</strong>
             <span>FOREVER</span>
           </span>
         </NuxtLink>
@@ -40,7 +49,7 @@
         </nav>
 
         <div class="header-actions">
-          <NuxtLink :to="localePath('/wishlist')" class="icon-btn wishlist-btn">
+          <NuxtLink :to="localePath('/wishlist')" class="icon-btn" :aria-label="$t('nav.wishlist')">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path
                 d="M12 21s-6.5-4.35-8.5-8.02C1.94 9.98 3.58 6 7.45 6c1.93 0 3.17 1.02 4.05 2.3C12.38 7.02 13.62 6 15.55 6c3.87 0 5.51 3.98 3.95 6.98C18.5 16.65 12 21 12 21Z"
@@ -50,13 +59,35 @@
                 stroke-linejoin="round"
               />
             </svg>
-
-            <span v-if="shopStore.wishlistCount" class="icon-count">
-              {{ shopStore.wishlistCount }}
-            </span>
+            <span v-if="shopStore.wishlistCount" class="icon-count">{{ shopStore.wishlistCount }}</span>
           </NuxtLink>
 
-          <div class="lang-switch">
+          <button
+            type="button"
+            class="notify-btn"
+            :class="{ active: notificationsEnabled }"
+            :aria-label="notifyLabel"
+            @click="toggleNotifications"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M12 3a5 5 0 0 0-5 5v2.8c0 .8-.32 1.56-.88 2.12L5 14.02V16h14v-1.98l-1.12-1.1A3 3 0 0 1 17 10.8V8a5 5 0 0 0-5-5Z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M9.5 18a2.5 2.5 0 0 0 5 0"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+
+          <div class="lang-switch" :aria-label="$t('nav.language')">
             <NuxtLink
               v-for="item in localeItems"
               :key="item.code"
@@ -81,14 +112,14 @@
               <circle cx="10" cy="19" r="1.5" fill="currentColor" />
               <circle cx="18" cy="19" r="1.5" fill="currentColor" />
             </svg>
-
-            <span>{{ $t('nav.cart') }} • {{ shopStore.cartCount }}</span>
+            <span>{{ $t('nav.cart') }} · {{ shopStore.cartCount }}</span>
           </NuxtLink>
 
           <button
             type="button"
             class="burger-btn"
             :class="{ active: mobileMenuOpen }"
+            :aria-label="$t('nav.menu')"
             @click="mobileMenuOpen = !mobileMenuOpen"
           >
             <span />
@@ -133,7 +164,7 @@
               class="mobile-nav-link"
               @click="closeMobileMenu"
             >
-              Wishlist • {{ shopStore.wishlistCount }}
+              {{ $t('nav.wishlist') }} · {{ shopStore.wishlistCount }}
             </NuxtLink>
 
             <NuxtLink
@@ -141,21 +172,27 @@
               class="mobile-nav-link"
               @click="closeMobileMenu"
             >
-              {{ $t('nav.cart') }} • {{ shopStore.cartCount }}
+              {{ $t('nav.cart') }} · {{ shopStore.cartCount }}
             </NuxtLink>
           </nav>
 
-          <div class="mobile-lang-switch">
-            <NuxtLink
-              v-for="item in localeItems"
-              :key="`mobile-${item.code}`"
-              :to="switchLocalePath(item.code)"
-              class="lang-link"
-              :class="{ active: locale === item.code }"
-              @click="closeMobileMenu"
-            >
-              {{ item.label }}
+          <div class="mobile-menu-bottom">
+            <NuxtLink :to="localePath('/catalog')" class="btn-main mobile-cta" @click="closeMobileMenu">
+              {{ $t('nav.explore') }}
             </NuxtLink>
+
+            <div class="mobile-lang-switch">
+              <NuxtLink
+                v-for="item in localeItems"
+                :key="`mobile-${item.code}`"
+                :to="switchLocalePath(item.code)"
+                class="lang-link"
+                :class="{ active: locale === item.code }"
+                @click="closeMobileMenu"
+              >
+                {{ item.label }}
+              </NuxtLink>
+            </div>
           </div>
         </div>
       </transition>
@@ -164,7 +201,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 type LocaleCode = 'ru' | 'ro' | 'en'
 
@@ -172,7 +209,10 @@ const route = useRoute()
 const localePath = useLocalePath()
 const switchLocalePath = useSwitchLocalePath()
 const shopStore = useShopStore()
+const uiStore = useUiStore()
 const mobileMenuOpen = ref(false)
+const notificationsEnabled = ref(false)
+const notificationsStorageKey = 'osf_stock_notifications_v1'
 
 const { locale } = useI18n()
 
@@ -194,34 +234,104 @@ const closeMobileMenu = () => {
   mobileMenuOpen.value = false
 }
 
+const notifyLabel = computed(() => {
+  if (locale.value === 'ro') return 'Notificări despre stoc'
+  if (locale.value === 'en') return 'Stock notifications'
+  return 'Уведомления о поступлении'
+})
+
+const toggleNotifications = async () => {
+  if (!import.meta.client) return
+
+  let enabled = false
+
+  if ('Notification' in window) {
+    if (window.Notification.permission === 'granted') {
+      enabled = true
+    } else if (window.Notification.permission !== 'denied') {
+      const permission = await window.Notification.requestPermission()
+      enabled = permission === 'granted'
+    }
+  }
+
+  if (!enabled) {
+    if (locale.value === 'ro') uiStore.showToast('Notificările sunt oprite. Le poți activa mai târziu.', 'info')
+    else if (locale.value === 'en') uiStore.showToast('Notifications are off. You can enable them later.', 'info')
+    else uiStore.showToast('Уведомления выключены. Включишь позже, если захочешь.', 'info')
+    return
+  }
+
+  notificationsEnabled.value = true
+  try {
+    window.localStorage.setItem(notificationsStorageKey, 'enabled')
+  } catch {
+    // Ignore storage write failures.
+  }
+
+  if (locale.value === 'ro') uiStore.showToast('Notificările au fost activate.', 'success')
+  else if (locale.value === 'en') uiStore.showToast('Notifications are enabled.', 'success')
+  else uiStore.showToast('Уведомления включены.', 'success')
+}
+
 watch(
   () => route.fullPath,
   () => {
     mobileMenuOpen.value = false
   }
 )
+
+onMounted(() => {
+  if (!import.meta.client) return
+
+  try {
+    notificationsEnabled.value = window.localStorage.getItem(notificationsStorageKey) === 'enabled'
+  } catch {
+    notificationsEnabled.value = false
+  }
+})
 </script>
 
 <style scoped>
 .header-wrap {
-  padding: 14px 0 0;
   position: sticky;
   top: 0;
-  z-index: 50;
-  background: rgba(243, 246, 243, 0.82);
+  z-index: 60;
   backdrop-filter: blur(10px);
 }
 
+.header-topline {
+  border-bottom: 1px solid #dbe3d7;
+  background: linear-gradient(90deg, #1f5f3c, #2b7b4f);
+  color: #e9f8ee;
+}
+
+.topline-inner {
+  min-height: 36px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.topline-link {
+  color: #fff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.55);
+}
+
 .header-box {
-  min-height: 76px;
+  margin-top: 12px;
+  min-height: 74px;
   padding: 12px 16px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: #fff;
+  background: color-mix(in srgb, #fff 90%, #eef5ee);
+  box-shadow: var(--shadow-sm);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
 }
 
 .brand {
@@ -229,19 +339,16 @@ watch(
   align-items: center;
   gap: 12px;
   min-width: 0;
-  color: inherit;
 }
 
 .brand-mark {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: #f8faf8;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  background: #f7fbf6;
+  display: grid;
+  place-items: center;
 }
 
 .brand-mark img {
@@ -252,46 +359,42 @@ watch(
 
 .brand-text {
   display: grid;
-  line-height: 1;
+  line-height: 0.95;
 }
 
 .brand-text strong {
-  font-size: 18px;
-  letter-spacing: -0.03em;
+  font-size: 16px;
+  letter-spacing: 0.08em;
 }
 
 .brand-text span {
-  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
   color: var(--muted);
-  font-size: 14px;
 }
 
 .desktop-nav {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
-.nav-link,
-.lang-link {
+.nav-link {
   min-height: 42px;
-  padding: 0 18px;
+  padding: 0 16px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: #fff;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  font-size: 14px;
   font-weight: 800;
-  color: var(--text);
-  transition: 0.2s ease;
+  color: #334155;
 }
 
-.nav-link.active,
-.lang-link.active {
-  background: #f1f7f2;
-  border-color: #bfd5c4;
-  color: #2f6c47;
+.nav-link:hover,
+.nav-link.active {
+  color: var(--text);
+  background: #edf4ec;
 }
 
 .header-actions {
@@ -300,18 +403,22 @@ watch(
   gap: 10px;
 }
 
-.icon-btn {
-  width: 42px;
-  height: 42px;
+.icon-btn,
+.cart-btn,
+.notify-btn {
+  min-height: 44px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: #fff;
+}
+
+.icon-btn {
+  width: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--text);
+  color: #334155;
   position: relative;
-  flex-shrink: 0;
 }
 
 .icon-btn svg {
@@ -319,45 +426,75 @@ watch(
   height: 20px;
 }
 
-.icon-count {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
+.notify-btn {
+  width: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  color: #334155;
 }
 
-.lang-switch {
-  display: flex;
+.notify-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.notify-btn.active {
+  color: #1f6b43;
+  border-color: #b8d8c3;
+  background: #f2fbf5;
+}
+
+.icon-count {
+  min-width: 19px;
+  height: 19px;
+  border-radius: 999px;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--primary);
+}
+
+.lang-switch,
+.mobile-lang-switch {
+  display: flex;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 3px;
 }
 
 .lang-link {
-  min-width: 42px;
-  padding: 0 14px;
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #5f6d82;
+}
+
+.lang-link.active {
+  background: #ecf3ea;
+  color: #18301f;
 }
 
 .cart-btn {
-  min-height: 46px;
-  padding: 0 18px;
-  border-radius: 999px;
-  background: var(--primary);
-  color: #fff;
+  padding: 0 16px;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  font-size: 14px;
   font-weight: 800;
-  box-shadow: 0 14px 28px rgba(86, 151, 101, 0.2);
 }
 
 .cart-btn svg {
@@ -366,77 +503,66 @@ watch(
 }
 
 .burger-btn {
+  display: none;
   width: 44px;
   height: 44px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: #fff;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 4px;
+  padding: 10px;
   cursor: pointer;
 }
 
 .burger-btn span {
-  width: 18px;
+  width: 100%;
   height: 2px;
-  background: var(--text);
-  border-radius: 999px;
-  transition: 0.2s ease;
-}
-
-.burger-btn.active span:nth-child(1) {
-  transform: translateY(6px) rotate(45deg);
-}
-
-.burger-btn.active span:nth-child(2) {
-  opacity: 0;
-}
-
-.burger-btn.active span:nth-child(3) {
-  transform: translateY(-6px) rotate(-45deg);
+  display: block;
+  background: #2f3c4f;
+  margin: 4px 0;
+  transition: 0.25s ease;
 }
 
 .mobile-menu {
   margin-top: 12px;
-  padding: 18px;
+  padding: 16px;
+  border-radius: 24px;
 }
 
 .mobile-nav {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .mobile-nav-link {
-  min-height: 46px;
-  padding: 0 16px;
-  border-radius: 18px;
-  border: 1px solid var(--border);
-  background: #fff;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 14px;
   display: inline-flex;
   align-items: center;
-  font-weight: 800;
-  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  color: #334155;
 }
 
-.mobile-nav-link.active {
-  background: #f1f7f2;
-  border-color: #bfd5c4;
-  color: #2f6c47;
+.mobile-nav-link.active,
+.mobile-nav-link:hover {
+  background: #edf4ec;
+  color: #132e1f;
 }
 
-.mobile-lang-switch {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 14px;
+.mobile-menu-bottom {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.mobile-cta {
+  width: 100%;
 }
 
 .mobile-menu-enter-active,
 .mobile-menu-leave-active {
-  transition: all 0.2s ease;
+  transition: 0.2s ease;
 }
 
 .mobile-menu-enter-from,
@@ -445,70 +571,35 @@ watch(
   transform: translateY(-8px);
 }
 
-@media (max-width: 1100px) {
-  .desktop-nav {
+@media (max-width: 1160px) {
+  .desktop-nav,
+  .cart-btn,
+  .lang-switch,
+  .icon-btn {
     display: none;
   }
 
-  .burger-btn {
+  .notify-btn {
     display: inline-flex;
   }
-}
 
-@media (max-width: 820px) {
-  .header-box {
-    min-height: auto;
-    border-radius: 34px;
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .brand {
-    width: 100%;
-  }
-
-  .header-actions {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .cart-btn {
-    flex: 1 1 auto;
-    justify-content: center;
+  .burger-btn {
+    display: inline-block;
   }
 }
 
-@media (max-width: 560px) {
-  .header-wrap {
-    padding-top: 10px;
-  }
-
+@media (max-width: 680px) {
   .header-box {
-    padding: 12px;
-  }
-
-  .brand-text strong {
-    font-size: 16px;
+    border-radius: 22px;
   }
 
   .brand-text span {
-    font-size: 13px;
+    display: none;
   }
 
-  .lang-switch {
-    order: 2;
-  }
-
-  .wishlist-btn {
-    order: 1;
-  }
-
-  .cart-btn {
-    order: 3;
-  }
-
-  .burger-btn {
-    order: 4;
+  .topline-inner {
+    min-height: 34px;
+    font-size: 12px;
   }
 }
 </style>

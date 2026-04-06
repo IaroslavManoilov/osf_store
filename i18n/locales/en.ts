@@ -3,16 +3,22 @@ export default {
     home: 'Home',
     catalog: 'Catalog',
     about: 'About',
-    cart: 'Cart'
+    cart: 'Cart',
+    wishlist: 'Wishlist',
+    checkout: 'Checkout',
+    language: 'Language',
+    menu: 'Open menu',
+    explore: 'Explore catalog',
+    topline: 'Free delivery in Moldova for orders over 1200 MDL'
   },
 
   home: {
     badgeLocation: 'Moldova • Chișinău',
     badgeBrand: 'Weekly pick',
     label: 'ONE STYLE FOREVER',
-    title: 'A clothing brand with clean presentation',
+    title: 'A fashion brand with clean visual direction',
     subtitle:
-      'Modern pieces, accessories, and one clear visual identity.',
+      'Modern essentials, clear navigation, and a premium shopping flow from product discovery to checkout.',
     ctaCatalog: 'View catalog',
     ctaAbout: 'About brand',
     feature1: 'Clean style',
@@ -21,37 +27,74 @@ export default {
 
     visualTitle: 'One style. Forever.',
     visualText:
-      'Clothing, accessories, and presentation work as one system.',
+      'Clothing, accessories, and presentation work as one coherent brand system.',
 
     featuredLabel: 'Selection',
     featuredTitle: 'Popular products',
     featuredText:
-      'Selected pieces with clean presentation and easy styling.',
+      'Curated pieces with clear styling, comfort, and strong visual character.',
     featuredAction: 'Full catalog',
 
     philosophyLabel: 'Philosophy',
     philosophyTitle: 'Style that feels consistent',
     philosophyText:
-      'ONE STYLE FOREVER is not only about products, but about one clear brand identity.',
+      'ONE STYLE FOREVER is not only about products, but about one recognizable visual language.',
     philosophyItem1Title: 'Clean design',
-    philosophyItem1Text: 'Less noise, more focus on the product.',
+    philosophyItem1Text: 'Less visual noise, more focus on product value.',
     philosophyItem2Title: 'Recognizable style',
-    philosophyItem2Text: 'Every piece supports the brand image.',
+    philosophyItem2Text: 'Every item strengthens the brand image.',
     philosophyItem3Title: 'Thoughtful experience',
-    philosophyItem3Text: 'From website to purchase, everything should feel clear.',
+    philosophyItem3Text: 'From website to order, every step should feel easy.',
 
     finalLabel: 'Next step',
-    finalTitle: 'Choose the base of your style',
-    finalText: 'Open the catalog and explore the ONE STYLE FOREVER selection.',
+    finalTitle: 'Build your essential style set',
+    finalText: 'Open the catalog and discover ONE STYLE FOREVER pieces.',
     finalCatalog: 'Open catalog',
-    finalAbout: 'Read about the brand',
+    finalAbout: 'Read about brand',
 
-    inStock: 'In stock',
-    quickView: 'Quick view',
-    addToCart: 'Add to cart',
-    chooseSize: 'Choose size',
-    size: 'Size',
-    addedToCart: 'Product added to cart'
+    features: {
+      quality: {
+        title: 'Premium quality',
+        text: 'Each product is crafted with attention to detail and quality fabrics.'
+      },
+      delivery: {
+        title: 'Fast delivery',
+        text: 'We deliver across Moldova in 2-3 business days after order confirmation.'
+      },
+      support: {
+        title: '24/7 support',
+        text: 'Our team helps with sizing, styling, and any order-related questions.'
+      }
+    },
+
+    testimonials: {
+      label: 'Testimonials',
+      title: 'What customers say',
+      testimonial1: {
+        text: 'Excellent quality and style. The fit feels premium and clean.',
+        name: 'Anna K.',
+        role: 'Customer'
+      },
+      testimonial2: {
+        text: 'The shopping flow is clear and the brand identity feels strong.',
+        name: 'Michael P.',
+        role: 'Customer'
+      },
+      testimonial3: {
+        text: 'Fast delivery and great service. I will definitely order again.',
+        name: 'Elena S.',
+        role: 'Customer'
+      }
+    },
+
+    newsletter: {
+      title: 'Subscribe for updates',
+      text: 'Be first to receive new drops, offers, and collection updates.',
+      placeholder: 'Your email',
+      subscribe: 'Subscribe'
+    },
+
+    inStock: 'In stock'
   },
 
   products: {
@@ -59,79 +102,83 @@ export default {
     categoryHoodies: 'Hoodies',
     categoryPolo: 'Polo',
     inStock: 'In stock',
-    details: 'Details',
+    details: 'Details'
+  },
 
-    whiteHalfzip: {
-      title: 'White half-zip sweater OSF',
-      description:
-        'A light essential model with a clean fit and signature brand mark.'
-    },
-
-    blackHalfzip: {
-      title: 'Black half-zip sweater OSF',
-      description:
-        'A dark minimalist option for a clean and composed city look.'
-    },
-
-    blackHoodie: {
-      title: 'Black hoodie OSF',
-      description:
-        'A strong essential piece with signature symbolism and clean brand presentation.'
-    }
+  product: {
+    material: 'Material',
+    care: 'Care',
+    origin: 'Origin',
+    relatedProducts: 'Related products'
   },
 
   footer: {
-    text: '© 2026 ONE STYLE FOREVER · Moldova · Chișinău'
+    description: 'Modern fashion store from Moldova with clean design, comfort, and a clear purchasing flow.',
+    shop: 'Shop',
+    company: 'Company',
+    support: 'Support',
+    contact: 'Contact',
+    shipping: 'Shipping',
+    returns: 'Returns',
+    faq: 'FAQ',
+    sizeGuide: 'Size guide',
+    care: 'Garment care',
+    privacy: 'Privacy policy',
+    trustShipping: '2-3 day delivery',
+    trustPayment: 'Secure checkout',
+    trustSupport: '24/7 support',
+    paymentLine: 'We accept Visa, Mastercard, and cash on delivery.',
+    copyright: '© 2026 ONE STYLE FOREVER. All rights reserved. Moldova, Chișinău.'
   },
 
   about: {
     label: 'About brand',
     title: 'ONE STYLE FOREVER',
     subtitle:
-      'We create not just products, but a brand with a complete visual presentation: clothing, accessories, packaging, atmosphere, and a recognizable character.',
+      'We build more than products: a brand with cohesive presentation across clothing, accessories, packaging, and atmosphere.',
     ctaCatalog: 'View catalog',
     ctaContacts: 'Contact us',
 
     manifestoLabel: 'What is ONE STYLE FOREVER',
-    manifestoTitle: 'A brand about clean style, strong presentation, and growth',
+    manifestoTitle: 'A brand about clean style, strong presentation, and long-term growth',
     manifestoText:
-      'For us, it is important to build not just a store, but a complete brand. ONE STYLE FOREVER should feel consistent in everything: clothing, accessories, visual system, packaging, and the overall impression.',
-    point1Title: 'Not only clothing',
+      'Our goal is to build a complete brand experience, not just a store with separate products.',
+    point1Title: 'Beyond clothing',
     point1Text:
-      'The brand grows wider: products, accessories, details, and the visual environment should speak the same language.',
+      'We develop a single image through products, accessories, details, and visual atmosphere.',
     point2Title: 'Style as a system',
     point2Text:
-      'We do not believe in random products. We build one clear brand image that becomes stronger over time.',
-    point3Title: 'Beautifully presented',
+      'Each product supports recognition and value of the brand.',
+    point3Title: 'Packaging and service',
     point3Text:
-      'From the website to the product and packaging, everything should look neat and confident.',
+      'From website to delivery, every touchpoint should feel clear and polished.',
 
     valuesLabel: 'Brand foundation',
     valuesTitle: 'What ONE STYLE FOREVER is built on',
     value1Title: 'Clean design',
     value1Text:
-      'Minimalism without overload, so the style stays relevant and calm.',
+      'Minimalism without overload so the style stays relevant.',
     value2Title: 'Comfort and choice',
     value2Text:
-      'Products should be visually strong, but also comfortable in real life.',
+      'Products should look strong and feel comfortable in daily life.',
     value3Title: 'Trust and quality',
     value3Text:
-      'A brand should build trust through clean presentation, clarity, and quality.',
+      'A strong brand grows through quality, consistency, and honest service.',
 
-    storyLabel: 'Why we are building this',
-    storyTitle: 'We are building a brand people want to recognize and wear',
+    storyLabel: 'Why we build this',
+    storyTitle: 'We build a brand people want to recognize and wear',
     storyText:
-      'ONE STYLE FOREVER started with the idea of creating a modern brand from Moldova that does not copy a noisy market, but builds its own clear style. We want to grow it further through clothing, accessories, presentation, and a strong visual identity.',
+      'ONE STYLE FOREVER started as an idea to create a modern Moldovan brand with its own visual character.',
 
     founderLabel: 'Founder',
     founderName: 'Iaroslav Manoilov',
     founderText:
-      'The brand was created by Iaroslav Manoilov. The idea of the project is to build a modern store and gradually shape a strong brand with character, minimalist style, and a clear philosophy.',
+      'The project was founded by Iaroslav Manoilov as a long-term brand with a clear visual identity.',
 
     contactsLabel: 'Contacts',
-    contactsTitle: 'Get in touch with the brand',
+    contactsTitle: 'Get in touch',
     contactsText:
-      'If you want to ask a question, discuss an order, or simply write to us — we are here.',
+      'If you have a question about an order or collaboration, our team is here to help.',
     phoneLabel: 'Phone',
     emailLabel: 'Email',
     instagramLabel: 'Instagram',

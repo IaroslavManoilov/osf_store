@@ -1,11 +1,13 @@
 import { createError, readBody } from 'h3'
 import { Resend } from 'resend'
+import { saveOrder } from '../utils/order-storage'
 
 type OrderItem = {
   id: string
   title: string
   price: number
   quantity: number
+  selectedSize?: string
 }
 
 type OrderPayload = {
@@ -161,6 +163,28 @@ Total: ${total} MDL
       statusMessage: emailResult.error.message || 'Email send failed'
     })
   }
+
+  await saveOrder({
+    id: orderId,
+    createdAt: new Date().toISOString(),
+    customer,
+    items,
+    total,
+    status: 'new',
+    source: 'web',
+    notifications: {
+      telegramSent: true,
+      emailSent: true
+    },
+    statusHistory: [
+      {
+        status: 'new',
+        changedAt: new Date().toISOString(),
+        note: 'Order created from checkout',
+        actor: 'system'
+      }
+    ]
+  })
 
   return {
     success: true,

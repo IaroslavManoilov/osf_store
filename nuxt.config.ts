@@ -15,7 +15,8 @@ export default defineNuxtConfig({
     telegramChatId: '',
     resendApiKey: '',
     orderEmailTo: '',
-    orderEmailFrom: ''
+    orderEmailFrom: '',
+    adminKey: ''
   },
 
   app: {
@@ -43,5 +44,5 @@ export default defineNuxtConfig({
     ]
   },
 
-  compatibilityDate: '2025-03-01'
+  compatibilityDate: '2026-04-06'
 })
