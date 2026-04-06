@@ -17,14 +17,15 @@ export default defineNuxtConfig({
   ],
 
   runtimeConfig: {
-    telegramBotToken: '',
-    telegramChatId: '',
-    resendApiKey: '',
-    orderEmailTo: '',
-    orderEmailFrom: '',
-    adminKey: '',
-    supabaseUrl: '',
-    supabaseServiceRoleKey: ''
+    telegramBotToken: process.env.NUXT_TELEGRAM_BOT_TOKEN || '',
+    telegramChatId: process.env.NUXT_TELEGRAM_CHAT_ID || '',
+    resendApiKey: process.env.NUXT_RESEND_API_KEY || '',
+    orderEmailTo: process.env.NUXT_ORDER_EMAIL_TO || '',
+    orderEmailFrom: process.env.NUXT_ORDER_EMAIL_FROM || '',
+    adminKey: process.env.NUXT_ADMIN_KEY || '',
+    supabaseUrl: process.env.NUXT_SUPABASE_URL || '',
+    supabaseServiceRoleKey: process.env.NUXT_SUPABASE_SERVICE_ROLE_KEY || '',
+    public: {}
   },
 
   app: {
