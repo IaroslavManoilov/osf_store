@@ -1117,7 +1117,7 @@ useHead(
   width: 100%;
   height: 100%;
   aspect-ratio: 1 / 1;
-  padding: 48px 8px 8px;
+  padding: 58px 12px 12px;
   border-radius: 18px;
   background: #fff;
   overflow: hidden;
@@ -1131,7 +1131,7 @@ useHead(
   object-fit: contain;
   object-position: center;
   display: block;
-  transform: scale(1.1);
+  transform: scale(1.03);
   filter: drop-shadow(0 8px 14px rgba(13, 27, 18, 0.08));
 }
 
@@ -1600,12 +1600,12 @@ useHead(
   }
 
   .product-media {
-    padding: 8px;
+    padding: 10px;
   }
 
   .product-media-link {
     width: 100%;
-    padding: 44px 6px 6px;
+    padding: 52px 8px 8px;
     border-radius: 16px;
   }
 
