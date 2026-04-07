@@ -714,11 +714,26 @@ const getStockLeftValue = (id: string, badge: string, sizesCount: number) => {
   return Math.max(2, base + variance - Math.max(0, 3 - sizesCount))
 }
 
-const getStockLeftLabel = (product: { id: string; badge: string; sizes: string[] }) => {
-  return String(getStockLeftValue(product.id, product.badge, product.sizes.length))
+const resolveInventoryFallbackMeta = (id: string) => {
+  const source = products.value.find((item) => item.id === id)
+  return {
+    badge: source?.badge || 'NEW',
+    sizesCount: Array.isArray(source?.sizes) ? source.sizes.length : 3
+  }
 }
 
-const hasStockForSelectedSize = (product: { id: string; badge: string; sizes: string[] }) => {
+const getStockLeftLabel = (product: { id: string; badge?: string; sizes?: string[] }) => {
+  const meta = resolveInventoryFallbackMeta(product.id)
+  return String(
+    getStockLeftValue(
+      product.id,
+      product.badge || meta.badge,
+      Array.isArray(product.sizes) ? product.sizes.length : meta.sizesCount
+    )
+  )
+}
+
+const hasStockForSelectedSize = (product: { id: string; badge?: string; sizes?: string[] }) => {
   const selected = getSelectedSize(product.id)
   if (!selected) return false
 
@@ -727,7 +742,12 @@ const hasStockForSelectedSize = (product: { id: string; badge: string; sizes: st
     return productSizeMap[selected] > 0
   }
 
-  return getStockLeftValue(product.id, product.badge, product.sizes.length) > 0
+  const meta = resolveInventoryFallbackMeta(product.id)
+  return getStockLeftValue(
+    product.id,
+    product.badge || meta.badge,
+    Array.isArray(product.sizes) ? product.sizes.length : meta.sizesCount
+  ) > 0
 }
 
 const loadLiveInventory = async () => {
