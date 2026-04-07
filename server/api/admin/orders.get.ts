@@ -1,5 +1,6 @@
-import { createError, defineEventHandler, getHeader, getQuery } from 'h3'
+import { createError, defineEventHandler, getQuery } from 'h3'
 import { getSupabaseAdmin } from '../../utils/supabase-admin'
+import { requireAdminSession } from '../../utils/admin-session'
 
 type OrderStatus =
   | 'new'
@@ -46,30 +47,7 @@ const validStatuses: OrderStatus[] = [
 ]
 
 export default defineEventHandler(async (event) => {
-  const config = useRuntimeConfig(event)
-  const requestKey = String(getHeader(event, 'x-admin-key') || '').trim()
-  const validKey = String(config.adminKey || '').trim()
-
-  if (!validKey) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Admin key is not configured'
-    })
-  }
-
-  if (!requestKey) {
-    throw createError({
-      statusCode: 401,
-      statusMessage: 'Enter admin key'
-    })
-  }
-
-  if (requestKey !== validKey) {
-    throw createError({
-      statusCode: 401,
-      statusMessage: 'Invalid admin key'
-    })
-  }
+  requireAdminSession(event)
 
   const supabase = getSupabaseAdmin(event)
   const query = getQuery(event)

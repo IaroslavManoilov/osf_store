@@ -61,5 +61,8 @@ npm run preview
 - Orders are saved in Supabase from `POST /api/order`
 - Admin list: `GET /api/admin/orders`
 - Admin status update: `PATCH /api/admin/orders/:id`
-- Admin routes are protected by `x-admin-key` / `NUXT_ADMIN_KEY`
+- Admin login: `POST /api/admin/session/login` (creates HttpOnly session cookie)
+- Admin logout: `POST /api/admin/session/logout`
+- Admin session check: `GET /api/admin/session/me`
+- Admin routes use server session cookie (no client-side key storage)
 - Server uses Supabase service role key, so keep it private (never expose in client code)

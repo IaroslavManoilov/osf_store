@@ -156,10 +156,7 @@ const { locale } = useI18n()
 const uiStore = useUiStore()
 
 const statuses: OrderStatus[] = ['new', 'confirmed', 'shipped', 'delivered', 'cancelled', 'returned']
-const adminKeyStorageKey = 'osf_admin_key_v1'
 const adminActorStorageKey = 'osf_admin_actor_v1'
-const adminLastActivityKey = 'osf_admin_last_activity_v1'
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000
 
 const adminKey = ref('')
 const adminActor = ref('Owner')
@@ -170,7 +167,6 @@ const statusFilter = ref('')
 const errorMessage = ref('')
 const orders = ref<AdminOrder[]>([])
 const draftStatus = reactive<Record<string, OrderStatus>>({})
-let sessionInterval: ReturnType<typeof setInterval> | null = null
 
 const ui = computed(() => {
   if (locale.value === 'ro') {
@@ -301,20 +297,12 @@ const formatDate = (iso: string) => {
   return date.toLocaleString(code)
 }
 
-const loadOrders = async () => {
-  if (!adminKey.value) {
-    errorMessage.value = locale.value === 'en' ? 'Enter admin key' : locale.value === 'ro' ? 'Introdu cheia admin' : 'Введите ключ администратора'
-    return
-  }
-
+const fetchOrders = async () => {
   loading.value = true
   errorMessage.value = ''
 
   try {
     const response = await $fetch<{ success: boolean; orders: AdminOrder[] }>('/api/admin/orders', {
-      headers: {
-        'x-admin-key': adminKey.value
-      },
       query: statusFilter.value ? { status: statusFilter.value } : undefined
     })
 
@@ -331,12 +319,36 @@ const loadOrders = async () => {
     }
 
     loaded.value = true
-    touchActivity()
   } catch (error) {
     errorMessage.value = resolveErrorMessage(error)
   } finally {
     loading.value = false
   }
+}
+
+const loadOrders = async () => {
+  if (!loaded.value) {
+    if (!adminKey.value) {
+      errorMessage.value = locale.value === 'en' ? 'Enter admin key' : locale.value === 'ro' ? 'Introdu cheia admin' : 'Введите ключ администратора'
+      return
+    }
+
+    try {
+      await $fetch('/api/admin/session/login', {
+        method: 'POST',
+        body: {
+          key: adminKey.value,
+          actor: adminActor.value.trim() || 'Owner'
+        }
+      })
+      persistAdminActor()
+    } catch (error) {
+      errorMessage.value = resolveErrorMessage(error)
+      return
+    }
+  }
+
+  await fetchOrders()
 }
 
 const updateStatus = async (orderId: string) => {
@@ -345,16 +357,11 @@ const updateStatus = async (orderId: string) => {
 
   const target = orders.value.find((item) => item.id === orderId)
   const previousStatus = target?.status
-  const actor = adminActor.value.trim() || 'Owner'
   savingId.value = orderId
 
   try {
     const response = await $fetch<{ success: boolean; order: AdminOrder }>(`/api/admin/orders/${orderId}`, {
       method: 'PATCH',
-      headers: {
-        'x-admin-key': adminKey.value,
-        'x-admin-actor': actor
-      },
       body: {
         status: nextStatus,
         note: previousStatus && previousStatus !== nextStatus ? `${previousStatus} -> ${nextStatus}` : undefined
@@ -370,7 +377,6 @@ const updateStatus = async (orderId: string) => {
         : []
     }
 
-    touchActivity()
     uiStore.showToast(locale.value === 'en' ? 'Status updated' : locale.value === 'ro' ? 'Status actualizat' : 'Статус обновлен', 'success')
   } catch (error) {
     uiStore.showToast(resolveErrorMessage(error), 'error')
@@ -394,89 +400,50 @@ const resolveErrorMessage = (error: unknown) => {
   )
 }
 
-const clearSessionStorage = () => {
+const persistAdminActor = () => {
   if (!import.meta.client) return
-  window.localStorage.removeItem(adminKeyStorageKey)
-  window.localStorage.removeItem(adminLastActivityKey)
-}
-
-const touchActivity = () => {
-  if (!import.meta.client) return
-  window.localStorage.setItem(adminKeyStorageKey, adminKey.value)
   window.localStorage.setItem(adminActorStorageKey, adminActor.value.trim() || 'Owner')
-  window.localStorage.setItem(adminLastActivityKey, String(Date.now()))
 }
 
-const getLastActivity = () => {
-  if (!import.meta.client) return 0
-  const raw = window.localStorage.getItem(adminLastActivityKey) || ''
-  const parsed = Number(raw)
-  return Number.isFinite(parsed) ? parsed : 0
-}
+const logout = async (showToast = false) => {
+  try {
+    await $fetch('/api/admin/session/logout', { method: 'POST' })
+  } catch {
+    // Ignore logout API failures.
+  }
 
-const isSessionExpired = () => {
-  const last = getLastActivity()
-  if (!last) return true
-  return Date.now() - last > SESSION_TIMEOUT_MS
-}
-
-const logout = (showToast = false) => {
   adminKey.value = ''
   orders.value = []
   loaded.value = false
   errorMessage.value = ''
-  clearSessionStorage()
 
   if (showToast) {
     uiStore.showToast(ui.value.sessionExpired, 'info')
   }
 }
 
-const onUserActivity = () => {
-  if (!adminKey.value || !loaded.value) return
-  touchActivity()
-}
-
 onMounted(() => {
   if (!import.meta.client) return
-  const savedKey = window.localStorage.getItem(adminKeyStorageKey) || ''
   const savedActor = window.localStorage.getItem(adminActorStorageKey) || ''
   if (savedActor) {
     adminActor.value = savedActor
   }
-  if (savedKey) {
-    if (isSessionExpired()) {
-      logout()
-      return
-    }
 
-    adminKey.value = savedKey
-    touchActivity()
-    loadOrders()
-  }
-
-  window.addEventListener('click', onUserActivity)
-  window.addEventListener('keydown', onUserActivity)
-  window.addEventListener('touchstart', onUserActivity)
-
-  sessionInterval = window.setInterval(() => {
-    if (!adminKey.value || !loaded.value) return
-    if (isSessionExpired()) {
-      logout(true)
-    }
-  }, 30_000)
+  $fetch<{ success: boolean; actor?: string }>('/api/admin/session/me')
+    .then((response) => {
+      if (response?.actor) {
+        adminActor.value = response.actor
+        persistAdminActor()
+      }
+      return fetchOrders()
+    })
+    .catch(() => {
+      loaded.value = false
+    })
 })
 
 onBeforeUnmount(() => {
-  if (!import.meta.client) return
-  window.removeEventListener('click', onUserActivity)
-  window.removeEventListener('keydown', onUserActivity)
-  window.removeEventListener('touchstart', onUserActivity)
-
-  if (sessionInterval) {
-    window.clearInterval(sessionInterval)
-    sessionInterval = null
-  }
+  persistAdminActor()
 })
 
 useSeoMeta({

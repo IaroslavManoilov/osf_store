@@ -1,6 +1,8 @@
 import { createError, readBody } from 'h3'
 import { Resend } from 'resend'
 import { saveOrder } from '../utils/order-storage'
+import { getSupabaseAdmin } from '../utils/supabase-admin'
+import { getProducts } from '~/data/products'
 
 type OrderItem = {
   id: string
@@ -22,11 +24,23 @@ type OrderPayload = {
   total: number
 }
 
+const catalogById = new Map(
+  getProducts('ru').map((product) => [
+    product.id,
+    {
+      id: product.id,
+      title: product.title,
+      price: product.price,
+      sizes: product.sizes
+    }
+  ])
+)
+
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
   const body = await readBody<OrderPayload>(event)
 
-  const { customer, items, total } = body
+  const { customer, items } = body
 
   if (!customer?.name || !customer?.phone || !customer?.address) {
     throw createError({
@@ -42,44 +56,73 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  if (!config.telegramBotToken) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Telegram bot token is not configured'
-    })
-  }
+  const normalizedItems: OrderItem[] = items.map((incomingItem, index) => {
+    const product = catalogById.get(String(incomingItem.id || '').trim())
+    if (!product) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: `Unknown product at position ${index + 1}`
+      })
+    }
 
-  if (!config.telegramChatId) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Telegram chat id is not configured'
-    })
-  }
+    const quantity = Number(incomingItem.quantity)
+    if (!Number.isInteger(quantity) || quantity <= 0 || quantity > 20) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: `Invalid quantity for product ${product.id}`
+      })
+    }
 
-  if (!config.resendApiKey) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Resend API key is not configured'
-    })
-  }
+    const selectedSize = String(incomingItem.selectedSize || '').trim()
+    if (!selectedSize || !product.sizes.includes(selectedSize as 'S' | 'M' | 'L')) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: `Invalid size for product ${product.id}`
+      })
+    }
 
-  if (!config.orderEmailTo) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Order email recipient is not configured'
-    })
-  }
+    return {
+      id: product.id,
+      title: product.title,
+      price: product.price,
+      quantity,
+      selectedSize
+    }
+  })
 
-  if (!config.orderEmailFrom) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Order email sender is not configured'
-    })
-  }
+  const serverTotal = normalizedItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
-  const orderId = `OSF-${Date.now()}`
+  const orderId = `OSF-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+  const nowIso = new Date().toISOString()
 
-  const telegramMessage = `
+  await saveOrder(event, {
+    id: orderId,
+    createdAt: nowIso,
+    customer,
+    items: normalizedItems,
+    total: serverTotal,
+    status: 'new',
+    source: 'web',
+    notifications: {
+      telegramSent: false,
+      emailSent: false
+    },
+    statusHistory: [
+      {
+        status: 'new',
+        changedAt: nowIso,
+        note: 'Order created from checkout',
+        actor: 'system'
+      }
+    ]
+  })
+
+  let telegramSent = false
+  let emailSent = false
+  const warnings: string[] = []
+
+  if (config.telegramBotToken && config.telegramChatId) {
+    const telegramMessage = `
 🧾 Новый заказ
 
 ID: ${orderId}
@@ -92,31 +135,40 @@ Email: ${customer.email || '-'}
 Комментарий: ${customer.comment || '-'}
 
 📦 Товары:
-${items
+${normalizedItems
   .map(
     (item, index) =>
-      `${index + 1}. ${item.title} ×${item.quantity} = ${item.price * item.quantity} MDL`
+      `${index + 1}. ${item.title} [${item.selectedSize}] ×${item.quantity} = ${item.price * item.quantity} MDL`
   )
   .join('\n')}
 
-💰 Итого: ${total} MDL
+💰 Итого: ${serverTotal} MDL
   `
 
-  await $fetch(`https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`, {
-    method: 'POST',
-    body: {
-      chat_id: config.telegramChatId,
-      text: telegramMessage
+    try {
+      await $fetch(`https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`, {
+        method: 'POST',
+        body: {
+          chat_id: config.telegramChatId,
+          text: telegramMessage
+        }
+      })
+      telegramSent = true
+    } catch (error) {
+      warnings.push(`Telegram notification failed: ${String(error)}`)
     }
-  })
+  } else {
+    warnings.push('Telegram config is missing. Notification skipped.')
+  }
 
-  const resend = new Resend(config.resendApiKey)
-
-  const emailResult = await resend.emails.send({
-    from: config.orderEmailFrom,
-    to: [config.orderEmailTo],
-    subject: `New order ${orderId}`,
-    html: `
+  if (config.resendApiKey && config.orderEmailTo && config.orderEmailFrom) {
+    try {
+      const resend = new Resend(config.resendApiKey)
+      const emailResult = await resend.emails.send({
+        from: config.orderEmailFrom,
+        to: [config.orderEmailTo],
+        subject: `New order ${orderId}`,
+        html: `
       <h2>New order ${orderId}</h2>
       <p><b>Name:</b> ${customer.name}</p>
       <p><b>Phone:</b> ${customer.phone}</p>
@@ -125,16 +177,16 @@ ${items
       <p><b>Comment:</b> ${customer.comment || '-'}</p>
 
       <h3>Items:</h3>
-      ${items
+      ${normalizedItems
         .map(
           (item) =>
-            `<p>${item.title} ×${item.quantity} = ${item.price * item.quantity} MDL</p>`
+            `<p>${item.title} [${item.selectedSize}] ×${item.quantity} = ${item.price * item.quantity} MDL</p>`
         )
         .join('')}
 
-      <h2>Total: ${total} MDL</h2>
+      <h2>Total: ${serverTotal} MDL</h2>
     `,
-    text: `
+        text: `
 New order ${orderId}
 
 Name: ${customer.name}
@@ -144,50 +196,50 @@ Address: ${customer.address}
 Comment: ${customer.comment || '-'}
 
 Items:
-${items
+${normalizedItems
   .map(
     (item, index) =>
-      `${index + 1}. ${item.title} ×${item.quantity} = ${item.price * item.quantity} MDL`
+      `${index + 1}. ${item.title} [${item.selectedSize}] ×${item.quantity} = ${item.price * item.quantity} MDL`
   )
   .join('\n')}
 
-Total: ${total} MDL
+Total: ${serverTotal} MDL
     `
-  })
+      })
 
-  console.log('EMAIL RESULT:', emailResult)
-
-  if (emailResult.error) {
-    throw createError({
-      statusCode: 502,
-      statusMessage: emailResult.error.message || 'Email send failed'
-    })
+      if (emailResult.error) {
+        warnings.push(`Email notification failed: ${emailResult.error.message || 'unknown error'}`)
+      } else {
+        emailSent = true
+      }
+    } catch (error) {
+      warnings.push(`Email notification failed: ${String(error)}`)
+    }
+  } else {
+    warnings.push('Email config is missing. Notification skipped.')
   }
 
-  await saveOrder(event, {
-    id: orderId,
-    createdAt: new Date().toISOString(),
-    customer,
-    items,
-    total,
-    status: 'new',
-    source: 'web',
-    notifications: {
-      telegramSent: true,
-      emailSent: true
-    },
-    statusHistory: [
-      {
-        status: 'new',
-        changedAt: new Date().toISOString(),
-        note: 'Order created from checkout',
-        actor: 'system'
-      }
-    ]
-  })
+  try {
+    const supabase = getSupabaseAdmin(event)
+    await supabase
+      .from('orders')
+      .update({
+        telegram_sent: telegramSent,
+        email_sent: emailSent
+      })
+      .eq('id', orderId)
+  } catch {
+    warnings.push('Order notification status update failed.')
+  }
 
   return {
     success: true,
-    orderId
+    orderId,
+    total: serverTotal,
+    notifications: {
+      telegramSent,
+      emailSent
+    },
+    warnings
   }
 })

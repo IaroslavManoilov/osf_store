@@ -15,7 +15,7 @@ function getAttemptKey(event: H3Event) {
   return `${ip}:${ua.slice(0, 80)}`
 }
 
-export function assertAdminAccess(event: H3Event) {
+export function assertAdminKey(event: H3Event, providedKeyRaw: string) {
   const config = useRuntimeConfig(event)
   const expectedKey = (config.adminKey || '').trim()
 
@@ -38,10 +38,7 @@ export function assertAdminAccess(event: H3Event) {
     })
   }
 
-  const query = getQuery(event)
-  const headerKey = getHeader(event, 'x-admin-key') || ''
-  const queryKey = typeof query.key === 'string' ? query.key : ''
-  const providedKey = (headerKey || queryKey).trim()
+  const providedKey = String(providedKeyRaw || '').trim()
 
   if (!providedKey || providedKey !== expectedKey) {
     const nextFails = (state?.fails || 0) + 1
@@ -65,4 +62,13 @@ export function assertAdminAccess(event: H3Event) {
   }
 
   attempts.delete(attemptKey)
+}
+
+export function assertAdminAccess(event: H3Event) {
+  const query = getQuery(event)
+  const headerKey = getHeader(event, 'x-admin-key') || ''
+  const queryKey = typeof query.key === 'string' ? query.key : ''
+  const providedKey = (headerKey || queryKey).trim()
+
+  return assertAdminKey(event, providedKey)
 }

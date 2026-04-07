@@ -1,10 +1,10 @@
 import {
   createError,
   defineEventHandler,
-  getHeader,
   readBody
 } from 'h3'
 import { getSupabaseAdmin } from '../../../utils/supabase-admin'
+import { requireAdminSession } from '../../../utils/admin-session'
 
 type OrderStatus =
   | 'new'
@@ -24,31 +24,7 @@ const validStatuses: OrderStatus[] = [
 ]
 
 export default defineEventHandler(async (event) => {
-  const config = useRuntimeConfig(event)
-  const requestKey = String(getHeader(event, 'x-admin-key') || '').trim()
-  const actor = String(getHeader(event, 'x-admin-actor') || 'Owner').trim() || 'Owner'
-  const validKey = String(config.adminKey || '').trim()
-
-  if (!validKey) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Admin key is not configured'
-    })
-  }
-
-  if (!requestKey) {
-    throw createError({
-      statusCode: 401,
-      statusMessage: 'Enter admin key'
-    })
-  }
-
-  if (requestKey !== validKey) {
-    throw createError({
-      statusCode: 401,
-      statusMessage: 'Invalid admin key'
-    })
-  }
+  const { actor } = requireAdminSession(event)
 
   const orderId = String(event.context.params?.id || '').trim()
   if (!orderId) {
