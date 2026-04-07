@@ -1115,6 +1115,28 @@ useHead(
     line-height: 1.45;
   }
 
+  .stats-strip {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 16px;
+    gap: 6px;
+  }
+
+  .stat-item {
+    padding: 10px;
+    border-radius: 12px;
+    gap: 4px;
+  }
+
+  .stat-item strong {
+    font-size: 16px;
+  }
+
+  .stat-item span {
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
   .section-head {
     align-items: start;
     flex-direction: column;
