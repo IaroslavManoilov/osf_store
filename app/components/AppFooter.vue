@@ -86,6 +86,7 @@ const localePath = useLocalePath()
   color: #f5f7fa;
   padding: 54px 0 26px;
   margin-top: auto;
+  overflow-x: clip;
 }
 
 .footer-content {
@@ -155,6 +156,7 @@ const localePath = useLocalePath()
 .footer-links {
   display: flex;
   gap: 46px;
+  min-width: 0;
 }
 
 .footer-section h4 {
@@ -169,6 +171,7 @@ const localePath = useLocalePath()
   list-style: none;
   padding: 0;
   margin: 0;
+  min-width: 0;
 }
 
 .footer-section li {
@@ -222,7 +225,7 @@ const localePath = useLocalePath()
   }
 
   .footer-content {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: 1fr;
     gap: 16px;
   }
 
@@ -252,7 +255,7 @@ const localePath = useLocalePath()
   }
 
   .footer-links {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
 
@@ -270,9 +273,9 @@ const localePath = useLocalePath()
   }
 
   .footer-bottom {
-    align-items: center;
-    flex-direction: row;
-    justify-content: space-between;
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: flex-start;
     gap: 10px;
   }
 
@@ -283,12 +286,12 @@ const localePath = useLocalePath()
 
 @media (max-width: 540px) {
   .footer-content {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: 1fr;
     gap: 12px;
   }
 
   .footer-links {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 8px;
   }
 
@@ -312,9 +315,9 @@ const localePath = useLocalePath()
   }
 
   .footer-bottom {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
   }
 }
 </style>

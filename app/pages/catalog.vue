@@ -1117,7 +1117,7 @@ useHead(
   width: 100%;
   height: 100%;
   aspect-ratio: 1 / 1;
-  padding: 64px 12px 12px;
+  padding: 56px 12px 12px;
   border-radius: 18px;
   background: #fff;
   overflow: hidden;
@@ -1131,7 +1131,7 @@ useHead(
   object-fit: contain;
   object-position: center;
   display: block;
-  transform: none;
+  transform: scale(1.05);
   filter: drop-shadow(0 8px 14px rgba(13, 27, 18, 0.08));
 }
 
@@ -1800,13 +1800,23 @@ useHead(
     height: 100%;
     min-height: 0;
     aspect-ratio: 1 / 1;
-    padding: 44px 4px 4px;
+    padding: 50px 6px 6px;
     border-radius: 14px;
   }
 
   .product-media img {
-    transform: scale(1.16);
+    transform: scale(1.12);
     transform-origin: center;
+  }
+
+  .product-badge {
+    top: 8px;
+    left: 8px;
+  }
+
+  .wishlist-toggle {
+    top: 8px;
+    right: 8px;
   }
 
   .product-body {

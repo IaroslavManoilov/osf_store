@@ -316,6 +316,7 @@ onMounted(() => {
   font-size: 13px;
   font-weight: 700;
   min-width: 0;
+  overflow: hidden;
 }
 
 .topline-inner span {
@@ -330,6 +331,9 @@ onMounted(() => {
   border-bottom: 1px solid rgba(255, 255, 255, 0.55);
   white-space: nowrap;
   flex-shrink: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .header-box {
