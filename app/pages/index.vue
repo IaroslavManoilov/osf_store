@@ -1037,7 +1037,7 @@ useHead(
   }
 
   .intro-grid {
-    gap: 12px;
+    gap: 10px;
   }
 
   .intro-card,
@@ -1055,21 +1055,35 @@ useHead(
   }
 
   .intro-badges {
-    margin-bottom: 10px;
+    margin-bottom: 6px;
   }
 
   .intro-title {
-    font-size: clamp(34px, 11vw, 46px);
-    line-height: 0.95;
+    font-size: clamp(24px, 8.4vw, 32px);
+    line-height: 0.98;
   }
 
   .intro-text {
-    margin: 10px 0 14px;
-    font-size: 16px;
+    margin: 6px 0 10px;
+    font-size: 14px;
   }
 
   .intro-features {
-    margin-top: 12px;
+    margin-top: 8px;
+  }
+
+  .intro-actions .btn-main,
+  .intro-actions .btn-alt {
+    min-height: 44px;
+    padding: 0 16px;
+    font-size: 14px;
+  }
+
+  .intro-features .pill,
+  .intro-badges .pill {
+    min-height: 34px;
+    padding: 0 12px;
+    font-size: 11px;
   }
 
   .intro-visual-card {
@@ -1104,6 +1118,7 @@ useHead(
   .section-head {
     align-items: start;
     flex-direction: column;
+    margin-bottom: 12px;
   }
 
   .product-card {

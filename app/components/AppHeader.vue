@@ -756,4 +756,48 @@ onMounted(() => {
     min-height: 32px;
   }
 }
+
+@media (max-width: 680px) {
+  .header-box {
+    margin-top: 4px;
+    border-radius: 16px;
+    padding: 5px;
+    min-height: 52px;
+    gap: 5px;
+  }
+
+  .brand-mark {
+    width: 40px;
+    height: 40px;
+  }
+
+  .brand-mark img {
+    width: 30px;
+    height: 30px;
+  }
+
+  .icon-btn,
+  .notify-btn,
+  .cart-btn,
+  .burger-btn {
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
+  }
+
+  .lang-link {
+    min-width: 26px;
+    min-height: 26px;
+    font-size: 10px;
+  }
+
+  .brand-mobile {
+    font-size: 12px;
+  }
+
+  .topline-inner {
+    min-height: 28px;
+    font-size: 10px;
+  }
+}
 </style>

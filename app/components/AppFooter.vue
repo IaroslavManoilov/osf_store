@@ -240,14 +240,14 @@ const localePath = useLocalePath()
   }
 
   .trust-row {
-    margin-top: 14px;
+    margin-top: 10px;
     gap: 6px;
   }
 
   .trust-pill {
-    min-height: 30px;
-    padding: 0 10px;
-    font-size: 11px;
+    min-height: 28px;
+    padding: 0 8px;
+    font-size: 10px;
   }
 
   .footer-social {
@@ -265,7 +265,7 @@ const localePath = useLocalePath()
   }
 
   .footer-section li {
-    margin-bottom: 6px;
+    margin-bottom: 4px;
   }
 
   .footer-section a {
@@ -291,17 +291,16 @@ const localePath = useLocalePath()
   }
 
   .footer-links {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 
   .footer-brand h3 {
-    font-size: 17px;
+    font-size: 16px;
   }
 
   .footer-brand p {
-    font-size: 12px;
-    line-height: 1.45;
+    display: none;
   }
 
   .footer-section h4 {
@@ -311,7 +310,15 @@ const localePath = useLocalePath()
 
   .footer-section a {
     font-size: 11px;
-    line-height: 1.3;
+    line-height: 1.25;
+  }
+
+  .trust-row {
+    display: none;
+  }
+
+  .footer-social {
+    margin-top: 8px;
   }
 
   .footer-bottom {

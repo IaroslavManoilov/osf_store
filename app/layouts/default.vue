@@ -29,7 +29,7 @@
 
 @media (max-width: 680px) {
   .page-main {
-    padding-top: 100px;
+    padding-top: 86px;
   }
 }
 </style>
