@@ -1121,13 +1121,13 @@ useHead(
   .product-media-link {
     min-height: 0;
     height: 100%;
-    padding: 40px 2px 2px;
+    padding: 22px 2px 2px;
     border-radius: 12px;
   }
 
   .product-media img {
-    width: 124%;
-    height: 124%;
+    width: 128%;
+    height: 128%;
     max-width: none;
     max-height: none;
     transform: none;
@@ -1135,13 +1135,13 @@ useHead(
   }
 
   .product-badge {
-    top: 10px;
-    left: 10px;
+    top: 8px;
+    left: 8px;
   }
 
   .wishlist-toggle {
-    top: 10px;
-    right: 10px;
+    top: 8px;
+    right: 8px;
   }
 
   .product-title-link h3 {
