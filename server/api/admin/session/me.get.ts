@@ -5,6 +5,7 @@ export default defineEventHandler(async (event) => {
 
   return {
     success: true,
-    actor: session.actor
+    actor: session.actor,
+    csrfToken: session.csrf
   }
 })

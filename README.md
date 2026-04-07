@@ -64,5 +64,6 @@ npm run preview
 - Admin login: `POST /api/admin/session/login` (creates HttpOnly session cookie)
 - Admin logout: `POST /api/admin/session/logout`
 - Admin session check: `GET /api/admin/session/me`
-- Admin routes use server session cookie (no client-side key storage)
+- Admin routes use server session cookie + `x-csrf-token` (double-check protection)
+- `POST /api/order` has basic rate limit by IP (anti-spam)
 - Server uses Supabase service role key, so keep it private (never expose in client code)

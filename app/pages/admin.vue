@@ -165,6 +165,7 @@ const loaded = ref(false)
 const savingId = ref('')
 const statusFilter = ref('')
 const errorMessage = ref('')
+const csrfToken = ref('')
 const orders = ref<AdminOrder[]>([])
 const draftStatus = reactive<Record<string, OrderStatus>>({})
 
@@ -303,6 +304,11 @@ const fetchOrders = async () => {
 
   try {
     const response = await $fetch<{ success: boolean; orders: AdminOrder[] }>('/api/admin/orders', {
+      headers: csrfToken.value
+        ? {
+            'x-csrf-token': csrfToken.value
+          }
+        : undefined,
       query: statusFilter.value ? { status: statusFilter.value } : undefined
     })
 
@@ -334,13 +340,14 @@ const loadOrders = async () => {
     }
 
     try {
-      await $fetch('/api/admin/session/login', {
+      const loginResponse = await $fetch<{ success: boolean; actor: string; csrfToken: string }>('/api/admin/session/login', {
         method: 'POST',
         body: {
           key: adminKey.value,
           actor: adminActor.value.trim() || 'Owner'
         }
       })
+      csrfToken.value = loginResponse.csrfToken || ''
       persistAdminActor()
     } catch (error) {
       errorMessage.value = resolveErrorMessage(error)
@@ -362,6 +369,11 @@ const updateStatus = async (orderId: string) => {
   try {
     const response = await $fetch<{ success: boolean; order: AdminOrder }>(`/api/admin/orders/${orderId}`, {
       method: 'PATCH',
+      headers: csrfToken.value
+        ? {
+            'x-csrf-token': csrfToken.value
+          }
+        : undefined,
       body: {
         status: nextStatus,
         note: previousStatus && previousStatus !== nextStatus ? `${previousStatus} -> ${nextStatus}` : undefined
@@ -407,12 +419,20 @@ const persistAdminActor = () => {
 
 const logout = async (showToast = false) => {
   try {
-    await $fetch('/api/admin/session/logout', { method: 'POST' })
+    await $fetch('/api/admin/session/logout', {
+      method: 'POST',
+      headers: csrfToken.value
+        ? {
+            'x-csrf-token': csrfToken.value
+          }
+        : undefined
+    })
   } catch {
     // Ignore logout API failures.
   }
 
   adminKey.value = ''
+  csrfToken.value = ''
   orders.value = []
   loaded.value = false
   errorMessage.value = ''
@@ -429,12 +449,13 @@ onMounted(() => {
     adminActor.value = savedActor
   }
 
-  $fetch<{ success: boolean; actor?: string }>('/api/admin/session/me')
+  $fetch<{ success: boolean; actor?: string; csrfToken?: string }>('/api/admin/session/me')
     .then((response) => {
       if (response?.actor) {
         adminActor.value = response.actor
         persistAdminActor()
       }
+      csrfToken.value = response?.csrfToken || ''
       return fetchOrders()
     })
     .catch(() => {

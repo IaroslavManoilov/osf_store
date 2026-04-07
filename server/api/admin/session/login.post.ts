@@ -1,6 +1,6 @@
 import { createError, readBody } from 'h3'
 import { assertAdminKey } from '../../../utils/admin-auth'
-import { createAdminSessionToken, setAdminSessionCookie } from '../../../utils/admin-session'
+import { createAdminSession, setAdminSessionCookie } from '../../../utils/admin-session'
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
@@ -19,11 +19,12 @@ export default defineEventHandler(async (event) => {
   assertAdminKey(event, key)
 
   const adminKey = String(config.adminKey || '').trim()
-  const token = createAdminSessionToken(adminKey, actor)
-  setAdminSessionCookie(event, token)
+  const session = createAdminSession(adminKey, actor)
+  setAdminSessionCookie(event, session.token)
 
   return {
     success: true,
-    actor
+    actor,
+    csrfToken: session.csrfToken
   }
 })

@@ -1,5 +1,5 @@
-import { createError, deleteCookie, getCookie, H3Event, setCookie } from 'h3'
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createError, deleteCookie, getCookie, getHeader, H3Event, setCookie } from 'h3'
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 
 const ADMIN_COOKIE = 'osf_admin_session'
 const SESSION_TTL_SECONDS = 30 * 60
@@ -7,6 +7,7 @@ const SESSION_TTL_SECONDS = 30 * 60
 type SessionPayload = {
   actor: string
   exp: number
+  csrf: string
 }
 
 const toBase64Url = (value: string) =>
@@ -25,15 +26,19 @@ const fromBase64Url = (value: string) => {
 const sign = (payloadPart: string, adminKey: string) =>
   createHmac('sha256', adminKey).update(payloadPart).digest('base64url')
 
-export const createAdminSessionToken = (adminKey: string, actor: string) => {
+export const createAdminSession = (adminKey: string, actor: string) => {
   const payload: SessionPayload = {
     actor: (actor || 'Owner').trim() || 'Owner',
-    exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS
+    exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
+    csrf: randomBytes(24).toString('base64url')
   }
 
   const payloadPart = toBase64Url(JSON.stringify(payload))
   const signature = sign(payloadPart, adminKey)
-  return `${payloadPart}.${signature}`
+  return {
+    token: `${payloadPart}.${signature}`,
+    csrfToken: payload.csrf
+  }
 }
 
 const parseAndVerifyToken = (token: string, adminKey: string): SessionPayload | null => {
@@ -56,7 +61,8 @@ const parseAndVerifyToken = (token: string, adminKey: string): SessionPayload | 
 
     return {
       actor: typeof parsed.actor === 'string' && parsed.actor.trim() ? parsed.actor.trim() : 'Owner',
-      exp: parsed.exp
+      exp: parsed.exp,
+      csrf: typeof parsed.csrf === 'string' ? parsed.csrf : ''
     }
   } catch {
     return null
@@ -103,3 +109,16 @@ export const requireAdminSession = (event: H3Event) => {
   return payload
 }
 
+export const requireAdminCsrf = (event: H3Event) => {
+  const session = requireAdminSession(event)
+  const provided = String(getHeader(event, 'x-csrf-token') || '').trim()
+
+  if (!provided || !session.csrf || provided !== session.csrf) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'Invalid CSRF token'
+    })
+  }
+
+  return session
+}

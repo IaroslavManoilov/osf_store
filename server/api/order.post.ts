@@ -2,6 +2,7 @@ import { createError, readBody } from 'h3'
 import { Resend } from 'resend'
 import { saveOrder } from '../utils/order-storage'
 import { getSupabaseAdmin } from '../utils/supabase-admin'
+import { assertRateLimit } from '../utils/rate-limit'
 import { getProducts } from '~/data/products'
 
 type OrderItem = {
@@ -37,6 +38,12 @@ const catalogById = new Map(
 )
 
 export default defineEventHandler(async (event) => {
+  assertRateLimit(event, {
+    namespace: 'create-order',
+    limit: 6,
+    windowMs: 60 * 1000
+  })
+
   const config = useRuntimeConfig(event)
   const body = await readBody<OrderPayload>(event)
 

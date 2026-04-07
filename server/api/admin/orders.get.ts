@@ -1,6 +1,6 @@
 import { createError, defineEventHandler, getQuery } from 'h3'
 import { getSupabaseAdmin } from '../../utils/supabase-admin'
-import { requireAdminSession } from '../../utils/admin-session'
+import { requireAdminCsrf } from '../../utils/admin-session'
 
 type OrderStatus =
   | 'new'
@@ -47,7 +47,7 @@ const validStatuses: OrderStatus[] = [
 ]
 
 export default defineEventHandler(async (event) => {
-  requireAdminSession(event)
+  requireAdminCsrf(event)
 
   const supabase = getSupabaseAdmin(event)
   const query = getQuery(event)

@@ -4,7 +4,7 @@ import {
   readBody
 } from 'h3'
 import { getSupabaseAdmin } from '../../../utils/supabase-admin'
-import { requireAdminSession } from '../../../utils/admin-session'
+import { requireAdminCsrf } from '../../../utils/admin-session'
 
 type OrderStatus =
   | 'new'
@@ -24,7 +24,7 @@ const validStatuses: OrderStatus[] = [
 ]
 
 export default defineEventHandler(async (event) => {
-  const { actor } = requireAdminSession(event)
+  const { actor } = requireAdminCsrf(event)
 
   const orderId = String(event.context.params?.id || '').trim()
   if (!orderId) {
