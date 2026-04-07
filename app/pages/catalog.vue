@@ -316,7 +316,7 @@
                       <button
                         type="button"
                         class="buy-now-btn"
-                        :disabled="!canQuickBuy(product)"
+                        :disabled="!getSelectedSize(product.id)"
                         @click="buyNowFromCatalog(product)"
                       >
                         {{ ui.buyNow }}
@@ -395,7 +395,7 @@ const { locale } = useI18n()
 const localePath = useLocalePath()
 const shopStore = useShopStore()
 const { track } = useAnalytics()
-const { getSelectedSize, selectSize, addProductWithSize, selectedSizes, canQuickBuy, getPreferredSize } = useProductActions()
+const { getSelectedSize, selectSize, addProductWithSize, selectedSizes, getPreferredSize } = useProductActions()
 
 definePageMeta({
   pageTransition: {
@@ -760,7 +760,6 @@ const buyNowFromCatalog = async (product: ProductItem) => {
     chooseSize: ui.value.chooseSize,
     added: ui.value.quickCheckoutAdded
   }, {
-    autoSelectLastSize: true,
     source: 'catalog_buy_now'
   })
 
@@ -771,7 +770,7 @@ const buyNowFromCatalog = async (product: ProductItem) => {
     productId: product.id,
     title: product.title,
     price: product.price,
-    selectedSize: getAutoSize(product)
+    selectedSize: getSelectedSize(product.id)
   })
 
   selectedSizes.value[product.id] = ''
