@@ -270,8 +270,8 @@ const ui = computed(() => {
   if (locale.value === 'ro') {
     return {
       badgeLocation: 'Moldova • Chișinău',
-      badgeBrand: 'Selecția săptămânii',
-      abBadge: abVariant.value === 'B' ? 'Oferta B • focus pe beneficii' : 'Oferta A • focus pe brand',
+      badgeBrand: 'Alege Cumpără Poartă',
+      abBadge: abVariant.value === 'B' ? 'Vrei Cumperi Porți' : 'Stil Clar Premium',
       label: 'ONE STYLE FOREVER',
       title: abVariant.value === 'B' ? 'Ținute premium pentru fiecare zi' : 'Brand modern de haine',
       subtitle: abVariant.value === 'B'
@@ -320,9 +320,9 @@ const ui = computed(() => {
 
   if (locale.value === 'en') {
     return {
-      badgeLocation: 'Moldova • Chișinău',
-      badgeBrand: 'Weekly selection',
-      abBadge: abVariant.value === 'B' ? 'B Offer • benefit first' : 'A Offer • brand first',
+      badgeLocation: 'Moldova • Chisinau',
+      badgeBrand: 'Choose Buy Wear',
+      abBadge: abVariant.value === 'B' ? 'Want Buy Wear' : 'Clean Bold Premium',
       label: 'ONE STYLE FOREVER',
       title: abVariant.value === 'B' ? 'Premium looks for every day' : 'Modern fashion brand',
       subtitle: abVariant.value === 'B'
@@ -370,9 +370,9 @@ const ui = computed(() => {
   }
 
   return {
-    badgeLocation: 'Moldova • Chișinău',
-    badgeBrand: 'Выбор недели',
-    abBadge: abVariant.value === 'B' ? 'Оффер B • выгоды сразу' : 'Оффер A • акцент на бренд',
+    badgeLocation: 'Молдова • Кишинёв',
+    badgeBrand: 'Выбери Купи Носи',
+    abBadge: abVariant.value === 'B' ? 'Хочу Купить Сейчас' : 'Стиль Качество Комфорт',
     label: 'ONE STYLE FOREVER',
     title: abVariant.value === 'B' ? 'Премиальные образы на каждый день' : 'Современный бренд одежды',
     subtitle: abVariant.value === 'B'
