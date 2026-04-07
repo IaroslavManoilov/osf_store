@@ -803,9 +803,20 @@ onBeforeUnmount(() => {
   .notify-btn,
   .cart-btn,
   .burger-btn {
-    width: 32px;
-    height: 32px;
-    min-height: 32px;
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
+  }
+
+  .burger-btn {
+    border-color: #bccbbd;
+    background: #ffffff;
+  }
+
+  .burger-btn span {
+    width: 18px;
+    height: 2.4px;
+    background: #1b2a3e;
   }
 
   .lang-link {
