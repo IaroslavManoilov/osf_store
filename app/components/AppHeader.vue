@@ -661,7 +661,10 @@ onBeforeUnmount(() => {
   }
 
   .burger-btn {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
   }
 }
 
