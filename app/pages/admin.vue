@@ -35,7 +35,55 @@
       </div>
     </section>
 
-    <section v-if="orders.length" class="section-space">
+    <section v-if="loaded" class="section-space">
+      <div class="site-container">
+        <div class="surface-card inventory-card">
+          <div class="inventory-head">
+            <h2>{{ ui.inventoryTitle }}</h2>
+            <button type="button" class="btn-alt" :disabled="loadingInventory" @click="loadInventory">
+              {{ loadingInventory ? ui.loading : ui.refreshInventory }}
+            </button>
+          </div>
+
+          <div class="inventory-grid" v-if="inventoryProducts.length">
+            <article v-for="product in inventoryProducts" :key="product.id" class="inventory-item">
+              <div class="inventory-item-head">
+                <h3>{{ product.title }}</h3>
+                <span>{{ ui.inventoryProductCode }}: {{ product.id }}</span>
+              </div>
+
+              <div class="inventory-sizes">
+                <label v-for="size in sizes" :key="`${product.id}-${size}`">
+                  <span>{{ size }}</span>
+                  <input
+                    :value="inventoryValue(product.id, size)"
+                    type="number"
+                    min="0"
+                    max="9999"
+                    step="1"
+                    @input="onInventoryInput(product.id, size, $event)"
+                  />
+                </label>
+              </div>
+
+              <div class="inventory-foot">
+                <strong>{{ ui.inventoryTotal }}: {{ inventoryTotal(product.id) }}</strong>
+                <button
+                  type="button"
+                  class="btn-alt"
+                  :disabled="savingInventoryId === product.id"
+                  @click="saveInventory(product.id)"
+                >
+                  {{ savingInventoryId === product.id ? ui.saving : ui.saveInventory }}
+                </button>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="loaded && orders.length" class="section-space">
       <div class="site-container">
         <div class="admin-topbar">
           <strong>{{ ui.ordersCount }}: {{ orders.length }}</strong>
@@ -122,6 +170,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { getProducts } from '../data/products'
 
 type OrderStatus = 'new' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
 
@@ -152,6 +201,8 @@ type AdminOrder = {
   }>
 }
 
+type InventorySize = 'S' | 'M' | 'L'
+
 const { locale } = useI18n()
 const uiStore = useUiStore()
 
@@ -168,6 +219,12 @@ const errorMessage = ref('')
 const csrfToken = ref('')
 const orders = ref<AdminOrder[]>([])
 const draftStatus = reactive<Record<string, OrderStatus>>({})
+const sizes: InventorySize[] = ['S', 'M', 'L']
+const stockBySize = ref<Record<string, Record<string, number>>>({})
+const loadingInventory = ref(false)
+const savingInventoryId = ref('')
+const inventoryDraft = reactive<Record<string, Record<InventorySize, number>>>({})
+const inventoryProducts = computed(() => getProducts(locale.value))
 
 const ui = computed(() => {
   if (locale.value === 'ro') {
@@ -189,7 +246,12 @@ const ui = computed(() => {
       size: 'Mărime',
       total: 'Total',
       saveStatus: 'Salvează status',
+      saveInventory: 'Salvează stoc',
+      refreshInventory: 'Reîncarcă stocuri',
       saving: 'Se salvează...',
+      inventoryTitle: 'Stoc pe mărimi',
+      inventoryProductCode: 'Cod produs',
+      inventoryTotal: 'Total stoc',
       auditTitle: 'Audit status',
       changedBy: 'De:',
       auditUnknown: 'admin',
@@ -219,7 +281,12 @@ const ui = computed(() => {
       size: 'Size',
       total: 'Total',
       saveStatus: 'Save status',
+      saveInventory: 'Save stock',
+      refreshInventory: 'Refresh stock',
       saving: 'Saving...',
+      inventoryTitle: 'Inventory by size',
+      inventoryProductCode: 'Product code',
+      inventoryTotal: 'Total stock',
       auditTitle: 'Status audit',
       changedBy: 'By:',
       auditUnknown: 'admin',
@@ -248,7 +315,12 @@ const ui = computed(() => {
     size: 'Размер',
     total: 'Итого',
     saveStatus: 'Сохранить статус',
+    saveInventory: 'Сохранить остатки',
+    refreshInventory: 'Обновить остатки',
     saving: 'Сохранение...',
+    inventoryTitle: 'Остатки по размерам',
+    inventoryProductCode: 'Код товара',
+    inventoryTotal: 'Всего на складе',
     auditTitle: 'Аудит статусов',
     changedBy: 'Кто:',
     auditUnknown: 'admin',
@@ -296,6 +368,109 @@ const formatDate = (iso: string) => {
   const date = new Date(iso)
   const code = locale.value === 'ro' ? 'ro-RO' : locale.value === 'en' ? 'en-US' : 'ru-RU'
   return date.toLocaleString(code)
+}
+
+const applyInventoryDraft = () => {
+  for (const product of inventoryProducts.value) {
+    const current = stockBySize.value[product.id] || {}
+    const next: Record<InventorySize, number> = {
+      S: Number(current.S || 0),
+      M: Number(current.M || 0),
+      L: Number(current.L || 0)
+    }
+
+    inventoryDraft[product.id] = next
+  }
+}
+
+const inventoryValue = (productId: string, size: InventorySize) => {
+  return inventoryDraft[productId]?.[size] ?? 0
+}
+
+const onInventoryInput = (productId: string, size: InventorySize, event: Event) => {
+  const target = event.target as HTMLInputElement | null
+  const raw = Number(target?.value ?? 0)
+  const safe = Number.isFinite(raw) ? Math.max(0, Math.min(9999, Math.floor(raw))) : 0
+
+  if (!inventoryDraft[productId]) {
+    inventoryDraft[productId] = { S: 0, M: 0, L: 0 }
+  }
+  inventoryDraft[productId][size] = safe
+}
+
+const inventoryTotal = (productId: string) => {
+  const row = inventoryDraft[productId]
+  if (!row) return 0
+  return Number(row.S || 0) + Number(row.M || 0) + Number(row.L || 0)
+}
+
+const loadInventory = async () => {
+  if (!csrfToken.value) return
+
+  loadingInventory.value = true
+  try {
+    const response = await $fetch<{
+      success: boolean
+      bySize: Record<string, Record<string, number>>
+    }>('/api/admin/inventory', {
+      headers: {
+        'x-csrf-token': csrfToken.value
+      }
+    })
+
+    stockBySize.value = response?.bySize || {}
+    applyInventoryDraft()
+  } catch (error) {
+    const message = resolveErrorMessage(error)
+    uiStore.showToast(message, 'error')
+  } finally {
+    loadingInventory.value = false
+  }
+}
+
+const saveInventory = async (productId: string) => {
+  const row = inventoryDraft[productId]
+  if (!row) return
+
+  savingInventoryId.value = productId
+  try {
+    const response = await $fetch<{
+      success: boolean
+      bySize: Record<string, Record<string, number>>
+    }>('/api/admin/inventory', {
+      method: 'PATCH',
+      headers: {
+        'x-csrf-token': csrfToken.value
+      },
+      body: {
+        productId,
+        sizes: {
+          S: Number(row.S || 0),
+          M: Number(row.M || 0),
+          L: Number(row.L || 0)
+        }
+      }
+    })
+
+    stockBySize.value = {
+      ...stockBySize.value,
+      ...(response?.bySize || {})
+    }
+    applyInventoryDraft()
+
+    uiStore.showToast(
+      locale.value === 'en'
+        ? 'Stock updated'
+        : locale.value === 'ro'
+          ? 'Stoc actualizat'
+          : 'Остатки обновлены',
+      'success'
+    )
+  } catch (error) {
+    uiStore.showToast(resolveErrorMessage(error), 'error')
+  } finally {
+    savingInventoryId.value = ''
+  }
 }
 
 const fetchOrders = async () => {
@@ -356,6 +531,7 @@ const loadOrders = async () => {
   }
 
   await fetchOrders()
+  await loadInventory()
 }
 
 const updateStatus = async (orderId: string) => {
@@ -434,6 +610,10 @@ const logout = async (showToast = false) => {
   adminKey.value = ''
   csrfToken.value = ''
   orders.value = []
+  stockBySize.value = {}
+  for (const key of Object.keys(inventoryDraft)) {
+    delete inventoryDraft[key]
+  }
   loaded.value = false
   errorMessage.value = ''
 
@@ -456,7 +636,7 @@ onMounted(() => {
         persistAdminActor()
       }
       csrfToken.value = response?.csrfToken || ''
-      return fetchOrders()
+      return Promise.all([fetchOrders(), loadInventory()])
     })
     .catch(() => {
       loaded.value = false
@@ -528,6 +708,89 @@ useSeoMeta({
   justify-content: space-between;
   gap: 12px;
   align-items: center;
+}
+
+.inventory-card {
+  padding: 16px;
+}
+
+.inventory-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.inventory-head h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.inventory-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.inventory-item {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  background: #fff;
+}
+
+.inventory-item-head {
+  display: grid;
+  gap: 4px;
+}
+
+.inventory-item-head h3 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.inventory-item-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.inventory-sizes {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.inventory-sizes label {
+  display: grid;
+  gap: 4px;
+}
+
+.inventory-sizes span {
+  font-size: 13px;
+  color: #3a4d63;
+  font-weight: 700;
+}
+
+.inventory-sizes input {
+  min-height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 0 10px;
+  font: inherit;
+  color: var(--text);
+  outline: none;
+}
+
+.inventory-foot {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .orders-grid {
@@ -660,6 +923,19 @@ useSeoMeta({
   .admin-topbar {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .inventory-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-foot {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inventory-foot .btn-alt {
+    width: 100%;
   }
 
   .update-row {

@@ -100,3 +100,47 @@ export const readInventory = async (event: H3Event, productId?: string) => {
   return { totals, bySize }
 }
 
+export const setInventoryForProduct = async (
+  event: H3Event,
+  productId: string,
+  sizes: Record<string, number>
+) => {
+  const id = String(productId || '').trim()
+  if (!id) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Product id is required'
+    })
+  }
+
+  const allowedSizes = ['S', 'M', 'L'] as const
+  const payload = allowedSizes.map((size) => {
+    const raw = Number(sizes?.[size] ?? 0)
+    const quantity = Number.isFinite(raw) ? Math.floor(raw) : 0
+
+    if (quantity < 0 || quantity > 9999) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: `Invalid quantity for size ${size}`
+      })
+    }
+
+    return {
+      product_id: id,
+      size,
+      quantity
+    }
+  })
+
+  const supabase = getSupabaseAdmin(event)
+  const { error } = await supabase
+    .from('product_inventory')
+    .upsert(payload, { onConflict: 'product_id,size' })
+
+  if (error) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: `Inventory update failed: ${error.message}`
+    })
+  }
+}
