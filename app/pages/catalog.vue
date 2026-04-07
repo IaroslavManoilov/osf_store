@@ -238,7 +238,11 @@
                 <div class="product-body">
                   <div class="product-meta-row">
                     <span class="product-chip">{{ product.categoryLabel }}</span>
-                    <span class="product-stock">{{ ui.inStock }} · {{ ui.leftLabel }} {{ getStockLeftLabel(product) }}</span>
+                    <span class="product-stock">
+                      {{ getStockLeftValue(product.id, product.badge, product.sizes.length) > 0
+                        ? `${ui.inStock} · ${ui.leftLabel} ${getStockLeftLabel(product)}`
+                        : ui.outOfStock }}
+                    </span>
                   </div>
 
                   <NuxtLink
@@ -316,7 +320,7 @@
                       <button
                         type="button"
                         class="buy-now-btn"
-                        :disabled="!getSelectedSize(product.id)"
+                        :disabled="!getSelectedSize(product.id) || !hasStockForSelectedSize(product)"
                         @click="buyNowFromCatalog(product)"
                       >
                         {{ ui.buyNow }}
@@ -325,7 +329,7 @@
                       <button
                         type="button"
                         class="buy-btn"
-                        :disabled="!getSelectedSize(product.id)"
+                        :disabled="!getSelectedSize(product.id) || !hasStockForSelectedSize(product)"
                         @click="addProductToCart(product)"
                       >
                         {{ getSelectedSize(product.id) ? ui.addToCart : ui.chooseSize }}
@@ -394,6 +398,7 @@ type FilterOption<T extends string> = {
 const { locale } = useI18n()
 const localePath = useLocalePath()
 const shopStore = useShopStore()
+const uiStore = useUiStore()
 const { track } = useAnalytics()
 const { getSelectedSize, selectSize, addProductWithSize, selectedSizes, getPreferredSize } = useProductActions()
 
@@ -412,6 +417,8 @@ const minPrice = ref<number | null>(null)
 const maxPrice = ref<number | null>(null)
 const mobileFiltersOpen = ref(false)
 const openQuickSizeFor = ref('')
+const stockTotals = ref<Record<string, number>>({})
+const stockBySize = ref<Record<string, Record<string, number>>>({})
 
 const applyPriceFilter = () => {
   if (minPrice.value !== null && minPrice.value < 0) {
@@ -485,7 +492,9 @@ const ui = computed(() => {
       filterNoteText:
         'Alege categoria, culoarea și mărimea fără pași inutili.',
       addedToCart: 'Produsul a fost adăugat în coș',
-      quickCheckoutAdded: 'Produs adăugat. Te redirecționăm la checkout.'
+      quickCheckoutAdded: 'Produs adăugat. Te redirecționăm la checkout.',
+      outOfStock: 'Stoc epuizat',
+      outOfStockToast: 'Produsul nu mai este în stoc.'
     }
   }
 
@@ -544,7 +553,9 @@ const ui = computed(() => {
       filterNoteText:
         'Choose category, color, and size without visual noise.',
       addedToCart: 'Product added to cart',
-      quickCheckoutAdded: 'Added to cart. Redirecting to checkout.'
+      quickCheckoutAdded: 'Added to cart. Redirecting to checkout.',
+      outOfStock: 'Out of stock',
+      outOfStockToast: 'This product is currently out of stock.'
     }
   }
 
@@ -602,7 +613,9 @@ const ui = computed(() => {
     filterNoteText:
       'Выбирай категорию, цвет и размер без лишнего визуального шума.',
     addedToCart: 'Товар добавлен в корзину',
-    quickCheckoutAdded: 'Товар добавлен. Переходим к оформлению.'
+    quickCheckoutAdded: 'Товар добавлен. Переходим к оформлению.',
+    outOfStock: 'Нет в наличии',
+    outOfStockToast: 'Товар закончился на складе.'
   }
 })
 
@@ -692,6 +705,9 @@ const resetFilters = () => {
 const getAutoSize = (product: ProductItem) => getPreferredSize(product)
 
 const getStockLeftValue = (id: string, badge: string, sizesCount: number) => {
+  const liveValue = stockTotals.value[id]
+  if (typeof liveValue === 'number') return Math.max(0, liveValue)
+
   const hash = id.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
   const base = badge === 'HOT' ? 3 : 5
   const variance = hash % 4
@@ -700,6 +716,34 @@ const getStockLeftValue = (id: string, badge: string, sizesCount: number) => {
 
 const getStockLeftLabel = (product: { id: string; badge: string; sizes: string[] }) => {
   return String(getStockLeftValue(product.id, product.badge, product.sizes.length))
+}
+
+const hasStockForSelectedSize = (product: { id: string; badge: string; sizes: string[] }) => {
+  const selected = getSelectedSize(product.id)
+  if (!selected) return false
+
+  const productSizeMap = stockBySize.value[product.id]
+  if (productSizeMap && typeof productSizeMap[selected] === 'number') {
+    return productSizeMap[selected] > 0
+  }
+
+  return getStockLeftValue(product.id, product.badge, product.sizes.length) > 0
+}
+
+const loadLiveInventory = async () => {
+  try {
+    const response = await $fetch<{
+      success: boolean
+      totals?: Record<string, number>
+      bySize?: Record<string, Record<string, number>>
+    }>('/api/inventory')
+
+    stockTotals.value = response?.totals || {}
+    stockBySize.value = response?.bySize || {}
+  } catch {
+    stockTotals.value = {}
+    stockBySize.value = {}
+  }
 }
 
 const getDeliveryDateLabel = (product: { badge: string }) => {
@@ -733,6 +777,7 @@ const handleDocumentClick = (event: MouseEvent) => {
 }
 
 onMounted(() => {
+  loadLiveInventory()
   if (!import.meta.client) return
   document.addEventListener('click', handleDocumentClick)
 })
@@ -743,6 +788,11 @@ onBeforeUnmount(() => {
 })
 
 const addProductToCart = (product: ProductItem) => {
+  if (!hasStockForSelectedSize(product)) {
+    uiStore.showToast(ui.value.outOfStockToast, 'error')
+    return
+  }
+
   const added = addProductWithSize(product, {
     chooseSize: ui.value.chooseSize,
     added: ui.value.addedToCart
@@ -756,6 +806,11 @@ const addProductToCart = (product: ProductItem) => {
 }
 
 const buyNowFromCatalog = async (product: ProductItem) => {
+  if (!hasStockForSelectedSize(product)) {
+    uiStore.showToast(ui.value.outOfStockToast, 'error')
+    return
+  }
+
   const added = addProductWithSize(product, {
     chooseSize: ui.value.chooseSize,
     added: ui.value.quickCheckoutAdded

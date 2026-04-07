@@ -38,6 +38,7 @@ This creates:
 - `orders`
 - `order_items`
 - `order_status_history`
+- `product_inventory`
 - indexes + update trigger
 
 ## 4) Run Project
@@ -59,11 +60,13 @@ npm run preview
 ## Backend Notes
 
 - Orders are saved in Supabase from `POST /api/order`
+- Order stock is atomically reserved from `product_inventory` before order save
 - Admin list: `GET /api/admin/orders`
 - Admin status update: `PATCH /api/admin/orders/:id`
 - Admin login: `POST /api/admin/session/login` (creates HttpOnly session cookie)
 - Admin logout: `POST /api/admin/session/logout`
 - Admin session check: `GET /api/admin/session/me`
+- Public inventory snapshot: `GET /api/inventory`
 - Admin routes use server session cookie + `x-csrf-token` (double-check protection)
 - `POST /api/order` has basic rate limit by IP (anti-spam)
 - Server uses Supabase service role key, so keep it private (never expose in client code)

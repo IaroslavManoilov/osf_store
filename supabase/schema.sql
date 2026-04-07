@@ -38,11 +38,20 @@ create table if not exists public.order_status_history (
   actor text
 );
 
+create table if not exists public.product_inventory (
+  product_id text not null,
+  size text not null check (size in ('S', 'M', 'L')),
+  quantity integer not null default 0 check (quantity >= 0),
+  updated_at timestamptz not null default now(),
+  primary key (product_id, size)
+);
+
 create index if not exists idx_orders_created_at_desc on public.orders (created_at desc);
 create index if not exists idx_orders_status on public.orders (status);
 create index if not exists idx_order_items_order_id on public.order_items (order_id);
 create index if not exists idx_order_status_history_order_id on public.order_status_history (order_id);
 create index if not exists idx_order_status_history_changed_at on public.order_status_history (changed_at desc);
+create index if not exists idx_product_inventory_product_id on public.product_inventory (product_id);
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -60,9 +69,122 @@ before update on public.orders
 for each row
 execute function public.set_updated_at();
 
+drop trigger if exists trg_inventory_set_updated_at on public.product_inventory;
+create trigger trg_inventory_set_updated_at
+before update on public.product_inventory
+for each row
+execute function public.set_updated_at();
+
+create or replace function public.reserve_order_stock(order_items jsonb)
+returns void
+language plpgsql
+as $$
+declare
+  item jsonb;
+  v_product_id text;
+  v_size text;
+  v_quantity integer;
+  current_qty integer;
+begin
+  if jsonb_typeof(order_items) <> 'array' then
+    raise exception 'invalid_payload';
+  end if;
+
+  -- Lock rows and validate availability first.
+  for item in select * from jsonb_array_elements(order_items)
+  loop
+    v_product_id := coalesce(item->>'product_id', '');
+    v_size := coalesce(item->>'size', '');
+    v_quantity := coalesce((item->>'quantity')::integer, 0);
+
+    if v_product_id = '' or v_size = '' or v_quantity <= 0 then
+      raise exception 'invalid_order_item';
+    end if;
+
+    select quantity
+      into current_qty
+      from public.product_inventory
+      where product_id = v_product_id and size = v_size
+      for update;
+
+    if not found then
+      raise exception 'out_of_stock:missing_%_%', v_product_id, v_size;
+    end if;
+
+    if current_qty < v_quantity then
+      raise exception 'out_of_stock:insufficient_%_%', v_product_id, v_size;
+    end if;
+  end loop;
+
+  -- Apply decrement only after all checks pass.
+  for item in select * from jsonb_array_elements(order_items)
+  loop
+    v_product_id := item->>'product_id';
+    v_size := item->>'size';
+    v_quantity := (item->>'quantity')::integer;
+
+    update public.product_inventory
+    set quantity = quantity - v_quantity
+    where product_id = v_product_id and size = v_size;
+  end loop;
+end;
+$$;
+
+create or replace function public.restore_order_stock(order_items jsonb)
+returns void
+language plpgsql
+as $$
+declare
+  item jsonb;
+  v_product_id text;
+  v_size text;
+  v_quantity integer;
+begin
+  if jsonb_typeof(order_items) <> 'array' then
+    raise exception 'invalid_payload';
+  end if;
+
+  for item in select * from jsonb_array_elements(order_items)
+  loop
+    v_product_id := coalesce(item->>'product_id', '');
+    v_size := coalesce(item->>'size', '');
+    v_quantity := coalesce((item->>'quantity')::integer, 0);
+
+    if v_product_id = '' or v_size = '' or v_quantity <= 0 then
+      raise exception 'invalid_order_item';
+    end if;
+
+    update public.product_inventory
+    set quantity = quantity + v_quantity
+    where product_id = v_product_id and size = v_size;
+  end loop;
+end;
+$$;
+
+insert into public.product_inventory (product_id, size, quantity)
+values
+  ('white-halfzip-osf', 'S', 8),
+  ('white-halfzip-osf', 'M', 10),
+  ('white-halfzip-osf', 'L', 7),
+  ('black-halfzip-osf', 'M', 6),
+  ('black-halfzip-osf', 'L', 5),
+  ('black-hoodie-osf', 'S', 6),
+  ('black-hoodie-osf', 'M', 8),
+  ('black-hoodie-osf', 'L', 7),
+  ('white-hoodie-osf', 'S', 5),
+  ('white-hoodie-osf', 'M', 7),
+  ('white-hoodie-osf', 'L', 6),
+  ('black-polo-osf', 'M', 9),
+  ('black-polo-osf', 'L', 9),
+  ('white-polo-osf', 'S', 8),
+  ('white-polo-osf', 'M', 10),
+  ('white-polo-osf', 'L', 8)
+on conflict (product_id, size) do nothing;
+
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.order_status_history enable row level security;
+alter table public.product_inventory enable row level security;
 
 -- This project uses server-only access with SERVICE ROLE key.
 -- If you need client-side direct access later, add explicit RLS policies.

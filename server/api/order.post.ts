@@ -3,6 +3,7 @@ import { Resend } from 'resend'
 import { saveOrder } from '../utils/order-storage'
 import { getSupabaseAdmin } from '../utils/supabase-admin'
 import { assertRateLimit } from '../utils/rate-limit'
+import { reserveInventory, restoreInventory } from '../utils/inventory'
 import { getProducts } from '~/data/products'
 
 type OrderItem = {
@@ -102,27 +103,41 @@ export default defineEventHandler(async (event) => {
   const orderId = `OSF-${Date.now()}-${Math.floor(Math.random() * 1000)}`
   const nowIso = new Date().toISOString()
 
-  await saveOrder(event, {
-    id: orderId,
-    createdAt: nowIso,
-    customer,
-    items: normalizedItems,
-    total: serverTotal,
-    status: 'new',
-    source: 'web',
-    notifications: {
-      telegramSent: false,
-      emailSent: false
-    },
-    statusHistory: [
-      {
-        status: 'new',
-        changedAt: nowIso,
-        note: 'Order created from checkout',
-        actor: 'system'
-      }
-    ]
-  })
+  const inventoryItems = normalizedItems.map((item) => ({
+    productId: item.id,
+    size: String(item.selectedSize || ''),
+    quantity: item.quantity
+  }))
+
+  await reserveInventory(event, inventoryItems)
+
+  try {
+    await saveOrder(event, {
+      id: orderId,
+      createdAt: nowIso,
+      customer,
+      items: normalizedItems,
+      total: serverTotal,
+      status: 'new',
+      source: 'web',
+      notifications: {
+        telegramSent: false,
+        emailSent: false
+      },
+      statusHistory: [
+        {
+          status: 'new',
+          changedAt: nowIso,
+          note: 'Order created from checkout',
+          actor: 'system'
+        }
+      ]
+    })
+  } catch (error) {
+    // Roll back stock if order persistence fails.
+    await restoreInventory(event, inventoryItems)
+    throw error
+  }
 
   let telegramSent = false
   let emailSent = false

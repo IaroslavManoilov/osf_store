@@ -69,7 +69,7 @@
 
                 <div class="meta-card">
                   <span>{{ ui.stock }}</span>
-                  <strong>{{ ui.inStock }}</strong>
+                  <strong>{{ Number(stockLeftValue) > 0 ? ui.inStock : ui.outOfStock }}</strong>
                 </div>
               </div>
 
@@ -96,11 +96,11 @@
                 </div>
 
                 <div class="action-buttons">
-                  <button type="button" class="btn-main action-btn" @click="addToCart">
+                  <button type="button" class="btn-main action-btn" :disabled="!canBuySelectedSize" @click="addToCart">
                     {{ ui.addToCart }}
                   </button>
 
-                  <button type="button" class="btn-main action-btn buy-now-btn cta-pulse" @click="buyNow">
+                  <button type="button" class="btn-main action-btn buy-now-btn cta-pulse" :disabled="!canBuySelectedSize" @click="buyNow">
                     {{ ui.buyNow }}
                   </button>
 
@@ -282,7 +282,7 @@
         <span>{{ ui.price }}</span>
         <strong>{{ product.price }} MDL</strong>
       </div>
-      <button type="button" class="btn-main mobile-buy cta-pulse" @click="buyNow">{{ ui.buyNow }}</button>
+      <button type="button" class="btn-main mobile-buy cta-pulse" :disabled="!canBuySelectedSize" @click="buyNow">{{ ui.buyNow }}</button>
     </div>
 
     <div v-if="product && isLightboxOpen" class="lightbox" role="dialog" aria-modal="true" @click.self="closeLightbox">
@@ -364,6 +364,8 @@ const relatedProducts = computed(() => {
 })
 
 const selectedSize = ref<ProductSize | ''>('')
+const liveStockTotals = ref<Record<string, number>>({})
+const liveStockBySize = ref<Record<string, Record<string, number>>>({})
 const selectedImage = ref('')
 const mainImageRef = ref<HTMLElement | null>(null)
 const motionX = ref(0)
@@ -400,6 +402,7 @@ onMounted(() => {
   reduceMotion.value = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   window.addEventListener('keydown', onLightboxKeydown)
   loadReviewState()
+  loadLiveInventory()
 })
 
 onBeforeUnmount(() => {
@@ -650,6 +653,9 @@ const isWishlisted = computed(() => {
 })
 
 const getStockLeft = (id: string, badge: string, sizesCount: number) => {
+  const liveValue = liveStockTotals.value[id]
+  if (typeof liveValue === 'number') return Math.max(0, liveValue)
+
   const hash = id.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
   const base = badge === 'HOT' ? 3 : 5
   const variance = hash % 4
@@ -660,6 +666,43 @@ const stockLeftValue = computed(() => {
   if (!product.value) return ''
   return String(getStockLeft(product.value.id, product.value.badge, product.value.sizes.length))
 })
+
+const selectedSizeStock = computed(() => {
+  if (!product.value || !selectedSize.value) return 0
+
+  const bySize = liveStockBySize.value[product.value.id]
+  if (!bySize) return getStockLeft(product.value.id, product.value.badge, product.value.sizes.length)
+
+  const value = bySize[selectedSize.value]
+  return typeof value === 'number' ? value : 0
+})
+
+const canBuySelectedSize = computed(() => {
+  if (!product.value || !selectedSize.value) return false
+  return selectedSizeStock.value > 0
+})
+
+const loadLiveInventory = async () => {
+  if (!product.value) return
+
+  try {
+    const response = await $fetch<{
+      success: boolean
+      totals?: Record<string, number>
+      bySize?: Record<string, Record<string, number>>
+    }>('/api/inventory', {
+      query: {
+        productId: product.value.id
+      }
+    })
+
+    liveStockTotals.value = response?.totals || {}
+    liveStockBySize.value = response?.bySize || {}
+  } catch {
+    liveStockTotals.value = {}
+    liveStockBySize.value = {}
+  }
+}
 
 const deliveryDateLabel = computed(() => {
   if (!product.value) return ''
@@ -678,6 +721,7 @@ const ui = computed(() => {
       color: 'Culoare',
       stock: 'Stoc',
       inStock: 'În stoc',
+      outOfStock: 'Stoc epuizat',
       size: 'Mărime',
       price: 'Preț',
       addToCart: 'Adaugă în coș',
@@ -729,6 +773,7 @@ const ui = computed(() => {
       noRatingLabel: '0.0/5',
       reviewsCountSuffix: 'recenzii',
       selectSizeError: 'Alege mărimea înainte de a continua.',
+      outOfStockError: 'Această mărime nu mai este în stoc.',
       addedToCart: 'Produs adăugat în coș.',
       quickCheckout: 'Produs adăugat. Te mutăm la checkout.',
       addedWishlist: 'Produs adăugat la favorite.',
@@ -744,6 +789,7 @@ const ui = computed(() => {
       color: 'Color',
       stock: 'Availability',
       inStock: 'In stock',
+      outOfStock: 'Out of stock',
       size: 'Size',
       price: 'Price',
       addToCart: 'Add to cart',
@@ -795,6 +841,7 @@ const ui = computed(() => {
       noRatingLabel: '0.0/5',
       reviewsCountSuffix: 'reviews',
       selectSizeError: 'Please select a size first.',
+      outOfStockError: 'This size is out of stock.',
       addedToCart: 'Product added to cart.',
       quickCheckout: 'Added to cart. Redirecting to checkout.',
       addedWishlist: 'Product added to wishlist.',
@@ -809,6 +856,7 @@ const ui = computed(() => {
     color: 'Цвет',
     stock: 'Наличие',
     inStock: 'В наличии',
+    outOfStock: 'Нет в наличии',
     size: 'Размер',
     price: 'Цена',
     addToCart: 'Добавить в корзину',
@@ -860,6 +908,7 @@ const ui = computed(() => {
     noRatingLabel: '0.0/5',
     reviewsCountSuffix: 'отзывов',
     selectSizeError: 'Сначала выберите размер.',
+    outOfStockError: 'Этого размера уже нет в наличии.',
     addedToCart: 'Товар добавлен в корзину.',
     quickCheckout: 'Товар добавлен. Переходим к оформлению.',
     addedWishlist: 'Товар добавлен в избранное.',
@@ -875,6 +924,11 @@ const addToCart = () => {
 
   if (!selectedSize.value) {
     uiStore.showToast(ui.value.selectSizeError, 'error')
+    return false
+  }
+
+  if (!canBuySelectedSize.value) {
+    uiStore.showToast(ui.value.outOfStockError, 'error')
     return false
   }
 
