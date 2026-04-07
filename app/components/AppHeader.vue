@@ -9,7 +9,7 @@
       </div>
     </div>
 
-    <div class="site-container">
+      <div ref="headerRootRef" class="site-container">
       <div class="header-box">
         <NuxtLink :to="localePath('/')" class="brand" @click="closeMobileMenu">
           <span class="brand-mark">
@@ -203,7 +203,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 type LocaleCode = 'ru' | 'ro' | 'en'
 
@@ -213,6 +213,7 @@ const switchLocalePath = useSwitchLocalePath()
 const shopStore = useShopStore()
 const uiStore = useUiStore()
 const mobileMenuOpen = ref(false)
+const headerRootRef = ref<HTMLElement | null>(null)
 const notificationsEnabled = ref(false)
 const notificationsStorageKey = 'osf_stock_notifications_v1'
 
@@ -234,6 +235,16 @@ const isActiveRoute = (path: string) => {
 
 const closeMobileMenu = () => {
   mobileMenuOpen.value = false
+}
+
+const handleOutsideTap = (event: Event) => {
+  if (!mobileMenuOpen.value) return
+  const targetNode = event.target as Node | null
+  const root = headerRootRef.value
+  if (!targetNode || !root) return
+  if (!root.contains(targetNode)) {
+    closeMobileMenu()
+  }
 }
 
 const notifyLabel = computed(() => {
@@ -290,6 +301,13 @@ onMounted(() => {
   } catch {
     notificationsEnabled.value = false
   }
+
+  window.addEventListener('pointerdown', handleOutsideTap)
+})
+
+onBeforeUnmount(() => {
+  if (!import.meta.client) return
+  window.removeEventListener('pointerdown', handleOutsideTap)
 })
 </script>
 
@@ -548,16 +566,21 @@ onMounted(() => {
   border-radius: 999px;
   border: 1px solid var(--border);
   background: #fff;
-  padding: 10px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 3px;
   cursor: pointer;
 }
 
 .burger-btn span {
-  width: 100%;
+  width: 16px;
   height: 2px;
   display: block;
   background: #2f3c4f;
-  margin: 4px 0;
+  margin: 0;
+  border-radius: 999px;
   transition: 0.25s ease;
 }
 
