@@ -500,6 +500,7 @@ useHead(
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
   gap: 22px;
+  align-items: start;
 }
 
 .intro-card,
@@ -533,7 +534,7 @@ useHead(
 .intro-title {
   max-width: 640px;
   margin: 8px 0 0;
-  font-size: clamp(40px, 5vw, 68px);
+  font-size: clamp(40px, 4.6vw, 62px);
   line-height: 0.95;
 }
 
