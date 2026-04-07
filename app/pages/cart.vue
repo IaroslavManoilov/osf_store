@@ -661,36 +661,37 @@ const cartItemKey = (item: CartItem) => `${item.id}-${item.selectedSize}`
   .cart-card,
   .summary-box,
   .empty-box {
-    padding: 18px;
+    padding: 14px;
   }
 
   .cart-intro {
-    padding: 14px 14px;
+    padding: 12px;
   }
 
   .cart-title {
-    font-size: 34px;
+    font-size: 30px;
     line-height: 0.98;
   }
 
   .cart-text {
     margin-top: 8px;
-    font-size: 15px;
-    line-height: 1.45;
+    font-size: 14px;
+    line-height: 1.35;
   }
 
   .cart-title-link h2 {
-    font-size: 22px;
+    font-size: 19px;
   }
 
   .cart-card {
-    grid-template-columns: 190px minmax(0, 1fr);
-    gap: 12px;
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .cart-image-wrap {
-    border-radius: 16px;
-    padding: 5px;
+    border-radius: 14px;
+    padding: 4px;
+    max-height: 240px;
   }
 
   .cart-meta {
@@ -705,7 +706,7 @@ const cartItemKey = (item: CartItem) => `${item.id}-${item.selectedSize}`
   }
 
   .remove-btn {
-    min-height: 36px;
+    min-height: 34px;
     padding: 0 12px;
   }
 

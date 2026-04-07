@@ -1720,7 +1720,7 @@ useHead(
   .product-box,
   .related-box,
   .not-found-box {
-    padding: 14px;
+    padding: 12px;
   }
 
   .product-layout {
@@ -1738,7 +1738,7 @@ useHead(
   }
 
   .main-image {
-    min-height: 380px;
+    min-height: 320px;
     border-radius: 16px;
     padding: 8px;
   }
@@ -1750,15 +1750,15 @@ useHead(
   }
 
   .product-title {
-    font-size: 42px;
+    font-size: 32px;
     line-height: 0.94;
     letter-spacing: -0.03em;
   }
 
   .product-description {
     margin-top: 4px;
-    font-size: 14px;
-    line-height: 1.4;
+    font-size: 13px;
+    line-height: 1.35;
   }
 
   .price-block {
@@ -1806,7 +1806,7 @@ useHead(
   .action-btn {
     min-width: 0;
     width: 100%;
-    min-height: 46px;
+    min-height: 42px;
   }
 
   .rating-summary {
@@ -1873,7 +1873,7 @@ useHead(
   }
 
   .mobile-buy {
-    min-height: 44px;
+    min-height: 40px;
     padding: 0 16px;
   }
 

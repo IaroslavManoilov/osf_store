@@ -1045,7 +1045,7 @@ useHead(
   .featured-box,
   .philosophy-box,
   .final-box {
-    padding: 14px;
+    padding: 12px;
   }
 
   .intro-badges,
@@ -1110,7 +1110,7 @@ useHead(
     width: 100%;
     max-width: 100%;
     grid-template-columns: minmax(0, 46%) minmax(0, 54%);
-    border-radius: 20px;
+    border-radius: 16px;
   }
 
   .product-media {
@@ -1145,7 +1145,7 @@ useHead(
   }
 
   .product-title-link h3 {
-    font-size: 18px;
+    font-size: 16px;
     line-height: 1.06;
     word-break: break-word;
     display: -webkit-box;
@@ -1178,7 +1178,7 @@ useHead(
   }
 
   .product-bottom strong {
-    font-size: 18px;
+    font-size: 16px;
   }
 
   .size-list {
@@ -1200,8 +1200,9 @@ useHead(
   .quick-btn,
   .buy-btn {
     width: 100%;
-    min-height: 34px;
-    font-size: 11px;
+    min-height: 32px;
+    font-size: 10px;
+    padding: 0 8px;
   }
 }
 </style>

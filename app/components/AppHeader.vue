@@ -644,9 +644,11 @@ onMounted(() => {
 
 @media (max-width: 680px) {
   .header-box {
-    border-radius: 22px;
-    padding: 8px;
-    gap: 8px;
+    margin-top: 6px;
+    border-radius: 18px;
+    padding: 6px;
+    min-height: 56px;
+    gap: 6px;
   }
 
   .brand {
@@ -654,13 +656,13 @@ onMounted(() => {
   }
 
   .brand-mark {
-    width: 50px;
-    height: 50px;
+    width: 44px;
+    height: 44px;
   }
 
   .brand-mark img {
-    width: 40px;
-    height: 40px;
+    width: 34px;
+    height: 34px;
   }
 
   .brand-full {
@@ -673,7 +675,7 @@ onMounted(() => {
 
   .brand-mobile {
     display: block;
-    font-size: 14px;
+    font-size: 13px;
     letter-spacing: 0.08em;
   }
 
@@ -685,9 +687,9 @@ onMounted(() => {
   .notify-btn,
   .cart-btn,
   .burger-btn {
-    width: 38px;
-    height: 38px;
-    min-height: 38px;
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
   }
 
   .lang-switch {
@@ -695,14 +697,14 @@ onMounted(() => {
   }
 
   .lang-link {
-    min-width: 30px;
-    min-height: 30px;
-    font-size: 11px;
+    min-width: 28px;
+    min-height: 28px;
+    font-size: 10px;
   }
 
   .topline-inner {
-    min-height: 34px;
-    font-size: 12px;
+    min-height: 30px;
+    font-size: 11px;
   }
 }
 

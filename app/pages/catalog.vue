@@ -1714,7 +1714,7 @@ useHead(
   .catalog-intro,
   .filters-box,
   .empty-box {
-    padding: 14px;
+    padding: 12px;
   }
 
   .catalog-intro-top {
@@ -1722,13 +1722,13 @@ useHead(
   }
 
   .catalog-title {
-    font-size: clamp(30px, 10vw, 38px);
+    font-size: clamp(28px, 9vw, 34px);
     line-height: 0.96;
   }
 
   .catalog-subtitle {
     margin-top: 8px;
-    font-size: 15px;
+    font-size: 14px;
   }
 
   .catalog-summary {
@@ -1736,17 +1736,17 @@ useHead(
   }
 
   .summary-item {
-    padding: 10px 12px;
-    border-radius: 14px;
+    padding: 8px 10px;
+    border-radius: 12px;
   }
 
   .summary-item strong {
     margin-bottom: 2px;
-    font-size: 16px;
+    font-size: 15px;
   }
 
   .summary-item span {
-    font-size: 13px;
+    font-size: 12px;
   }
 
   .catalog-toolbar {

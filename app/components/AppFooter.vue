@@ -221,7 +221,7 @@ const localePath = useLocalePath()
 
 @media (max-width: 680px) {
   .app-footer {
-    padding: 38px 0 22px;
+    padding: 26px 0 16px;
   }
 
   .footer-content {
@@ -230,13 +230,13 @@ const localePath = useLocalePath()
   }
 
   .footer-brand h3 {
-    font-size: 22px;
+    font-size: 18px;
     margin-bottom: 10px;
   }
 
   .footer-brand p {
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: 13px;
+    line-height: 1.4;
   }
 
   .trust-row {
@@ -256,7 +256,7 @@ const localePath = useLocalePath()
 
   .footer-links {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+    gap: 10px;
   }
 
   .footer-section h4 {
@@ -269,7 +269,7 @@ const localePath = useLocalePath()
   }
 
   .footer-section a {
-    font-size: 13px;
+    font-size: 12px;
   }
 
   .footer-bottom {
@@ -280,7 +280,7 @@ const localePath = useLocalePath()
   }
 
   .footer-bottom p {
-    font-size: 12px;
+    font-size: 11px;
   }
 }
 
@@ -296,21 +296,21 @@ const localePath = useLocalePath()
   }
 
   .footer-brand h3 {
-    font-size: 20px;
+    font-size: 17px;
   }
 
   .footer-brand p {
-    font-size: 13px;
+    font-size: 12px;
     line-height: 1.45;
   }
 
   .footer-section h4 {
-    font-size: 11px;
+    font-size: 10px;
     letter-spacing: 0.1em;
   }
 
   .footer-section a {
-    font-size: 12px;
+    font-size: 11px;
     line-height: 1.3;
   }
 
