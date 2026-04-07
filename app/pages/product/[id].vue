@@ -1713,38 +1713,52 @@ useHead(
 }
 
 @media (max-width: 640px) {
+  .breadcrumbs {
+    display: none;
+  }
+
   .product-box,
   .related-box,
   .not-found-box {
-    padding: 18px;
+    padding: 14px;
   }
 
   .product-layout {
-    grid-template-columns: minmax(150px, 44%) minmax(0, 1fr);
-    gap: 12px;
-    align-items: start;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    align-items: stretch;
+  }
+
+  .gallery {
+    gap: 8px;
+  }
+
+  .product-content {
+    gap: 8px;
   }
 
   .main-image {
-    min-height: 272px;
-    border-radius: 18px;
-    padding: 10px;
+    min-height: 380px;
+    border-radius: 16px;
+    padding: 8px;
   }
 
   .main-image-media {
-    max-width: 248px;
-    max-height: 268px;
+    width: 100%;
+    max-width: 100%;
+    max-height: 100%;
   }
 
   .product-title {
-    font-size: 24px;
-    line-height: 1.02;
+    font-size: 42px;
+    line-height: 0.94;
+    letter-spacing: -0.03em;
   }
 
   .product-description {
-    margin-top: 8px;
+    margin-top: 4px;
     font-size: 14px;
-    line-height: 1.45;
+    line-height: 1.4;
   }
 
   .price-block {
@@ -1756,14 +1770,14 @@ useHead(
   }
 
   .gallery-counter {
-    top: 12px;
-    right: 12px;
+    top: 10px;
+    right: 10px;
     font-size: 10px;
   }
 
   .zoom-hint-btn {
-    right: 12px;
-    bottom: 12px;
+    right: 10px;
+    bottom: 10px;
     min-height: 30px;
     font-size: 11px;
   }
@@ -1781,15 +1795,43 @@ useHead(
   .actions-row {
     flex-direction: column;
     align-items: stretch;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .price-box strong {
+    font-size: 30px;
   }
 
   .action-btn {
     min-width: 0;
     width: 100%;
+    min-height: 46px;
+  }
+
+  .rating-summary {
+    max-width: none;
+    padding: 10px 12px;
+  }
+
+  .meta-grid {
+    margin-top: 12px;
+    gap: 8px;
+  }
+
+  .meta-card {
+    min-height: 64px;
+    padding: 10px 12px;
+  }
+
+  .size-section {
+    margin-top: 12px;
+    gap: 8px;
   }
 
   .proof-row {
     grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .faq-box {
