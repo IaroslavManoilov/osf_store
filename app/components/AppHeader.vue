@@ -295,8 +295,7 @@ onMounted(() => {
 
 <style scoped>
 .header-wrap {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 60;
   backdrop-filter: blur(10px);
 }
