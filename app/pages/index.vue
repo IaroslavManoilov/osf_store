@@ -635,6 +635,7 @@ useHead(
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   min-width: 0;
+  max-width: 100%;
 }
 
 .product-card {
@@ -644,6 +645,7 @@ useHead(
   overflow: hidden;
   box-shadow: 0 10px 24px rgba(18, 30, 22, 0.07);
   min-width: 0;
+  max-width: 100%;
 }
 
 .product-media {
@@ -654,6 +656,7 @@ useHead(
   place-items: center;
   padding: 12px;
   overflow: hidden;
+  min-width: 0;
 }
 
 .product-media-link {
@@ -668,6 +671,7 @@ useHead(
   border-radius: 18px;
   background: #fff;
   overflow: hidden;
+  min-width: 0;
 }
 
 .product-media img {
@@ -732,6 +736,7 @@ useHead(
   display: grid;
   gap: 10px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .product-meta {
@@ -1098,25 +1103,28 @@ useHead(
   }
 
   .product-card {
-    grid-template-columns: minmax(0, 47%) minmax(0, 53%);
+    grid-template-columns: minmax(0, 50%) minmax(0, 50%);
+    border-radius: 20px;
   }
 
   .product-media {
     min-height: 100%;
-    padding: 6px;
+    padding: 4px;
   }
 
   .product-media-link {
-    min-height: 190px;
+    min-height: 0;
     height: 100%;
-    padding: 24px 4px 4px;
+    padding: 40px 2px 2px;
     border-radius: 12px;
   }
 
   .product-media img {
-    max-width: 248px;
-    max-height: 248px;
-    transform: scale(1.08);
+    width: 118%;
+    height: 118%;
+    max-width: none;
+    max-height: none;
+    transform: none;
     margin: 0 auto;
   }
 
@@ -1134,10 +1142,19 @@ useHead(
     font-size: 18px;
     line-height: 1.06;
     word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .product-body p {
     font-size: 14px;
+    margin-bottom: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .product-meta {
@@ -1152,6 +1169,16 @@ useHead(
 
   .product-bottom strong {
     font-size: 20px;
+  }
+
+  .size-list {
+    gap: 6px;
+  }
+
+  .size-pill {
+    min-width: 38px;
+    min-height: 32px;
+    font-size: 11px;
   }
 
   .product-actions,
