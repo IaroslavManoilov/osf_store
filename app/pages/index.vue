@@ -532,6 +532,7 @@ useHead(
 
 .intro-title {
   max-width: 640px;
+  margin: 8px 0 0;
   font-size: clamp(40px, 5vw, 68px);
   line-height: 0.95;
 }
@@ -1059,6 +1060,7 @@ useHead(
   }
 
   .intro-title {
+    margin-top: 6px;
     font-size: clamp(24px, 8.4vw, 32px);
     line-height: 0.98;
   }
