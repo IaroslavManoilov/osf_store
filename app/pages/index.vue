@@ -1135,13 +1135,13 @@ useHead(
   }
 
   .product-badge {
-    top: 8px;
-    left: 8px;
+    top: 12px;
+    left: 12px;
   }
 
   .wishlist-toggle {
-    top: 8px;
-    right: 8px;
+    top: 12px;
+    right: 12px;
   }
 
   .product-title-link h3 {
