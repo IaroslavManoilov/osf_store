@@ -4,6 +4,7 @@ import { saveOrder } from '../utils/order-storage'
 import { getSupabaseAdmin } from '../utils/supabase-admin'
 import { assertRateLimit } from '../utils/rate-limit'
 import { reserveInventory, restoreInventory } from '../utils/inventory'
+import { createOrderTrackToken } from '../utils/order-track-token'
 import { getProducts } from '~/data/products'
 
 type OrderItem = {
@@ -267,6 +268,11 @@ Total: ${serverTotal} MDL
   return {
     success: true,
     orderId,
+    trackToken: createOrderTrackToken(
+      config.orderTrackSecret || config.adminKey || 'osf-order-track-secret',
+      orderId,
+      customer.phone
+    ),
     total: serverTotal,
     notifications: {
       telegramSent,

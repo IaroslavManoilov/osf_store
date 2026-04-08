@@ -198,6 +198,11 @@ export async function readOrders(event: H3Event, status?: string): Promise<Admin
   return fetchOrders(event, { status })
 }
 
+export async function readOrderById(event: H3Event, id: string): Promise<AdminOrder | null> {
+  const [order] = await fetchOrders(event, { id })
+  return order || null
+}
+
 export async function saveOrder(event: H3Event, order: AdminOrder) {
   const client = getSupabaseAdmin(event)
 

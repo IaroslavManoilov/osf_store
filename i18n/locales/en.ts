@@ -6,6 +6,7 @@ export default {
     cart: 'Cart',
     wishlist: 'Wishlist',
     checkout: 'Checkout',
+    orders: 'My orders',
     language: 'Language',
     menu: 'Open menu',
     explore: 'Explore catalog',

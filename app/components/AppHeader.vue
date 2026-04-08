@@ -47,6 +47,14 @@
           >
             {{ $t('nav.about') }}
           </NuxtLink>
+
+          <NuxtLink
+            :to="localePath('/orders')"
+            class="nav-link"
+            :class="{ active: isActiveRoute('/orders') }"
+          >
+            {{ $t('nav.orders') }}
+          </NuxtLink>
         </nav>
 
         <div class="header-actions">
@@ -159,6 +167,15 @@
               @click="closeMobileMenu"
             >
               {{ $t('nav.about') }}
+            </NuxtLink>
+
+            <NuxtLink
+              :to="localePath('/orders')"
+              class="mobile-nav-link"
+              :class="{ active: isActiveRoute('/orders') }"
+              @click="closeMobileMenu"
+            >
+              {{ $t('nav.orders') }}
             </NuxtLink>
 
             <NuxtLink

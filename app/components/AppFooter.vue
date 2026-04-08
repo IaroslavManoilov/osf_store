@@ -42,6 +42,7 @@
               <li><NuxtLink :to="localePath('/wishlist')">{{ $t('nav.wishlist') }}</NuxtLink></li>
               <li><NuxtLink :to="localePath('/cart')">{{ $t('nav.cart') }}</NuxtLink></li>
               <li><NuxtLink :to="localePath('/checkout')">{{ $t('nav.checkout') }}</NuxtLink></li>
+              <li><NuxtLink :to="localePath('/orders')">{{ $t('nav.orders') }}</NuxtLink></li>
             </ul>
           </div>
 

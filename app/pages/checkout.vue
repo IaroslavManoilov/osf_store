@@ -226,6 +226,7 @@ import { getProducts } from '~/data/products'
 type OrderResponse = {
   success: boolean
   orderId: string
+  trackToken?: string
   message: string
 }
 
@@ -313,6 +314,7 @@ const form = reactive<CheckoutForm>({
 })
 
 const profileStorageKey = 'osf_checkout_profile_v1'
+const orderTracksStorageKey = 'osf_order_tracks_v1'
 
 const isSubmitting = ref(false)
 const successMessage = ref('')
@@ -557,6 +559,48 @@ const markPurchasedProducts = (ids: string[]) => {
   }
 }
 
+const saveOrderTrack = (orderId: string, token: string) => {
+  if (!import.meta.client || !orderId || !token) return
+
+  type SavedTrack = {
+    id: string
+    token: string
+    createdAt: string
+  }
+
+  let tracks: SavedTrack[] = []
+
+  try {
+    const raw = window.localStorage.getItem(orderTracksStorageKey)
+    const parsed = raw ? JSON.parse(raw) : []
+    if (Array.isArray(parsed)) {
+      tracks = parsed.filter((item): item is SavedTrack =>
+        !!item &&
+        typeof item === 'object' &&
+        typeof (item as SavedTrack).id === 'string' &&
+        typeof (item as SavedTrack).token === 'string'
+      )
+    }
+  } catch {
+    tracks = []
+  }
+
+  const next = [
+    {
+      id: orderId,
+      token,
+      createdAt: new Date().toISOString()
+    },
+    ...tracks.filter((item) => item.id !== orderId)
+  ].slice(0, 30)
+
+  try {
+    window.localStorage.setItem(orderTracksStorageKey, JSON.stringify(next))
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
 const progressSteps = computed(() => [ui.value.stepDetails])
 
 const activeStep = computed(() => {
@@ -758,6 +802,9 @@ const submitOrder = async () => {
     })
 
     successMessage.value = `${ui.value.successPrefix} ${response.orderId}`
+    if (response.trackToken) {
+      saveOrderTrack(response.orderId, response.trackToken)
+    }
     markPurchasedProducts(purchasedIds)
     saveCheckoutProfile()
     resetForm()

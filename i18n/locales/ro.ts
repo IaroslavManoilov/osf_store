@@ -6,6 +6,7 @@ export default {
     cart: 'Coș',
     wishlist: 'Favorite',
     checkout: 'Checkout',
+    orders: 'Comenzile mele',
     language: 'Limbă',
     menu: 'Deschide meniul',
     explore: 'Vezi catalogul',

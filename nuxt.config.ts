@@ -22,6 +22,7 @@ export default defineNuxtConfig({
     resendApiKey: process.env.NUXT_RESEND_API_KEY || '',
     orderEmailTo: process.env.NUXT_ORDER_EMAIL_TO || '',
     orderEmailFrom: process.env.NUXT_ORDER_EMAIL_FROM || '',
+    orderTrackSecret: process.env.NUXT_ORDER_TRACK_SECRET || '',
     adminKey: process.env.NUXT_ADMIN_KEY || '',
     supabaseUrl: process.env.NUXT_SUPABASE_URL || '',
     supabaseServiceRoleKey: process.env.NUXT_SUPABASE_SERVICE_ROLE_KEY || '',
