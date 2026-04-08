@@ -45,12 +45,70 @@
 
                 <label class="field">
                   <span>{{ ui.phone }}</span>
-                  <input v-model.trim="form.phone" type="tel" autocomplete="tel" required />
+                  <div class="phone-group">
+                    <select v-model="form.phoneCode" :aria-label="ui.phoneCode">
+                      <option v-for="code in phoneCodes" :key="code.value" :value="code.value">{{ code.label }}</option>
+                    </select>
+                    <input
+                      v-model.trim="form.phoneLocal"
+                      type="tel"
+                      autocomplete="tel-national"
+                      :placeholder="ui.phoneNumber"
+                      required
+                    />
+                  </div>
                 </label>
 
                 <label class="field field-full">
-                  <span>{{ ui.address }}</span>
-                  <input v-model.trim="form.address" type="text" autocomplete="street-address" required />
+                  <span>{{ ui.deliveryType }}</span>
+                  <select v-model="form.deliveryType">
+                    <option v-for="option in deliveryTypeOptions" :key="option.value" :value="option.value">
+                      {{ option.label }}
+                    </option>
+                  </select>
+                </label>
+
+                <label class="field">
+                  <span>{{ ui.city }}</span>
+                  <input v-model.trim="form.city" type="text" autocomplete="address-level2" required />
+                </label>
+
+                <label v-if="form.deliveryType === 'courier'" class="field">
+                  <span>{{ ui.street }}</span>
+                  <input v-model.trim="form.street" type="text" autocomplete="street-address" required />
+                </label>
+
+                <label v-if="form.deliveryType === 'courier'" class="field">
+                  <span>{{ ui.house }}</span>
+                  <input v-model.trim="form.house" type="text" autocomplete="address-line1" required />
+                </label>
+
+                <label v-if="form.deliveryType === 'courier'" class="field">
+                  <span>{{ ui.apartment }}</span>
+                  <input v-model.trim="form.apartment" type="text" autocomplete="address-line2" />
+                </label>
+
+                <label class="field">
+                  <span>{{ ui.postalCode }}</span>
+                  <input v-model.trim="form.postalCode" type="text" autocomplete="postal-code" />
+                </label>
+
+                <label v-if="form.deliveryType !== 'courier'" class="field field-full">
+                  <span>{{ ui.pickupPoint }}</span>
+                  <input v-model.trim="form.pickupPoint" type="text" :placeholder="ui.pickupPoint" required />
+                </label>
+
+                <label class="field field-full">
+                  <span>{{ ui.mapQuery }}</span>
+                  <div class="map-row">
+                    <input v-model.trim="form.mapQuery" type="text" :placeholder="ui.mapQuery" />
+                    <button type="button" class="btn-alt map-btn" @click="openMapSearch">
+                      {{ ui.mapOpen }}
+                    </button>
+                    <a class="btn-alt map-btn" href="https://www.posta.md/ro/oficii-postale" target="_blank" rel="noopener noreferrer">
+                      {{ ui.postOfficeOpen }}
+                    </a>
+                  </div>
                 </label>
               </div>
 
@@ -178,8 +236,19 @@ type CheckoutUi = {
   formTitle: string
   name: string
   phone: string
+  phoneCode: string
+  phoneNumber: string
   email: string
-  address: string
+  deliveryType: string
+  city: string
+  street: string
+  house: string
+  apartment: string
+  postalCode: string
+  pickupPoint: string
+  mapQuery: string
+  mapOpen: string
+  postOfficeOpen: string
   comment: string
   optionalTitle: string
   submit: string
@@ -209,9 +278,17 @@ type CheckoutUi = {
 
 type CheckoutForm = {
   name: string
-  phone: string
+  phoneCode: string
+  phoneLocal: string
   email: string
-  address: string
+  deliveryType: 'courier' | 'post_office' | 'postamat'
+  city: string
+  street: string
+  house: string
+  apartment: string
+  postalCode: string
+  pickupPoint: string
+  mapQuery: string
   comment: string
 }
 
@@ -221,9 +298,17 @@ const shopStore = useShopStore()
 
 const form = reactive<CheckoutForm>({
   name: '',
-  phone: '',
+  phoneCode: '+373',
+  phoneLocal: '',
   email: '',
-  address: '',
+  deliveryType: 'courier',
+  city: '',
+  street: '',
+  house: '',
+  apartment: '',
+  postalCode: '',
+  pickupPoint: '',
+  mapQuery: '',
   comment: ''
 })
 
@@ -242,8 +327,19 @@ const ui = computed<CheckoutUi>(() => {
       formTitle: 'Date client',
       name: 'Nume',
       phone: 'Telefon',
+      phoneCode: 'Cod',
+      phoneNumber: 'Număr local',
       email: 'Email',
-      address: 'Adresă',
+      deliveryType: 'Tip livrare',
+      city: 'Oraș',
+      street: 'Stradă',
+      house: 'Casă/Bloc',
+      apartment: 'Apartament',
+      postalCode: 'Cod poștal',
+      pickupPoint: 'Oficiu/poștomat',
+      mapQuery: 'Caută adresă pe hartă',
+      mapOpen: 'Deschide harta',
+      postOfficeOpen: 'Oficii Poșta Moldovei',
       comment: 'Comentariu',
       optionalTitle: 'Câmpuri opționale',
       submit: 'Trimite comanda',
@@ -280,8 +376,19 @@ const ui = computed<CheckoutUi>(() => {
       formTitle: 'Customer details',
       name: 'Name',
       phone: 'Phone',
+      phoneCode: 'Code',
+      phoneNumber: 'Local number',
       email: 'Email',
-      address: 'Address',
+      deliveryType: 'Delivery type',
+      city: 'City',
+      street: 'Street',
+      house: 'House/Building',
+      apartment: 'Apartment',
+      postalCode: 'Postal code',
+      pickupPoint: 'Post office/locker',
+      mapQuery: 'Find address on map',
+      mapOpen: 'Open map',
+      postOfficeOpen: 'Posta Moldovei offices',
       comment: 'Comment',
       optionalTitle: 'Optional fields',
       submit: 'Submit order',
@@ -317,8 +424,19 @@ const ui = computed<CheckoutUi>(() => {
     formTitle: 'Данные клиента',
     name: 'Имя',
     phone: 'Телефон',
+    phoneCode: 'Код',
+    phoneNumber: 'Локальный номер',
     email: 'Email',
-    address: 'Адрес',
+    deliveryType: 'Тип доставки',
+    city: 'Город',
+    street: 'Улица',
+    house: 'Дом/Блок',
+    apartment: 'Квартира',
+    postalCode: 'Почтовый индекс',
+    pickupPoint: 'Отделение/поштомат',
+    mapQuery: 'Найти адрес на карте',
+    mapOpen: 'Открыть карту',
+    postOfficeOpen: 'Отделения Poșta Moldovei',
     comment: 'Комментарий',
     optionalTitle: 'Дополнительные поля',
     submit: 'Отправить заказ',
@@ -349,9 +467,17 @@ const ui = computed<CheckoutUi>(() => {
 
 const resetForm = () => {
   form.name = ''
-  form.phone = ''
+  form.phoneCode = '+373'
+  form.phoneLocal = ''
   form.email = ''
-  form.address = ''
+  form.deliveryType = 'courier'
+  form.city = ''
+  form.street = ''
+  form.house = ''
+  form.apartment = ''
+  form.postalCode = ''
+  form.pickupPoint = ''
+  form.mapQuery = ''
   form.comment = ''
 }
 
@@ -365,9 +491,19 @@ const loadCheckoutProfile = () => {
 
     const profile = parsed as Partial<CheckoutForm>
     if (typeof profile.name === 'string') form.name = profile.name
-    if (typeof profile.phone === 'string') form.phone = profile.phone
+    if (typeof profile.phoneCode === 'string') form.phoneCode = profile.phoneCode
+    if (typeof profile.phoneLocal === 'string') form.phoneLocal = profile.phoneLocal
     if (typeof profile.email === 'string') form.email = profile.email
-    if (typeof profile.address === 'string') form.address = profile.address
+    if (profile.deliveryType === 'courier' || profile.deliveryType === 'post_office' || profile.deliveryType === 'postamat') {
+      form.deliveryType = profile.deliveryType
+    }
+    if (typeof profile.city === 'string') form.city = profile.city
+    if (typeof profile.street === 'string') form.street = profile.street
+    if (typeof profile.house === 'string') form.house = profile.house
+    if (typeof profile.apartment === 'string') form.apartment = profile.apartment
+    if (typeof profile.postalCode === 'string') form.postalCode = profile.postalCode
+    if (typeof profile.pickupPoint === 'string') form.pickupPoint = profile.pickupPoint
+    if (typeof profile.mapQuery === 'string') form.mapQuery = profile.mapQuery
     if (typeof profile.comment === 'string') form.comment = profile.comment
   } catch {
     // Ignore invalid persisted profile.
@@ -380,9 +516,17 @@ const saveCheckoutProfile = () => {
   try {
     window.localStorage.setItem(profileStorageKey, JSON.stringify({
       name: form.name,
-      phone: form.phone,
+      phoneCode: form.phoneCode,
+      phoneLocal: form.phoneLocal,
       email: form.email,
-      address: form.address
+      deliveryType: form.deliveryType,
+      city: form.city,
+      street: form.street,
+      house: form.house,
+      apartment: form.apartment,
+      postalCode: form.postalCode,
+      pickupPoint: form.pickupPoint,
+      mapQuery: form.mapQuery
     }))
   } catch {
     // Ignore storage write failures.
@@ -419,6 +563,112 @@ const activeStep = computed(() => {
   if (isSubmitting.value) return 0
   return 0
 })
+
+const phoneCodes = [
+  { value: '+373', label: '+373 Moldova / PMR' },
+  { value: '+40', label: '+40 Romania' },
+  { value: '+380', label: '+380 Ukraine' },
+  { value: '+7', label: '+7 Russia / KZ' },
+  { value: '+49', label: '+49 Germany' }
+]
+
+const deliveryTypeOptions = computed(() => {
+  if (locale.value === 'en') {
+    return [
+      { value: 'courier', label: 'Courier delivery' },
+      { value: 'post_office', label: 'Post office pickup' },
+      { value: 'postamat', label: 'Parcel locker' }
+    ]
+  }
+
+  if (locale.value === 'ro') {
+    return [
+      { value: 'courier', label: 'Livrare curier' },
+      { value: 'post_office', label: 'Ridicare oficiu poștal' },
+      { value: 'postamat', label: 'Poștomat' }
+    ]
+  }
+
+  return [
+    { value: 'courier', label: 'Курьером' },
+    { value: 'post_office', label: 'Самовывоз из отделения' },
+    { value: 'postamat', label: 'Поштомат' }
+  ]
+})
+
+const digitsOnly = (value: string) => value.replace(/\D/g, '')
+
+const fullPhone = computed(() => `${form.phoneCode} ${digitsOnly(form.phoneLocal)}`.trim())
+
+const fullAddress = computed(() => {
+  if (form.deliveryType === 'courier') {
+    return [
+      'Courier',
+      form.city,
+      form.street,
+      form.house,
+      form.apartment ? `apt ${form.apartment}` : '',
+      form.postalCode ? `ZIP ${form.postalCode}` : ''
+    ]
+      .filter(Boolean)
+      .join(', ')
+  }
+
+  if (form.deliveryType === 'post_office') {
+    return [
+      'Post office',
+      form.pickupPoint,
+      form.city,
+      form.postalCode ? `ZIP ${form.postalCode}` : ''
+    ]
+      .filter(Boolean)
+      .join(', ')
+  }
+
+  return [
+    'Postamat',
+    form.pickupPoint,
+    form.city
+  ]
+    .filter(Boolean)
+    .join(', ')
+})
+
+const validateCheckoutContact = () => {
+  const phone = digitsOnly(form.phoneLocal)
+  if (phone.length < 6 || phone.length > 12) {
+    return locale.value === 'en'
+      ? 'Enter valid phone number'
+      : locale.value === 'ro'
+        ? 'Introdu un număr valid'
+        : 'Введи корректный номер телефона'
+  }
+
+  if (form.deliveryType === 'courier') {
+    if (!form.city || !form.street || !form.house) {
+      return locale.value === 'en'
+        ? 'Fill city, street and house for courier'
+        : locale.value === 'ro'
+          ? 'Completează orașul, strada și casa pentru curier'
+          : 'Для курьера заполни город, улицу и дом'
+    }
+  } else if (!form.pickupPoint || !form.city) {
+    return locale.value === 'en'
+      ? 'Fill pickup point and city'
+      : locale.value === 'ro'
+        ? 'Completează punctul de ridicare și orașul'
+        : 'Заполни пункт выдачи и город'
+  }
+
+  return ''
+}
+
+const openMapSearch = () => {
+  if (!import.meta.client) return
+  const query = encodeURIComponent(form.mapQuery || [form.city, form.street, form.house].filter(Boolean).join(' '))
+  const url = `https://www.google.com/maps/search/?api=1&query=${query || 'Moldova'}`
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
 
 const catalogSizesById = computed(() => {
   const map = new Map<string, string[]>()
@@ -460,6 +710,13 @@ const getErrorMessage = (error: unknown) => {
 const submitOrder = async () => {
   successMessage.value = ''
   errorMessage.value = ''
+
+  const contactValidationError = validateCheckoutContact()
+  if (contactValidationError) {
+    errorMessage.value = contactValidationError
+    return
+  }
+
   isSubmitting.value = true
 
   try {
@@ -489,9 +746,9 @@ const submitOrder = async () => {
       body: {
         customer: {
           name: form.name,
-          phone: form.phone,
+          phone: fullPhone.value,
           email: form.email,
-          address: form.address,
+          address: fullAddress.value,
           comment: form.comment
         },
         items: normalizedItems,
@@ -684,6 +941,7 @@ useSeoMeta({
 }
 
 .field input,
+.field select,
 .field textarea {
   width: 100%;
   min-height: 54px;
@@ -694,6 +952,24 @@ useSeoMeta({
   font: inherit;
   color: var(--text);
   outline: none;
+}
+
+.phone-group {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.map-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.map-btn {
+  min-height: 44px;
+  white-space: nowrap;
 }
 
 .field textarea {
@@ -879,6 +1155,11 @@ useSeoMeta({
 
   .field-full {
     grid-column: auto;
+  }
+
+  .phone-group,
+  .map-row {
+    grid-template-columns: 1fr;
   }
 
   .summary-product {
