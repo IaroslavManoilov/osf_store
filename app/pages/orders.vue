@@ -19,7 +19,7 @@
             <div class="orders-live-row">
               <p class="orders-live">{{ ui.autoRefresh }}</p>
               <button type="button" class="btn-alt notice-toggle" @click="toggleNotices">
-                {{ notificationsEnabled ? ui.noticesOn : ui.noticesOff }}
+                {{ noticeModeLabel }}
               </button>
             </div>
 
@@ -229,6 +229,7 @@ type Ui = {
   clearNoticeCenter: string
   noticeCenterEmpty: string
   noticesOn: string
+  noticesCenterOnly: string
   noticesOff: string
 }
 
@@ -239,7 +240,8 @@ const uiStore = useUiStore()
 
 const tracksKey = 'osf_order_tracks_v1'
 const noticesKey = 'osf_order_notices_v1'
-const noticesEnabledKey = 'osf_order_notices_enabled_v1'
+const noticesEnabledKeyLegacy = 'osf_order_notices_enabled_v1'
+const noticesModeKey = 'osf_order_notices_mode_v1'
 const maxNotices = 20
 
 const trackedOrders = ref<PublicOrder[]>([])
@@ -253,7 +255,7 @@ const ordersPollTimer = ref<ReturnType<typeof setInterval> | null>(null)
 const knownStatusByOrderId = ref<Record<string, PublicOrder['status']>>({})
 const knownHistoryByOrderId = ref<Record<string, number>>({})
 const orderNotices = ref<OrderNotice[]>([])
-const notificationsEnabled = ref(true)
+const notificationsMode = ref<'all' | 'history' | 'off'>('all')
 
 const lookup = reactive({
   orderId: '',
@@ -308,6 +310,7 @@ const ui = computed<Ui>(() => {
       clearNoticeCenter: 'Curăță',
       noticeCenterEmpty: 'Nu există notificări încă.',
       noticesOn: 'Notificări: ON',
+      noticesCenterOnly: 'Notificări: doar centru',
       noticesOff: 'Notificări: OFF'
     }
   }
@@ -359,6 +362,7 @@ const ui = computed<Ui>(() => {
       clearNoticeCenter: 'Clear',
       noticeCenterEmpty: 'No notifications yet.',
       noticesOn: 'Notifications: ON',
+      noticesCenterOnly: 'Notifications: center only',
       noticesOff: 'Notifications: OFF'
     }
   }
@@ -409,6 +413,7 @@ const ui = computed<Ui>(() => {
     clearNoticeCenter: 'Очистить',
     noticeCenterEmpty: 'Пока нет уведомлений.',
     noticesOn: 'Уведомления: ВКЛ',
+    noticesCenterOnly: 'Уведомления: только центр',
     noticesOff: 'Уведомления: ВЫКЛ'
   }
 })
@@ -421,6 +426,12 @@ const statusLabel = (status: PublicOrder['status']) => {
   if (status === 'returned') return ui.value.statusReturned
   return ui.value.statusNew
 }
+
+const noticeModeLabel = computed(() => {
+  if (notificationsMode.value === 'history') return ui.value.noticesCenterOnly
+  if (notificationsMode.value === 'off') return ui.value.noticesOff
+  return ui.value.noticesOn
+})
 
 const etaLabel = (status: PublicOrder['status']) => {
   if (status === 'confirmed') return ui.value.etaConfirmed
@@ -497,19 +508,22 @@ const saveNotices = () => {
   window.localStorage.setItem(noticesKey, JSON.stringify(orderNotices.value))
 }
 
-const saveNoticesEnabled = () => {
+const saveNoticesMode = () => {
   if (!import.meta.client) return
-  window.localStorage.setItem(noticesEnabledKey, notificationsEnabled.value ? '1' : '0')
+  window.localStorage.setItem(noticesModeKey, notificationsMode.value)
 }
 
-const loadNoticesEnabled = () => {
+const loadNoticesMode = () => {
   if (!import.meta.client) return
-  const raw = window.localStorage.getItem(noticesEnabledKey)
-  if (raw === '0') {
-    notificationsEnabled.value = false
+  const mode = window.localStorage.getItem(noticesModeKey)
+  if (mode === 'all' || mode === 'history' || mode === 'off') {
+    notificationsMode.value = mode
     return
   }
-  notificationsEnabled.value = true
+
+  // Backward compatibility with previous boolean key.
+  const legacy = window.localStorage.getItem(noticesEnabledKeyLegacy)
+  notificationsMode.value = legacy === '0' ? 'off' : 'all'
 }
 
 const loadNotices = () => {
@@ -537,7 +551,7 @@ const loadNotices = () => {
 }
 
 const pushOrderNotice = (order: PublicOrder) => {
-  if (!notificationsEnabled.value) return
+  if (notificationsMode.value === 'off') return
 
   const text = `${ui.value.statusChanged}: ${order.id} → ${statusLabel(order.status)}`
   const next: OrderNotice[] = [
@@ -553,12 +567,20 @@ const pushOrderNotice = (order: PublicOrder) => {
 
   orderNotices.value = next
   saveNotices()
-  uiStore.showToast(text, 'info')
+  if (notificationsMode.value === 'all') {
+    uiStore.showToast(text, 'info')
+  }
 }
 
 const toggleNotices = () => {
-  notificationsEnabled.value = !notificationsEnabled.value
-  saveNoticesEnabled()
+  if (notificationsMode.value === 'all') {
+    notificationsMode.value = 'history'
+  } else if (notificationsMode.value === 'history') {
+    notificationsMode.value = 'off'
+  } else {
+    notificationsMode.value = 'all'
+  }
+  saveNoticesMode()
 }
 
 const clearOrderNotices = () => {
@@ -736,7 +758,7 @@ const lookupOrder = async () => {
 }
 
 onMounted(() => {
-  loadNoticesEnabled()
+  loadNoticesMode()
   loadNotices()
   loadTrackedOrders()
   ordersPollTimer.value = setInterval(() => {
