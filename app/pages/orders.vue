@@ -110,6 +110,27 @@
               </div>
             </article>
 
+            <div class="notice-center">
+              <div class="notice-head">
+                <strong>{{ ui.noticeCenter }}</strong>
+                <button
+                  v-if="orderNotices.length"
+                  type="button"
+                  class="btn-alt notice-clear"
+                  @click="clearOrderNotices"
+                >
+                  {{ ui.clearNoticeCenter }}
+                </button>
+              </div>
+              <p v-if="!orderNotices.length" class="notice-empty">{{ ui.noticeCenterEmpty }}</p>
+              <ul v-else class="notice-list">
+                <li v-for="notice in orderNotices" :key="notice.id" class="notice-item">
+                  <p>{{ notice.text }}</p>
+                  <time>{{ formatDate(notice.changedAt) }}</time>
+                </li>
+              </ul>
+            </div>
+
             <NuxtLink :to="localePath('/catalog')" class="btn-alt back-link">{{ ui.backCatalog }}</NuxtLink>
           </aside>
         </div>
@@ -147,6 +168,14 @@ type SavedTrack = {
   id: string
   token: string
   createdAt: string
+}
+
+type OrderNotice = {
+  id: string
+  orderId: string
+  text: string
+  status: PublicOrder['status']
+  changedAt: string
 }
 
 type Ui = {
@@ -191,6 +220,9 @@ type Ui = {
   cancelError: string
   statusChanged: string
   autoRefresh: string
+  noticeCenter: string
+  clearNoticeCenter: string
+  noticeCenterEmpty: string
 }
 
 const { locale } = useI18n()
@@ -199,6 +231,8 @@ const shopStore = useShopStore()
 const uiStore = useUiStore()
 
 const tracksKey = 'osf_order_tracks_v1'
+const noticesKey = 'osf_order_notices_v1'
+const maxNotices = 20
 
 const trackedOrders = ref<PublicOrder[]>([])
 const trackedLoading = ref(false)
@@ -210,6 +244,7 @@ const trackTokenByOrderId = ref<Record<string, string>>({})
 const ordersPollTimer = ref<ReturnType<typeof setInterval> | null>(null)
 const knownStatusByOrderId = ref<Record<string, PublicOrder['status']>>({})
 const knownHistoryByOrderId = ref<Record<string, number>>({})
+const orderNotices = ref<OrderNotice[]>([])
 
 const lookup = reactive({
   orderId: '',
@@ -259,7 +294,10 @@ const ui = computed<Ui>(() => {
       cancelSuccess: 'Comanda a fost anulată.',
       cancelError: 'Nu am reușit anularea comenzii.',
       statusChanged: 'Status actualizat',
-      autoRefresh: 'Actualizare automată activă'
+      autoRefresh: 'Actualizare automată activă',
+      noticeCenter: 'Notificări comandă',
+      clearNoticeCenter: 'Curăță',
+      noticeCenterEmpty: 'Nu există notificări încă.'
     }
   }
 
@@ -305,7 +343,10 @@ const ui = computed<Ui>(() => {
       cancelSuccess: 'Order was cancelled.',
       cancelError: 'Could not cancel order.',
       statusChanged: 'Status updated',
-      autoRefresh: 'Auto refresh is active'
+      autoRefresh: 'Auto refresh is active',
+      noticeCenter: 'Order notifications',
+      clearNoticeCenter: 'Clear',
+      noticeCenterEmpty: 'No notifications yet.'
     }
   }
 
@@ -350,7 +391,10 @@ const ui = computed<Ui>(() => {
     cancelSuccess: 'Заказ отменен.',
     cancelError: 'Не удалось отменить заказ.',
     statusChanged: 'Статус обновлен',
-    autoRefresh: 'Автообновление включено'
+    autoRefresh: 'Автообновление включено',
+    noticeCenter: 'Уведомления по заказам',
+    clearNoticeCenter: 'Очистить',
+    noticeCenterEmpty: 'Пока нет уведомлений.'
   }
 })
 
@@ -431,6 +475,58 @@ const parseSavedTracks = (): SavedTrack[] => {
   } catch {
     return []
   }
+}
+
+const saveNotices = () => {
+  if (!import.meta.client) return
+  window.localStorage.setItem(noticesKey, JSON.stringify(orderNotices.value))
+}
+
+const loadNotices = () => {
+  if (!import.meta.client) return
+  try {
+    const raw = window.localStorage.getItem(noticesKey)
+    const parsed = raw ? JSON.parse(raw) : []
+    const next = Array.isArray(parsed)
+      ? parsed
+        .filter((item): item is OrderNotice =>
+          !!item &&
+          typeof item === 'object' &&
+          typeof (item as OrderNotice).id === 'string' &&
+          typeof (item as OrderNotice).orderId === 'string' &&
+          typeof (item as OrderNotice).text === 'string' &&
+          typeof (item as OrderNotice).status === 'string' &&
+          typeof (item as OrderNotice).changedAt === 'string'
+        )
+        .slice(0, maxNotices)
+      : []
+    orderNotices.value = next
+  } catch {
+    orderNotices.value = []
+  }
+}
+
+const pushOrderNotice = (order: PublicOrder) => {
+  const text = `${ui.value.statusChanged}: ${order.id} → ${statusLabel(order.status)}`
+  const next: OrderNotice[] = [
+    {
+      id: `${order.id}-${order.status}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      orderId: order.id,
+      text,
+      status: order.status,
+      changedAt: new Date().toISOString()
+    },
+    ...orderNotices.value
+  ].slice(0, maxNotices)
+
+  orderNotices.value = next
+  saveNotices()
+  uiStore.showToast(text, 'info')
+}
+
+const clearOrderNotices = () => {
+  orderNotices.value = []
+  saveNotices()
 }
 
 const rememberTrackedState = (orders: PublicOrder[]) => {
@@ -565,7 +661,7 @@ const loadTrackedOrders = async (options?: { silent?: boolean; detectChanges?: b
         const historyAppended = previousHistoryLen > 0 && currentHistoryLen > previousHistoryLen
 
         if (statusChanged || historyAppended) {
-          uiStore.showToast(`${ui.value.statusChanged}: ${order.id} → ${statusLabel(order.status)}`, 'info')
+          pushOrderNotice(order)
         }
       }
     }
@@ -603,6 +699,7 @@ const lookupOrder = async () => {
 }
 
 onMounted(() => {
+  loadNotices()
   loadTrackedOrders()
   ordersPollTimer.value = setInterval(() => {
     loadTrackedOrders({ silent: true, detectChanges: true })
@@ -865,6 +962,69 @@ useSeoMeta({
   margin-top: 12px;
   color: #b42318;
   font-weight: 700;
+}
+
+.notice-center {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.notice-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.notice-head strong {
+  font-size: 14px;
+}
+
+.notice-clear {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.notice-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.notice-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.notice-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.notice-item p {
+  margin: 0;
+  font-size: 13px;
+  color: #23334a;
+  font-weight: 700;
+}
+
+.notice-item time {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .back-link {
