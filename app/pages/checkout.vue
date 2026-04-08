@@ -2,10 +2,10 @@
   <div class="checkout-page">
     <section class="section-space">
       <div class="site-container">
-        <div class="surface-card checkout-intro">
+        <div class="surface-card checkout-intro" :class="{ compact: shopStore.cart.length > 0 }">
           <span class="section-label">{{ ui.label }}</span>
-          <h1 class="section-title checkout-title">{{ ui.title }}</h1>
-          <p class="section-text checkout-text">
+          <h1 v-if="!shopStore.cart.length" class="section-title checkout-title">{{ ui.title }}</h1>
+          <p v-if="!shopStore.cart.length" class="section-text checkout-text">
             {{ ui.subtitle }}
           </p>
 
@@ -812,6 +812,11 @@ useSeoMeta({
   padding: 32px;
 }
 
+.checkout-intro.compact {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
 .checkout-title {
   font-size: clamp(36px, 4vw, 58px);
   line-height: 0.96;
@@ -1137,6 +1142,18 @@ useSeoMeta({
 }
 
 @media (max-width: 1100px) {
+  .checkout-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 980px) and (max-width: 1100px) {
+  .checkout-layout {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+}
+
+@media (max-width: 980px) {
   .checkout-layout {
     grid-template-columns: 1fr;
   }
