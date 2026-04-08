@@ -1,5 +1,6 @@
 // app/stores/shop.ts
 import { defineStore } from 'pinia'
+import { getProducts } from '~/data/products'
 
 export type ProductSize = 'S' | 'M' | 'L'
 
@@ -15,6 +16,20 @@ export interface CartItem extends ProductItem {
   quantity: number
   selectedSize: ProductSize
 }
+
+const catalogById = new Map(
+  getProducts('ru').map((product) => [
+    product.id,
+    {
+      id: product.id,
+      title: product.title,
+      price: product.price,
+      image: product.image,
+      description: product.description,
+      sizes: product.sizes
+    }
+  ])
+)
 
 export const useShopStore = defineStore('shop', {
   state: () => ({
@@ -88,6 +103,43 @@ export const useShopStore = defineStore('shop', {
 
     clearCart() {
       this.cart = []
+    },
+
+    sanitizeCart() {
+      const merged = new Map<string, CartItem>()
+
+      for (const raw of this.cart as Array<Partial<CartItem>>) {
+        const id = String(raw?.id || '').trim()
+        const catalogProduct = catalogById.get(id)
+        if (!catalogProduct) continue
+
+        const selectedSize = String(raw?.selectedSize || '').trim().toUpperCase() as ProductSize
+        if (!catalogProduct.sizes.includes(selectedSize)) continue
+
+        const rawQuantity = Number(raw?.quantity)
+        if (!Number.isFinite(rawQuantity) || rawQuantity <= 0) continue
+        const quantity = Math.max(1, Math.min(20, Math.floor(rawQuantity)))
+
+        const key = `${id}-${selectedSize}`
+        const existing = merged.get(key)
+
+        if (existing) {
+          existing.quantity = Math.max(1, Math.min(20, existing.quantity + quantity))
+          continue
+        }
+
+        merged.set(key, {
+          id,
+          title: catalogProduct.title,
+          price: catalogProduct.price,
+          image: catalogProduct.image,
+          description: catalogProduct.description,
+          selectedSize,
+          quantity
+        })
+      }
+
+      this.cart = Array.from(merged.values())
     },
 
     toggleWishlist(product: ProductItem) {

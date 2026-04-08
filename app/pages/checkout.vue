@@ -525,6 +525,7 @@ const siteUrl = 'https://onestyleforever.com'
 const previewImage = `${siteUrl}/logo-preview.png`
 
 onMounted(() => {
+  shopStore.sanitizeCart()
   loadCheckoutProfile()
 })
 
