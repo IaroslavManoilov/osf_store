@@ -38,6 +38,31 @@
                 </ul>
 
                 <div class="order-total">{{ ui.total }}: {{ order.total }} MDL</div>
+
+                <div class="order-actions">
+                  <button type="button" class="btn-alt order-btn" @click="repeatOrder(order)">
+                    {{ ui.repeatOrder }}
+                  </button>
+                  <button
+                    v-if="canCancelOrder(order.status)"
+                    type="button"
+                    class="btn-alt order-btn danger"
+                    :disabled="!!cancelLoadingById[order.id]"
+                    @click="cancelOrder(order)"
+                  >
+                    {{ cancelLoadingById[order.id] ? ui.canceling : ui.cancelOrder }}
+                  </button>
+                </div>
+
+                <div v-if="order.statusHistory?.length" class="order-history">
+                  <strong>{{ ui.history }}</strong>
+                  <ul>
+                    <li v-for="(entry, idx) in order.statusHistory" :key="`${order.id}-h-${idx}`">
+                      <span>{{ statusLabel(entry.status) }}</span>
+                      <time>{{ formatDate(entry.changedAt) }}</time>
+                    </li>
+                  </ul>
+                </div>
               </article>
             </div>
             <div v-else class="empty-note">{{ ui.noOrders }}</div>
@@ -77,6 +102,11 @@
               <p class="eta">{{ etaLabel(lookupResult.status) }}</p>
               <p v-if="deliveryDateText(lookupResult)" class="eta-date">{{ deliveryDateText(lookupResult) }}</p>
               <div class="order-total">{{ ui.total }}: {{ lookupResult.total }} MDL</div>
+              <div class="order-actions">
+                <button type="button" class="btn-alt order-btn" @click="repeatOrder(lookupResult)">
+                  {{ ui.repeatOrder }}
+                </button>
+              </div>
             </article>
 
             <NuxtLink :to="localePath('/catalog')" class="btn-alt back-link">{{ ui.backCatalog }}</NuxtLink>
@@ -90,6 +120,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { getProducts, type ProductSize } from '~/data/products'
 
 type PublicOrder = {
   id: string
@@ -149,10 +180,20 @@ type Ui = {
   deliveryExpected: string
   deliveredAt: string
   lookupError: string
+  history: string
+  repeatOrder: string
+  repeatSuccess: string
+  repeatEmpty: string
+  cancelOrder: string
+  canceling: string
+  cancelSuccess: string
+  cancelError: string
 }
 
 const { locale } = useI18n()
 const localePath = useLocalePath()
+const shopStore = useShopStore()
+const uiStore = useUiStore()
 
 const tracksKey = 'osf_order_tracks_v1'
 
@@ -161,6 +202,8 @@ const trackedLoading = ref(false)
 const lookupLoading = ref(false)
 const lookupError = ref('')
 const lookupResult = ref<PublicOrder | null>(null)
+const cancelLoadingById = ref<Record<string, boolean>>({})
+const trackTokenByOrderId = ref<Record<string, string>>({})
 
 const lookup = reactive({
   orderId: '',
@@ -200,7 +243,15 @@ const ui = computed<Ui>(() => {
       etaReturned: 'Comanda a fost returnată.',
       deliveryExpected: 'Livrare estimată',
       deliveredAt: 'Livrat la',
-      lookupError: 'Comanda nu a fost găsită sau telefonul nu coincide.'
+      lookupError: 'Comanda nu a fost găsită sau telefonul nu coincide.',
+      history: 'Istoric status',
+      repeatOrder: 'Repetă comanda',
+      repeatSuccess: 'Produsele au fost adăugate în coș.',
+      repeatEmpty: 'Nu am putut adăuga produse în coș.',
+      cancelOrder: 'Anulează comanda',
+      canceling: 'Se anulează...',
+      cancelSuccess: 'Comanda a fost anulată.',
+      cancelError: 'Nu am reușit anularea comenzii.'
     }
   }
 
@@ -236,7 +287,15 @@ const ui = computed<Ui>(() => {
       etaReturned: 'Order was returned.',
       deliveryExpected: 'Estimated delivery',
       deliveredAt: 'Delivered on',
-      lookupError: 'Order not found or phone does not match.'
+      lookupError: 'Order not found or phone does not match.',
+      history: 'Status history',
+      repeatOrder: 'Repeat order',
+      repeatSuccess: 'Products were added to cart.',
+      repeatEmpty: 'Could not add products to cart.',
+      cancelOrder: 'Cancel order',
+      canceling: 'Cancelling...',
+      cancelSuccess: 'Order was cancelled.',
+      cancelError: 'Could not cancel order.'
     }
   }
 
@@ -271,7 +330,15 @@ const ui = computed<Ui>(() => {
     etaReturned: 'По заказу оформлен возврат.',
     deliveryExpected: 'Ожидаемая доставка',
     deliveredAt: 'Доставлен',
-    lookupError: 'Заказ не найден или телефон не совпадает.'
+    lookupError: 'Заказ не найден или телефон не совпадает.',
+    history: 'История статусов',
+    repeatOrder: 'Повторить заказ',
+    repeatSuccess: 'Товары добавлены в корзину.',
+    repeatEmpty: 'Не удалось добавить товары в корзину.',
+    cancelOrder: 'Отменить заказ',
+    canceling: 'Отменяем...',
+    cancelSuccess: 'Заказ отменен.',
+    cancelError: 'Не удалось отменить заказ.'
   }
 })
 
@@ -336,14 +403,12 @@ const deliveryDateText = (order: PublicOrder | null) => {
   return `${ui.value.deliveryExpected}: ${fmt(start)} - ${fmt(end)}`
 }
 
-const loadTrackedOrders = async () => {
-  if (!import.meta.client) return
-  trackedLoading.value = true
-
+const parseSavedTracks = (): SavedTrack[] => {
+  if (!import.meta.client) return []
   try {
     const raw = window.localStorage.getItem(tracksKey)
     const parsed = raw ? JSON.parse(raw) : []
-    const tracks = Array.isArray(parsed)
+    return Array.isArray(parsed)
       ? parsed.filter((item): item is SavedTrack =>
         !!item &&
         typeof item === 'object' &&
@@ -351,6 +416,99 @@ const loadTrackedOrders = async () => {
         typeof (item as SavedTrack).token === 'string'
       )
       : []
+  } catch {
+    return []
+  }
+}
+
+const canCancelOrder = (status: PublicOrder['status']) => status === 'new' || status === 'confirmed'
+
+const productsById = computed(() => {
+  return new Map(getProducts(locale.value).map((product) => [product.id, product]))
+})
+
+const repeatOrder = (order: PublicOrder) => {
+  let added = 0
+
+  for (const item of order.items) {
+    const product = productsById.value.get(item.id)
+    if (!product) continue
+
+    const fallbackSize = product.sizes[0] as ProductSize
+    const rawSize = String(item.selectedSize || '').trim().toUpperCase() as ProductSize
+    const selectedSize = product.sizes.includes(rawSize) ? rawSize : fallbackSize
+    const quantity = Math.max(1, Math.min(20, Math.floor(Number(item.quantity || 1))))
+
+    for (let idx = 0; idx < quantity; idx += 1) {
+      shopStore.addToCart({
+        id: product.id,
+        title: product.title,
+        price: product.price,
+        image: product.image,
+        description: product.description,
+        selectedSize
+      })
+      added += 1
+    }
+  }
+
+  if (added > 0) {
+    uiStore.showToast(ui.value.repeatSuccess, 'success')
+    return
+  }
+
+  uiStore.showToast(ui.value.repeatEmpty, 'error')
+}
+
+const cancelOrder = async (order: PublicOrder) => {
+  const orderId = order.id
+  if (!canCancelOrder(order.status)) return
+
+  const token = trackTokenByOrderId.value[orderId] || ''
+  if (!token) {
+    uiStore.showToast(ui.value.cancelError, 'error')
+    return
+  }
+
+  cancelLoadingById.value = {
+    ...cancelLoadingById.value,
+    [orderId]: true
+  }
+
+  try {
+    const response = await $fetch<{ success: boolean; order: PublicOrder }>('/api/order/cancel', {
+      method: 'POST',
+      body: {
+        orderId,
+        token
+      }
+    })
+
+    trackedOrders.value = trackedOrders.value.map((item) => item.id === orderId ? response.order : item)
+    if (lookupResult.value?.id === orderId) {
+      lookupResult.value = response.order
+    }
+    uiStore.showToast(ui.value.cancelSuccess, 'success')
+  } catch {
+    uiStore.showToast(ui.value.cancelError, 'error')
+  } finally {
+    const next = { ...cancelLoadingById.value }
+    delete next[orderId]
+    cancelLoadingById.value = next
+  }
+}
+
+const loadTrackedOrders = async () => {
+  if (!import.meta.client) return
+  trackedLoading.value = true
+
+  try {
+    const tracks = parseSavedTracks()
+    const tokenMap: Record<string, string> = {}
+    for (const entry of tracks) {
+      tokenMap[entry.id] = entry.token
+    }
+    trackTokenByOrderId.value = tokenMap
 
     if (!tracks.length) {
       trackedOrders.value = []
@@ -553,6 +711,59 @@ useSeoMeta({
   font-weight: 800;
 }
 
+.order-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.order-btn {
+  min-height: 38px;
+  padding: 0 14px;
+}
+
+.order-btn.danger {
+  color: #8a2a2a;
+  border-color: #efcaca;
+}
+
+.order-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.order-history {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.order-history strong {
+  font-size: 13px;
+}
+
+.order-history ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.order-history li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.order-history li span {
+  color: #23334a;
+  font-weight: 700;
+}
+
 .lookup-form {
   margin-top: 16px;
   display: grid;
@@ -609,6 +820,14 @@ useSeoMeta({
   .orders-track h2,
   .orders-lookup h2 {
     font-size: 28px;
+  }
+
+  .order-actions {
+    flex-direction: column;
+  }
+
+  .order-btn {
+    width: 100%;
   }
 }
 </style>
