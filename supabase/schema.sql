@@ -2,6 +2,7 @@
 -- Core e-commerce order storage for Supabase (PostgreSQL)
 
 create extension if not exists pgcrypto;
+create sequence if not exists public.order_number_seq start 1 increment 1 minvalue 1;
 
 create table if not exists public.orders (
   id text primary key,
@@ -74,6 +75,13 @@ begin
   new.updated_at = now();
   return new;
 end;
+$$;
+
+create or replace function public.next_order_number()
+returns bigint
+language sql
+as $$
+  select nextval('public.order_number_seq');
 $$;
 
 drop trigger if exists trg_orders_set_updated_at on public.orders;

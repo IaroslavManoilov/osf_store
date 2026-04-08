@@ -100,7 +100,18 @@ export default defineEventHandler(async (event) => {
 
   const serverTotal = normalizedItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
-  const orderId = `OSF-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+  const supabase = getSupabaseAdmin(event)
+  const { data: nextOrderNumber, error: nextOrderNumberError } = await supabase.rpc('next_order_number')
+
+  if (nextOrderNumberError || !Number.isFinite(Number(nextOrderNumber))) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Order number generator is not configured'
+    })
+  }
+
+  const orderNumber = Number(nextOrderNumber)
+  const orderId = `OSF-${String(orderNumber).padStart(6, '0')}`
   const nowIso = new Date().toISOString()
 
   const inventoryItems = normalizedItems.map((item) => ({
@@ -242,7 +253,6 @@ Total: ${serverTotal} MDL
   }
 
   try {
-    const supabase = getSupabaseAdmin(event)
     await supabase
       .from('orders')
       .update({
