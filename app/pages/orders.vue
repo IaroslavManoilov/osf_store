@@ -29,6 +29,7 @@
                 </div>
 
                 <p class="eta">{{ etaLabel(order.status) }}</p>
+                <p v-if="deliveryDateText(order)" class="eta-date">{{ deliveryDateText(order) }}</p>
 
                 <ul class="items">
                   <li v-for="(item, idx) in order.items" :key="`${order.id}-${idx}`">
@@ -74,6 +75,7 @@
               </div>
 
               <p class="eta">{{ etaLabel(lookupResult.status) }}</p>
+              <p v-if="deliveryDateText(lookupResult)" class="eta-date">{{ deliveryDateText(lookupResult) }}</p>
               <div class="order-total">{{ ui.total }}: {{ lookupResult.total }} MDL</div>
             </article>
 
@@ -100,6 +102,12 @@ type PublicOrder = {
     quantity: number
     selectedSize?: string
     price: number
+  }>
+  statusHistory?: Array<{
+    status: 'new' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
+    changedAt: string
+    note?: string
+    actor?: string
   }>
 }
 
@@ -138,6 +146,8 @@ type Ui = {
   etaDelivered: string
   etaCancelled: string
   etaReturned: string
+  deliveryExpected: string
+  deliveredAt: string
   lookupError: string
 }
 
@@ -188,6 +198,8 @@ const ui = computed<Ui>(() => {
       etaDelivered: 'Livrată cu succes.',
       etaCancelled: 'Comanda a fost anulată.',
       etaReturned: 'Comanda a fost returnată.',
+      deliveryExpected: 'Livrare estimată',
+      deliveredAt: 'Livrat la',
       lookupError: 'Comanda nu a fost găsită sau telefonul nu coincide.'
     }
   }
@@ -222,6 +234,8 @@ const ui = computed<Ui>(() => {
       etaDelivered: 'Delivered successfully.',
       etaCancelled: 'Order was cancelled.',
       etaReturned: 'Order was returned.',
+      deliveryExpected: 'Estimated delivery',
+      deliveredAt: 'Delivered on',
       lookupError: 'Order not found or phone does not match.'
     }
   }
@@ -255,6 +269,8 @@ const ui = computed<Ui>(() => {
     etaDelivered: 'Заказ успешно доставлен.',
     etaCancelled: 'Заказ отменен.',
     etaReturned: 'По заказу оформлен возврат.',
+    deliveryExpected: 'Ожидаемая доставка',
+    deliveredAt: 'Доставлен',
     lookupError: 'Заказ не найден или телефон не совпадает.'
   }
 })
@@ -286,6 +302,38 @@ const formatDate = (value: string) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+const findDeliveredDate = (order: PublicOrder) => {
+  const history = Array.isArray(order.statusHistory) ? order.statusHistory : []
+  const delivered = history.find((item) => item.status === 'delivered' && item.changedAt)
+  return delivered?.changedAt || ''
+}
+
+const shiftDays = (iso: string, days: number) => {
+  const d = new Date(iso)
+  d.setDate(d.getDate() + days)
+  return d.toISOString()
+}
+
+const deliveryDateText = (order: PublicOrder | null) => {
+  if (!order) return ''
+
+  if (order.status === 'cancelled' || order.status === 'returned') return ''
+
+  if (order.status === 'delivered') {
+    const deliveredAt = findDeliveredDate(order) || order.createdAt
+    return `${ui.value.deliveredAt}: ${formatDate(deliveredAt)}`
+  }
+
+  const start = order.status === 'shipped' ? shiftDays(order.createdAt, 1) : shiftDays(order.createdAt, 2)
+  const end = order.status === 'shipped' ? shiftDays(order.createdAt, 2) : shiftDays(order.createdAt, 3)
+
+  const localeCode = locale.value === 'ro' ? 'ro-RO' : locale.value === 'en' ? 'en-US' : 'ru-RU'
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString(localeCode, { day: 'numeric', month: 'long' })
+
+  return `${ui.value.deliveryExpected}: ${fmt(start)} - ${fmt(end)}`
 }
 
 const loadTrackedOrders = async () => {
@@ -482,6 +530,13 @@ useSeoMeta({
   margin: 0;
   font-size: 14px;
   color: #356446;
+  font-weight: 700;
+}
+
+.eta-date {
+  margin: -4px 0 0;
+  font-size: 13px;
+  color: #4b5f76;
   font-weight: 700;
 }
 
