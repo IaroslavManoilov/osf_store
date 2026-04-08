@@ -13,6 +13,17 @@ type InventoryRow = {
   quantity: number
 }
 
+type InventoryHistoryRow = {
+  id: number
+  product_id: string
+  size: string
+  prev_quantity: number
+  next_quantity: number
+  delta: number
+  changed_at: string
+  actor: string
+}
+
 export const reserveInventory = async (event: H3Event, items: ReserveItem[]) => {
   const supabase = getSupabaseAdmin(event)
 
@@ -103,7 +114,8 @@ export const readInventory = async (event: H3Event, productId?: string) => {
 export const setInventoryForProduct = async (
   event: H3Event,
   productId: string,
-  sizes: Record<string, number>
+  sizes: Record<string, number>,
+  actor = 'admin'
 ) => {
   const id = String(productId || '').trim()
   if (!id) {
@@ -133,6 +145,24 @@ export const setInventoryForProduct = async (
   })
 
   const supabase = getSupabaseAdmin(event)
+  const { data: existingRows, error: existingError } = await supabase
+    .from('product_inventory')
+    .select('size, quantity')
+    .eq('product_id', id)
+
+  if (existingError) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: `Inventory load before update failed: ${existingError.message}`
+    })
+  }
+
+  const prevBySize: Record<string, number> = {}
+  for (const row of existingRows || []) {
+    const size = String((row as any).size || '')
+    prevBySize[size] = Number((row as any).quantity || 0)
+  }
+
   const { error } = await supabase
     .from('product_inventory')
     .upsert(payload, { onConflict: 'product_id,size' })
@@ -142,5 +172,66 @@ export const setInventoryForProduct = async (
       statusCode: 500,
       statusMessage: `Inventory update failed: ${error.message}`
     })
+  }
+
+  const historyPayload = payload
+    .map((row) => {
+      const prev = Number(prevBySize[row.size] || 0)
+      const next = Number(row.quantity || 0)
+      const delta = next - prev
+
+      return {
+        product_id: id,
+        size: row.size,
+        prev_quantity: prev,
+        next_quantity: next,
+        delta,
+        actor: actor.trim() || 'admin'
+      }
+    })
+    .filter((row) => row.delta !== 0)
+
+  if (!historyPayload.length) return
+
+  const { error: historyError } = await supabase
+    .from('inventory_change_log')
+    .insert(historyPayload)
+
+  if (historyError) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: `Inventory audit write failed: ${historyError.message}`
+    })
+  }
+}
+
+export const readInventoryHistory = async (event: H3Event, limit = 80) => {
+  const supabase = getSupabaseAdmin(event)
+  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(300, Math.floor(limit))) : 80
+
+  const { data, error } = await supabase
+    .from('inventory_change_log')
+    .select('id, product_id, size, prev_quantity, next_quantity, delta, changed_at, actor')
+    .order('changed_at', { ascending: false })
+    .limit(safeLimit)
+
+  if (error) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: `Inventory history load failed: ${error.message}`
+    })
+  }
+
+  return {
+    history: ((data || []) as InventoryHistoryRow[]).map((row) => ({
+      id: Number(row.id),
+      productId: String(row.product_id || ''),
+      size: String(row.size || ''),
+      prevQuantity: Number(row.prev_quantity || 0),
+      nextQuantity: Number(row.next_quantity || 0),
+      delta: Number(row.delta || 0),
+      changedAt: String(row.changed_at || ''),
+      actor: String(row.actor || '')
+    }))
   }
 }

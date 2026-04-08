@@ -1,6 +1,6 @@
 import { createError, defineEventHandler, readBody } from 'h3'
 import { requireAdminCsrf } from '../../utils/admin-session'
-import { setInventoryForProduct, readInventory } from '../../utils/inventory'
+import { readInventory, readInventoryHistory, setInventoryForProduct } from '../../utils/inventory'
 
 type InventoryPatchBody = {
   productId?: string
@@ -8,7 +8,7 @@ type InventoryPatchBody = {
 }
 
 export default defineEventHandler(async (event) => {
-  requireAdminCsrf(event)
+  const { actor } = requireAdminCsrf(event)
 
   const body = await readBody<InventoryPatchBody>(event)
   const productId = String(body?.productId || '').trim()
@@ -21,13 +21,17 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  await setInventoryForProduct(event, productId, sizes)
+  await setInventoryForProduct(event, productId, sizes, actor)
 
-  const inventory = await readInventory(event, productId)
+  const [inventory, history] = await Promise.all([
+    readInventory(event, productId),
+    readInventoryHistory(event, 80)
+  ])
 
   return {
     success: true,
     productId,
-    ...inventory
+    ...inventory,
+    ...history
   }
 })

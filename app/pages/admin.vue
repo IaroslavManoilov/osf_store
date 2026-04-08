@@ -79,6 +79,21 @@
               </div>
             </article>
           </div>
+
+          <div class="inventory-history" v-if="inventoryHistory.length">
+            <div class="inventory-history-head">
+              <strong>{{ ui.inventoryLogTitle }}</strong>
+            </div>
+            <ul>
+              <li v-for="entry in inventoryHistory" :key="entry.id">
+                {{ formatDate(entry.changedAt) }} ·
+                {{ ui.inventoryProductCode }}: {{ entry.productId }} ·
+                {{ ui.size }} {{ entry.size }} ·
+                {{ entry.prevQuantity }} → {{ entry.nextQuantity }} ({{ formatDelta(entry.delta) }}) ·
+                {{ ui.changedBy }} {{ entry.actor || ui.auditUnknown }}
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </section>
@@ -202,6 +217,16 @@ type AdminOrder = {
 }
 
 type InventorySize = 'S' | 'M' | 'L'
+type InventoryHistoryEntry = {
+  id: number
+  productId: string
+  size: InventorySize
+  prevQuantity: number
+  nextQuantity: number
+  delta: number
+  changedAt: string
+  actor?: string
+}
 
 const { locale } = useI18n()
 const uiStore = useUiStore()
@@ -225,6 +250,7 @@ const loadingInventory = ref(false)
 const savingInventoryId = ref('')
 const inventoryDraft = reactive<Record<string, Record<InventorySize, number>>>({})
 const inventoryProducts = computed(() => getProducts(locale.value))
+const inventoryHistory = ref<InventoryHistoryEntry[]>([])
 
 const ui = computed(() => {
   if (locale.value === 'ro') {
@@ -252,6 +278,7 @@ const ui = computed(() => {
       inventoryTitle: 'Stoc pe mărimi',
       inventoryProductCode: 'Cod produs',
       inventoryTotal: 'Total stoc',
+      inventoryLogTitle: 'Jurnal modificări stoc',
       auditTitle: 'Audit status',
       changedBy: 'De:',
       auditUnknown: 'admin',
@@ -287,6 +314,7 @@ const ui = computed(() => {
       inventoryTitle: 'Inventory by size',
       inventoryProductCode: 'Product code',
       inventoryTotal: 'Total stock',
+      inventoryLogTitle: 'Inventory change log',
       auditTitle: 'Status audit',
       changedBy: 'By:',
       auditUnknown: 'admin',
@@ -321,6 +349,7 @@ const ui = computed(() => {
     inventoryTitle: 'Остатки по размерам',
     inventoryProductCode: 'Код товара',
     inventoryTotal: 'Всего на складе',
+    inventoryLogTitle: 'Журнал изменений остатков',
     auditTitle: 'Аудит статусов',
     changedBy: 'Кто:',
     auditUnknown: 'admin',
@@ -370,6 +399,10 @@ const formatDate = (iso: string) => {
   return date.toLocaleString(code)
 }
 
+const formatDelta = (delta: number) => {
+  return delta > 0 ? `+${delta}` : String(delta)
+}
+
 const applyInventoryDraft = () => {
   for (const product of inventoryProducts.value) {
     const current = stockBySize.value[product.id] || {}
@@ -412,6 +445,7 @@ const loadInventory = async () => {
     const response = await $fetch<{
       success: boolean
       bySize: Record<string, Record<string, number>>
+      history?: InventoryHistoryEntry[]
     }>('/api/admin/inventory', {
       headers: {
         'x-csrf-token': csrfToken.value
@@ -419,6 +453,7 @@ const loadInventory = async () => {
     })
 
     stockBySize.value = response?.bySize || {}
+    inventoryHistory.value = Array.isArray(response?.history) ? response.history : []
     applyInventoryDraft()
   } catch (error) {
     const message = resolveErrorMessage(error)
@@ -437,6 +472,7 @@ const saveInventory = async (productId: string) => {
     const response = await $fetch<{
       success: boolean
       bySize: Record<string, Record<string, number>>
+      history?: InventoryHistoryEntry[]
     }>('/api/admin/inventory', {
       method: 'PATCH',
       headers: {
@@ -456,6 +492,7 @@ const saveInventory = async (productId: string) => {
       ...stockBySize.value,
       ...(response?.bySize || {})
     }
+    inventoryHistory.value = Array.isArray(response?.history) ? response.history : inventoryHistory.value
     applyInventoryDraft()
 
     uiStore.showToast(
@@ -611,6 +648,7 @@ const logout = async (showToast = false) => {
   csrfToken.value = ''
   orders.value = []
   stockBySize.value = {}
+  inventoryHistory.value = []
   for (const key of Object.keys(inventoryDraft)) {
     delete inventoryDraft[key]
   }
@@ -791,6 +829,25 @@ useSeoMeta({
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.inventory-history {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.inventory-history-head {
+  margin-bottom: 8px;
+}
+
+.inventory-history ul {
+  margin: 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 6px;
+  color: #4a5a70;
+  font-size: 13px;
 }
 
 .orders-grid {
