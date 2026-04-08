@@ -163,6 +163,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { getProducts } from '~/data/products'
 
 type OrderResponse = {
   success: boolean
@@ -419,6 +420,26 @@ const activeStep = computed(() => {
   return 0
 })
 
+const catalogSizesById = computed(() => {
+  const map = new Map<string, string[]>()
+  for (const product of getProducts(locale.value)) {
+    map.set(product.id, Array.isArray(product.sizes) ? product.sizes : [])
+  }
+  return map
+})
+
+const resolveValidSize = (item: { id: string; selectedSize?: string }) => {
+  const allowedSizes = catalogSizesById.value.get(item.id) || []
+  if (!allowedSizes.length) return ''
+
+  const selected = String(item.selectedSize || '').trim()
+  if (selected && allowedSizes.includes(selected)) {
+    return selected
+  }
+
+  return allowedSizes[0] || ''
+}
+
 const getErrorMessage = (error: unknown) => {
   if (typeof error === 'object' && error !== null) {
     const maybeError = error as {
@@ -442,7 +463,26 @@ const submitOrder = async () => {
   isSubmitting.value = true
 
   try {
-    const purchasedIds = shopStore.cart.map((item) => item.id)
+    const normalizedItems = shopStore.cart.map((item) => ({
+      id: item.id,
+      title: item.title,
+      price: item.price,
+      quantity: item.quantity,
+      selectedSize: resolveValidSize(item)
+    }))
+
+    const invalidItem = normalizedItems.find((item) => !item.selectedSize)
+    if (invalidItem) {
+      throw new Error(
+        locale.value === 'en'
+          ? 'Some cart items have invalid size. Please re-add product from catalog.'
+          : locale.value === 'ro'
+            ? 'Unele produse din coș au mărime invalidă. Adaugă produsul din nou din catalog.'
+            : 'У некоторых товаров в корзине невалидный размер. Добавь товар заново из каталога.'
+      )
+    }
+
+    const purchasedIds = normalizedItems.map((item) => item.id)
 
     const response = await $fetch<OrderResponse>('/api/order', {
       method: 'POST',
@@ -454,13 +494,7 @@ const submitOrder = async () => {
           address: form.address,
           comment: form.comment
         },
-        items: shopStore.cart.map((item) => ({
-          id: item.id,
-          title: item.title,
-          price: item.price,
-          quantity: item.quantity,
-          selectedSize: item.selectedSize
-        })),
+        items: normalizedItems,
         total: shopStore.cartTotal
       }
     })
@@ -471,7 +505,17 @@ const submitOrder = async () => {
     resetForm()
     shopStore.clearCart()
   } catch (error: unknown) {
-    errorMessage.value = getErrorMessage(error)
+    const message = getErrorMessage(error)
+    if (message.toLowerCase().includes('invalid size')) {
+      errorMessage.value =
+        locale.value === 'en'
+          ? 'Invalid size in cart item. Re-add product from catalog and choose size.'
+          : locale.value === 'ro'
+            ? 'Mărime invalidă în coș. Adaugă produsul din nou din catalog și alege mărimea.'
+            : 'Некорректный размер в корзине. Добавь товар заново из каталога и выбери размер.'
+    } else {
+      errorMessage.value = message
+    }
   } finally {
     isSubmitting.value = false
   }
