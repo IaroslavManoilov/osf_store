@@ -16,7 +16,12 @@
           <div class="surface-card orders-track">
             <h2>{{ ui.myOrders }}</h2>
             <p class="orders-help">{{ ui.myOrdersHelp }}</p>
-            <p class="orders-live">{{ ui.autoRefresh }}</p>
+            <div class="orders-live-row">
+              <p class="orders-live">{{ ui.autoRefresh }}</p>
+              <button type="button" class="btn-alt notice-toggle" @click="toggleNotices">
+                {{ notificationsEnabled ? ui.noticesOn : ui.noticesOff }}
+              </button>
+            </div>
 
             <div v-if="trackedLoading" class="orders-loading">{{ ui.loading }}</div>
             <div v-else-if="trackedOrders.length" class="orders-list">
@@ -223,6 +228,8 @@ type Ui = {
   noticeCenter: string
   clearNoticeCenter: string
   noticeCenterEmpty: string
+  noticesOn: string
+  noticesOff: string
 }
 
 const { locale } = useI18n()
@@ -232,6 +239,7 @@ const uiStore = useUiStore()
 
 const tracksKey = 'osf_order_tracks_v1'
 const noticesKey = 'osf_order_notices_v1'
+const noticesEnabledKey = 'osf_order_notices_enabled_v1'
 const maxNotices = 20
 
 const trackedOrders = ref<PublicOrder[]>([])
@@ -245,6 +253,7 @@ const ordersPollTimer = ref<ReturnType<typeof setInterval> | null>(null)
 const knownStatusByOrderId = ref<Record<string, PublicOrder['status']>>({})
 const knownHistoryByOrderId = ref<Record<string, number>>({})
 const orderNotices = ref<OrderNotice[]>([])
+const notificationsEnabled = ref(true)
 
 const lookup = reactive({
   orderId: '',
@@ -297,7 +306,9 @@ const ui = computed<Ui>(() => {
       autoRefresh: 'Actualizare automată activă',
       noticeCenter: 'Notificări comandă',
       clearNoticeCenter: 'Curăță',
-      noticeCenterEmpty: 'Nu există notificări încă.'
+      noticeCenterEmpty: 'Nu există notificări încă.',
+      noticesOn: 'Notificări: ON',
+      noticesOff: 'Notificări: OFF'
     }
   }
 
@@ -346,7 +357,9 @@ const ui = computed<Ui>(() => {
       autoRefresh: 'Auto refresh is active',
       noticeCenter: 'Order notifications',
       clearNoticeCenter: 'Clear',
-      noticeCenterEmpty: 'No notifications yet.'
+      noticeCenterEmpty: 'No notifications yet.',
+      noticesOn: 'Notifications: ON',
+      noticesOff: 'Notifications: OFF'
     }
   }
 
@@ -394,7 +407,9 @@ const ui = computed<Ui>(() => {
     autoRefresh: 'Автообновление включено',
     noticeCenter: 'Уведомления по заказам',
     clearNoticeCenter: 'Очистить',
-    noticeCenterEmpty: 'Пока нет уведомлений.'
+    noticeCenterEmpty: 'Пока нет уведомлений.',
+    noticesOn: 'Уведомления: ВКЛ',
+    noticesOff: 'Уведомления: ВЫКЛ'
   }
 })
 
@@ -482,6 +497,21 @@ const saveNotices = () => {
   window.localStorage.setItem(noticesKey, JSON.stringify(orderNotices.value))
 }
 
+const saveNoticesEnabled = () => {
+  if (!import.meta.client) return
+  window.localStorage.setItem(noticesEnabledKey, notificationsEnabled.value ? '1' : '0')
+}
+
+const loadNoticesEnabled = () => {
+  if (!import.meta.client) return
+  const raw = window.localStorage.getItem(noticesEnabledKey)
+  if (raw === '0') {
+    notificationsEnabled.value = false
+    return
+  }
+  notificationsEnabled.value = true
+}
+
 const loadNotices = () => {
   if (!import.meta.client) return
   try {
@@ -507,6 +537,8 @@ const loadNotices = () => {
 }
 
 const pushOrderNotice = (order: PublicOrder) => {
+  if (!notificationsEnabled.value) return
+
   const text = `${ui.value.statusChanged}: ${order.id} → ${statusLabel(order.status)}`
   const next: OrderNotice[] = [
     {
@@ -522,6 +554,11 @@ const pushOrderNotice = (order: PublicOrder) => {
   orderNotices.value = next
   saveNotices()
   uiStore.showToast(text, 'info')
+}
+
+const toggleNotices = () => {
+  notificationsEnabled.value = !notificationsEnabled.value
+  saveNoticesEnabled()
 }
 
 const clearOrderNotices = () => {
@@ -699,6 +736,7 @@ const lookupOrder = async () => {
 }
 
 onMounted(() => {
+  loadNoticesEnabled()
   loadNotices()
   loadTrackedOrders()
   ordersPollTimer.value = setInterval(() => {
@@ -771,6 +809,25 @@ useSeoMeta({
   color: #2d6a43;
   font-size: 13px;
   font-weight: 700;
+}
+
+.orders-live-row {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.orders-live-row .orders-live {
+  margin: 0;
+}
+
+.notice-toggle {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
 }
 
 .orders-list {
@@ -1048,6 +1105,11 @@ useSeoMeta({
   .orders-track h2,
   .orders-lookup h2 {
     font-size: 28px;
+  }
+
+  .orders-live-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .order-actions {
