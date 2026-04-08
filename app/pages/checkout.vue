@@ -490,7 +490,6 @@ const loadCheckoutProfile = () => {
     if (!parsed || typeof parsed !== 'object') return
 
     const profile = parsed as Partial<CheckoutForm>
-    if (typeof profile.name === 'string') form.name = profile.name
     if (typeof profile.phoneCode === 'string') form.phoneCode = profile.phoneCode
     if (typeof profile.phoneLocal === 'string') form.phoneLocal = profile.phoneLocal
     if (typeof profile.email === 'string') form.email = profile.email
@@ -508,6 +507,9 @@ const loadCheckoutProfile = () => {
   } catch {
     // Ignore invalid persisted profile.
   }
+
+  // Name should always be entered manually at checkout.
+  form.name = ''
 }
 
 const saveCheckoutProfile = () => {
@@ -515,7 +517,6 @@ const saveCheckoutProfile = () => {
 
   try {
     window.localStorage.setItem(profileStorageKey, JSON.stringify({
-      name: form.name,
       phoneCode: form.phoneCode,
       phoneLocal: form.phoneLocal,
       email: form.email,
