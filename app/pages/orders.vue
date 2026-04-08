@@ -16,6 +16,7 @@
           <div class="surface-card orders-track">
             <h2>{{ ui.myOrders }}</h2>
             <p class="orders-help">{{ ui.myOrdersHelp }}</p>
+            <p class="orders-live">{{ ui.autoRefresh }}</p>
 
             <div v-if="trackedLoading" class="orders-loading">{{ ui.loading }}</div>
             <div v-else-if="trackedOrders.length" class="orders-list">
@@ -118,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getProducts, type ProductSize } from '~/data/products'
 
@@ -188,6 +189,8 @@ type Ui = {
   canceling: string
   cancelSuccess: string
   cancelError: string
+  statusChanged: string
+  autoRefresh: string
 }
 
 const { locale } = useI18n()
@@ -204,6 +207,9 @@ const lookupError = ref('')
 const lookupResult = ref<PublicOrder | null>(null)
 const cancelLoadingById = ref<Record<string, boolean>>({})
 const trackTokenByOrderId = ref<Record<string, string>>({})
+const ordersPollTimer = ref<ReturnType<typeof setInterval> | null>(null)
+const knownStatusByOrderId = ref<Record<string, PublicOrder['status']>>({})
+const knownHistoryByOrderId = ref<Record<string, number>>({})
 
 const lookup = reactive({
   orderId: '',
@@ -251,7 +257,9 @@ const ui = computed<Ui>(() => {
       cancelOrder: 'Anulează comanda',
       canceling: 'Se anulează...',
       cancelSuccess: 'Comanda a fost anulată.',
-      cancelError: 'Nu am reușit anularea comenzii.'
+      cancelError: 'Nu am reușit anularea comenzii.',
+      statusChanged: 'Status actualizat',
+      autoRefresh: 'Actualizare automată activă'
     }
   }
 
@@ -295,7 +303,9 @@ const ui = computed<Ui>(() => {
       cancelOrder: 'Cancel order',
       canceling: 'Cancelling...',
       cancelSuccess: 'Order was cancelled.',
-      cancelError: 'Could not cancel order.'
+      cancelError: 'Could not cancel order.',
+      statusChanged: 'Status updated',
+      autoRefresh: 'Auto refresh is active'
     }
   }
 
@@ -338,7 +348,9 @@ const ui = computed<Ui>(() => {
     cancelOrder: 'Отменить заказ',
     canceling: 'Отменяем...',
     cancelSuccess: 'Заказ отменен.',
-    cancelError: 'Не удалось отменить заказ.'
+    cancelError: 'Не удалось отменить заказ.',
+    statusChanged: 'Статус обновлен',
+    autoRefresh: 'Автообновление включено'
   }
 })
 
@@ -421,6 +433,19 @@ const parseSavedTracks = (): SavedTrack[] => {
   }
 }
 
+const rememberTrackedState = (orders: PublicOrder[]) => {
+  const nextStatusMap: Record<string, PublicOrder['status']> = {}
+  const nextHistoryMap: Record<string, number> = {}
+
+  for (const order of orders) {
+    nextStatusMap[order.id] = order.status
+    nextHistoryMap[order.id] = Array.isArray(order.statusHistory) ? order.statusHistory.length : 0
+  }
+
+  knownStatusByOrderId.value = nextStatusMap
+  knownHistoryByOrderId.value = nextHistoryMap
+}
+
 const canCancelOrder = (status: PublicOrder['status']) => status === 'new' || status === 'confirmed'
 
 const productsById = computed(() => {
@@ -485,6 +510,7 @@ const cancelOrder = async (order: PublicOrder) => {
     })
 
     trackedOrders.value = trackedOrders.value.map((item) => item.id === orderId ? response.order : item)
+    rememberTrackedState(trackedOrders.value)
     if (lookupResult.value?.id === orderId) {
       lookupResult.value = response.order
     }
@@ -498,9 +524,13 @@ const cancelOrder = async (order: PublicOrder) => {
   }
 }
 
-const loadTrackedOrders = async () => {
+const loadTrackedOrders = async (options?: { silent?: boolean; detectChanges?: boolean }) => {
   if (!import.meta.client) return
-  trackedLoading.value = true
+  const silent = !!options?.silent
+  const detectChanges = !!options?.detectChanges
+  if (!silent) {
+    trackedLoading.value = true
+  }
 
   try {
     const tracks = parseSavedTracks()
@@ -512,6 +542,8 @@ const loadTrackedOrders = async () => {
 
     if (!tracks.length) {
       trackedOrders.value = []
+      knownStatusByOrderId.value = {}
+      knownHistoryByOrderId.value = {}
       return
     }
 
@@ -522,11 +554,30 @@ const loadTrackedOrders = async () => {
       }
     })
 
-    trackedOrders.value = Array.isArray(response.orders) ? response.orders : []
+    const nextOrders = Array.isArray(response.orders) ? response.orders : []
+
+    if (detectChanges) {
+      for (const order of nextOrders) {
+        const previousStatus = knownStatusByOrderId.value[order.id]
+        const previousHistoryLen = knownHistoryByOrderId.value[order.id] || 0
+        const currentHistoryLen = Array.isArray(order.statusHistory) ? order.statusHistory.length : 0
+        const statusChanged = !!previousStatus && previousStatus !== order.status
+        const historyAppended = previousHistoryLen > 0 && currentHistoryLen > previousHistoryLen
+
+        if (statusChanged || historyAppended) {
+          uiStore.showToast(`${ui.value.statusChanged}: ${order.id} → ${statusLabel(order.status)}`, 'info')
+        }
+      }
+    }
+
+    trackedOrders.value = nextOrders
+    rememberTrackedState(nextOrders)
   } catch {
     trackedOrders.value = []
   } finally {
-    trackedLoading.value = false
+    if (!silent) {
+      trackedLoading.value = false
+    }
   }
 }
 
@@ -553,6 +604,16 @@ const lookupOrder = async () => {
 
 onMounted(() => {
   loadTrackedOrders()
+  ordersPollTimer.value = setInterval(() => {
+    loadTrackedOrders({ silent: true, detectChanges: true })
+  }, 15000)
+})
+
+onBeforeUnmount(() => {
+  if (ordersPollTimer.value) {
+    clearInterval(ordersPollTimer.value)
+    ordersPollTimer.value = null
+  }
 })
 
 const siteUrl = 'https://onestyleforever.com'
@@ -606,6 +667,13 @@ useSeoMeta({
 .orders-help {
   margin: 10px 0 0;
   color: var(--muted);
+}
+
+.orders-live {
+  margin: 8px 0 0;
+  color: #2d6a43;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .orders-list {
