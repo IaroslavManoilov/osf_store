@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, readBody } from 'h3'
 import { readOrderById } from '../../utils/order-storage'
 import { normalizeOrderPhone, verifyOrderTrackToken } from '../../utils/order-track-token'
+import { assertRateLimit } from '../../utils/rate-limit'
 
 type LookupPayload = {
   orderId?: string
@@ -27,6 +28,12 @@ const toPublicOrder = (order: NonNullable<Awaited<ReturnType<typeof readOrderByI
 })
 
 export default defineEventHandler(async (event) => {
+  assertRateLimit(event, {
+    namespace: 'order-lookup',
+    limit: 20,
+    windowMs: 60 * 1000
+  })
+
   const body = await readBody<LookupPayload>(event)
   const orderId = String(body?.orderId || '').trim()
   const phone = String(body?.phone || '').trim()

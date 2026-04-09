@@ -23,7 +23,17 @@
                 @mousemove="onGalleryMove"
                 @mouseleave="resetGalleryMotion"
               >
-                <img :src="selectedImage" :alt="product.title" class="main-image-media" :style="mainImageStyle" />
+                <OptimizedImage
+                  :src="selectedImage"
+                  :alt="product.title"
+                  img-class="main-image-media"
+                  :img-style="mainImageStyle"
+                  loading="eager"
+                  fetchpriority="high"
+                  width="1200"
+                  height="1200"
+                  sizes="(max-width: 900px) 100vw, 50vw"
+                />
                 <div class="main-image-glow" :style="mainImageGlowStyle" aria-hidden="true"></div>
                 <span class="product-badge" :class="{ hot: product.badge === 'HOT' }">{{ product.badge }}</span>
                 <span class="gallery-counter">{{ selectedImageIndex + 1 }}/{{ galleryImages.length }}</span>
@@ -41,7 +51,14 @@
                   :class="{ active: selectedImage === image }"
                   @click="selectedImage = image"
                 >
-                  <img :src="image" :alt="product.title" />
+                  <OptimizedImage
+                    :src="image"
+                    :alt="product.title"
+                    loading="lazy"
+                    width="240"
+                    height="240"
+                    sizes="90px"
+                  />
                 </button>
               </div>
             </div>
@@ -110,6 +127,33 @@
                 </div>
               </div>
 
+              <div class="cta-guarantees">
+                <div class="guarantee-card">
+                  <strong>{{ ui.guaranteeTitle1 }}</strong>
+                  <span>{{ ui.guaranteeText1 }}</span>
+                </div>
+                <div class="guarantee-card">
+                  <strong>{{ ui.guaranteeTitle2 }}</strong>
+                  <span>{{ ui.guaranteeText2 }}</span>
+                </div>
+              </div>
+
+              <div class="social-proof-card" v-if="socialProofLoading || weeklyBuyerCount !== null">
+                <strong>{{ ui.socialProofTitle }}</strong>
+                <span v-if="socialProofLoading">{{ ui.socialProofLoading }}</span>
+                <span v-else>{{ socialProofLabel }}</span>
+              </div>
+
+              <div class="inline-faq">
+                <strong class="inline-faq-title">{{ ui.faqNearBuyTitle }}</strong>
+                <div class="faq-list inline">
+                  <details class="faq-item" v-for="item in faqItems" :key="`inline-${item.q}`">
+                    <summary>{{ item.q }}</summary>
+                    <p>{{ item.a }}</p>
+                  </details>
+                </div>
+              </div>
+
               <div class="benefits-row">
                 <span>{{ ui.trustDelivery }}</span>
                 <span>{{ ui.trustReturn }}</span>
@@ -128,20 +172,6 @@
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section v-if="product" class="section-space">
-      <div class="site-container">
-        <div class="surface-card faq-box">
-          <h2 class="block-title">{{ ui.faqTitle }}</h2>
-          <div class="faq-list">
-            <details class="faq-item" v-for="item in faqItems" :key="item.q">
-              <summary>{{ item.q }}</summary>
-              <p>{{ item.a }}</p>
-            </details>
           </div>
         </div>
       </div>
@@ -177,7 +207,7 @@
               class="review-textarea"
               rows="4"
               :placeholder="ui.reviewPlaceholder"
-              :disabled="!canLeaveReview"
+              :disabled="!canLeaveReview || reviewEligibilityLoading"
             />
 
             <div class="review-upload">
@@ -186,7 +216,7 @@
                 type="file"
                 accept="image/*"
                 multiple
-                :disabled="!canLeaveReview || reviewPhotoDraft.length >= 2"
+                :disabled="!canLeaveReview || reviewPhotoDraft.length >= 2 || reviewEligibilityLoading"
                 @change="onReviewPhotoChange"
               />
               <span>{{ ui.reviewPhotoHint }}</span>
@@ -205,18 +235,58 @@
             </div>
 
             <div class="review-actions">
-              <button type="button" class="btn-main" :disabled="!canLeaveReview" @click="submitReview">
+              <button type="button" class="btn-main" :disabled="!canLeaveReview || reviewEligibilityLoading" @click="submitReview">
                 {{ ui.reviewSubmit }}
               </button>
-              <span v-if="!canLeaveReview" class="review-note">{{ ui.reviewOnlyAfterPurchase }}</span>
+              <span v-if="reviewEligibilityLoading" class="review-note">{{ ui.reviewEligibilityChecking }}</span>
+              <span v-else-if="!canLeaveReview" class="review-note">
+                {{ ui.reviewOnlyAfterPurchase }}
+                <NuxtLink :to="localePath('/orders')" class="review-help-link">{{ ui.reviewGoOrders }}</NuxtLink>
+              </span>
             </div>
           </div>
 
-          <div v-if="reviews.length" class="reviews-list">
-            <article class="review-item" v-for="item in reviews" :key="item.createdAt">
+          <div v-if="reviews.length" class="review-filters">
+            <button
+              type="button"
+              class="review-filter-btn"
+              :class="{ active: reviewFilter === 'all' }"
+              @click="reviewFilter = 'all'"
+            >
+              {{ ui.reviewFilterAll }}
+            </button>
+            <button
+              type="button"
+              class="review-filter-btn"
+              :class="{ active: reviewFilter === '5' }"
+              @click="reviewFilter = '5'"
+            >
+              {{ ui.reviewFilter5 }}
+            </button>
+            <button
+              type="button"
+              class="review-filter-btn"
+              :class="{ active: reviewFilter === '4plus' }"
+              @click="reviewFilter = '4plus'"
+            >
+              {{ ui.reviewFilter4Plus }}
+            </button>
+            <button
+              type="button"
+              class="review-filter-btn"
+              :class="{ active: reviewFilter === 'photo' }"
+              @click="reviewFilter = 'photo'"
+            >
+              {{ ui.reviewFilterPhoto }}
+            </button>
+          </div>
+
+          <div v-if="filteredReviews.length" class="reviews-list">
+            <article class="review-item" v-for="item in filteredReviews" :key="item.createdAt">
               <div class="stars-row">
                 <span v-for="star in 5" :key="`${item.createdAt}-${star}`" class="star" :class="{ active: star <= item.rating }">★</span>
               </div>
+              <span v-if="item.verified" class="review-verified">{{ ui.reviewVerified }}</span>
               <p>{{ item.text }}</p>
               <div v-if="item.photos?.length" class="review-photos">
                 <button
@@ -232,6 +302,7 @@
               <time>{{ formatReviewDate(item.createdAt) }}</time>
             </article>
           </div>
+          <p v-else-if="reviews.length" class="review-empty-filter">{{ ui.reviewEmptyFilter }}</p>
         </div>
       </div>
     </section>
@@ -252,7 +323,14 @@
             >
               <NuxtLink :to="localePath(`/product/${item.id}`)" class="related-link">
                 <div class="related-image">
-                  <img :src="item.image" :alt="item.title" />
+                  <OptimizedImage
+                    :src="item.image"
+                    :alt="item.title"
+                    loading="lazy"
+                    width="700"
+                    height="700"
+                    sizes="(max-width: 900px) 42vw, 220px"
+                  />
                 </div>
 
                 <div class="related-body">
@@ -298,7 +376,14 @@
         ‹
       </button>
 
-      <img :src="selectedImage" :alt="product.title" class="lightbox-image" />
+      <OptimizedImage
+        :src="selectedImage"
+        :alt="product.title"
+        img-class="lightbox-image"
+        loading="eager"
+        width="1200"
+        height="1200"
+      />
 
       <button
         v-if="galleryImages.length > 1"
@@ -337,6 +422,22 @@ type ProductReview = {
   text: string
   createdAt: string
   photos?: string[]
+  verified?: boolean
+  orderId?: string
+}
+
+type SavedTrack = {
+  id: string
+  token: string
+  createdAt?: string
+}
+
+type TrackedOrder = {
+  id: string
+  status: 'new' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
+  items: Array<{
+    id: string
+  }>
 }
 
 const route = useRoute()
@@ -375,9 +476,15 @@ const reduceMotion = ref(false)
 const isLightboxOpen = ref(false)
 const reviews = ref<ProductReview[]>([])
 const canLeaveReview = ref(false)
+const reviewEligibilityLoading = ref(false)
+const eligibleOrderIdsForReview = ref<string[]>([])
+const reviewFilter = ref<'all' | '5' | '4plus' | 'photo'>('all')
 const reviewPhotoInputRef = ref<HTMLInputElement | null>(null)
 const reviewPhotoDraft = ref<string[]>([])
 const reviewLightboxImage = ref('')
+const weeklyBuyerCount = ref<number | null>(null)
+const weeklyOrdersCount = ref<number | null>(null)
+const socialProofLoading = ref(false)
 const reviewDraft = ref({
   rating: 5,
   text: ''
@@ -391,9 +498,12 @@ watch(
     reviewDraft.value = { rating: 5, text: '' }
     reviewPhotoDraft.value = []
     reviewLightboxImage.value = ''
+    reviewFilter.value = 'all'
     reviews.value = []
     canLeaveReview.value = false
-    loadReviewState()
+    void loadReviewState()
+    void loadSocialProof()
+    loadLiveInventory()
   },
   { immediate: true }
 )
@@ -401,8 +511,8 @@ watch(
 onMounted(() => {
   reduceMotion.value = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   window.addEventListener('keydown', onLightboxKeydown)
-  loadReviewState()
-  loadLiveInventory()
+  void loadReviewState()
+  void loadSocialProof()
 })
 
 onBeforeUnmount(() => {
@@ -524,14 +634,79 @@ function loadReviewState() {
     purchasedIds = []
   }
 
-  canLeaveReview.value = purchasedIds.includes(product.value.id)
+  const productId = product.value.id
+  reviewEligibilityLoading.value = true
+  eligibleOrderIdsForReview.value = []
 
   const map = readReviewsMap()
-  const rawReviews = map[product.value.id] || []
+  const rawReviews = map[productId] || []
   reviews.value = rawReviews.map((item) => ({
     ...item,
+    verified: !!item.verified,
     photos: Array.isArray(item.photos) ? item.photos.filter((photo): photo is string => typeof photo === 'string') : []
   }))
+
+  const tracks = parseSavedTracks()
+  if (!tracks.length) {
+    canLeaveReview.value = purchasedIds.includes(productId)
+    reviewEligibilityLoading.value = false
+    return
+  }
+
+  checkVerifiedPurchase(productId, tracks)
+    .then((result) => {
+      eligibleOrderIdsForReview.value = result.orderIds
+      canLeaveReview.value = result.canLeave || purchasedIds.includes(productId)
+    })
+    .catch(() => {
+      canLeaveReview.value = purchasedIds.includes(productId)
+    })
+    .finally(() => {
+      reviewEligibilityLoading.value = false
+    })
+}
+
+function parseSavedTracks(): SavedTrack[] {
+  if (!import.meta.client) return []
+
+  try {
+    const raw = window.localStorage.getItem('osf_order_tracks_v1')
+    const parsed = raw ? JSON.parse(raw) : []
+    if (!Array.isArray(parsed)) return []
+
+    return parsed
+      .filter((item): item is SavedTrack =>
+        !!item &&
+        typeof item === 'object' &&
+        typeof (item as SavedTrack).id === 'string' &&
+        typeof (item as SavedTrack).token === 'string'
+      )
+      .slice(0, 30)
+  } catch {
+    return []
+  }
+}
+
+async function checkVerifiedPurchase(productId: string, tracks: SavedTrack[]) {
+  const response = await $fetch<{ success: boolean; orders?: TrackedOrder[] }>('/api/order/tracked', {
+    method: 'POST',
+    body: {
+      orders: tracks
+    }
+  })
+
+  const orders = Array.isArray(response.orders) ? response.orders : []
+  const allowedStatuses = new Set<TrackedOrder['status']>(['confirmed', 'shipped', 'delivered'])
+  const matched = orders.filter((order) =>
+    allowedStatuses.has(order.status) &&
+    Array.isArray(order.items) &&
+    order.items.some((item) => item.id === productId)
+  )
+
+  return {
+    canLeave: matched.length > 0,
+    orderIds: matched.map((order) => order.id)
+  }
 }
 
 const averageRating = computed(() => {
@@ -540,9 +715,54 @@ const averageRating = computed(() => {
   return Number((total / reviews.value.length).toFixed(1))
 })
 
+const filteredReviews = computed(() => {
+  if (reviewFilter.value === '5') {
+    return reviews.value.filter((item) => item.rating === 5)
+  }
+
+  if (reviewFilter.value === '4plus') {
+    return reviews.value.filter((item) => item.rating >= 4)
+  }
+
+  if (reviewFilter.value === 'photo') {
+    return reviews.value.filter((item) => Array.isArray(item.photos) && item.photos.length > 0)
+  }
+
+  return reviews.value
+})
+
 const roundedAverageRating = computed(() => Math.round(averageRating.value))
 const averageRatingLabel = computed(() => (reviews.value.length ? `${averageRating.value}/5` : ui.value.noRatingLabel))
 const reviewsMetaLabel = computed(() => (reviews.value.length ? `${reviews.value.length} ${ui.value.reviewsCountSuffix}` : ui.value.noReviewsYet))
+const socialProofLabel = computed(() => {
+  const buyers = Math.max(0, Number(weeklyBuyerCount.value || 0))
+  const orders = Math.max(0, Number(weeklyOrdersCount.value || 0))
+  return `${buyers} ${ui.value.socialProofBuyersSuffix} · ${orders} ${ui.value.socialProofOrdersSuffix}`
+})
+
+const loadSocialProof = async () => {
+  if (!product.value) return
+
+  socialProofLoading.value = true
+  weeklyBuyerCount.value = null
+  weeklyOrdersCount.value = null
+
+  try {
+    const response = await $fetch<{
+      success: boolean
+      buyers7d?: number
+      orders7d?: number
+    }>(`/api/social-proof/${product.value.id}`)
+
+    weeklyBuyerCount.value = Number(response?.buyers7d || 0)
+    weeklyOrdersCount.value = Number(response?.orders7d || 0)
+  } catch {
+    weeklyBuyerCount.value = null
+    weeklyOrdersCount.value = null
+  } finally {
+    socialProofLoading.value = false
+  }
+}
 
 const submitReview = () => {
   if (!product.value) return
@@ -569,7 +789,9 @@ const submitReview = () => {
     rating: reviewDraft.value.rating,
     text: reviewDraft.value.text,
     createdAt: new Date().toISOString(),
-    photos: [...reviewPhotoDraft.value]
+    photos: [...reviewPhotoDraft.value],
+    verified: eligibleOrderIdsForReview.value.length > 0,
+    orderId: eligibleOrderIdsForReview.value[0]
   })
 
   map[product.value.id] = productReviews
@@ -741,6 +963,15 @@ const ui = computed(() => {
       trustReturn: 'Retur 14 zile',
       trustPayment: 'Plată sigură',
       trustGuarantee: 'Garanție calitate',
+      guaranteeTitle1: 'Garantie fără risc',
+      guaranteeText1: 'Schimb sau retur simplu în 14 zile.',
+      guaranteeTitle2: 'Confirmare rapidă',
+      guaranteeText2: 'Confirmăm comanda în scurt timp.',
+      socialProofTitle: 'Cerere reală',
+      socialProofLoading: 'Se încarcă datele de cumpărare...',
+      socialProofBuyersSuffix: 'clienți au cumpărat în 7 zile',
+      socialProofOrdersSuffix: 'comenzi confirmate',
+      faqNearBuyTitle: 'Întrebări înainte de comandă',
       proofTitle1: 'Verificat de clienți',
       proofText1: 'Evaluat pozitiv pentru croială și confort zilnic.',
       proofTitle2: 'Garanție de încredere',
@@ -766,6 +997,14 @@ const ui = computed(() => {
       reviewPhotoSizeError: 'Fiecare imagine trebuie să fie sub 2MB.',
       reviewSubmit: 'Trimite recenzia',
       reviewOnlyAfterPurchase: 'Poți lăsa recenzie doar după cumpărarea acestui produs.',
+      reviewEligibilityChecking: 'Verificăm dacă ai o comandă confirmată pentru acest produs...',
+      reviewGoOrders: 'Comenzile mele',
+      reviewVerified: 'Achiziție verificată',
+      reviewFilterAll: 'Toate',
+      reviewFilter5: '5★',
+      reviewFilter4Plus: '4★+',
+      reviewFilterPhoto: 'Cu foto',
+      reviewEmptyFilter: 'Nu există recenzii pentru acest filtru.',
       reviewStarsError: 'Alege un rating între 1 și 5 stele.',
       reviewTextError: 'Scrie câteva cuvinte despre produs înainte de trimitere.',
       reviewSuccess: 'Recenzia a fost salvată.',
@@ -809,6 +1048,15 @@ const ui = computed(() => {
       trustReturn: '14-day returns',
       trustPayment: 'Secure payment',
       trustGuarantee: 'Quality guarantee',
+      guaranteeTitle1: 'Risk-free purchase',
+      guaranteeText1: 'Easy return or exchange within 14 days.',
+      guaranteeTitle2: 'Fast confirmation',
+      guaranteeText2: 'We confirm your order quickly.',
+      socialProofTitle: 'Real demand',
+      socialProofLoading: 'Loading purchase stats...',
+      socialProofBuyersSuffix: 'buyers in the last 7 days',
+      socialProofOrdersSuffix: 'confirmed orders',
+      faqNearBuyTitle: 'Questions before checkout',
       proofTitle1: 'Customer verified',
       proofText1: 'Highly rated for fit and all-day comfort.',
       proofTitle2: 'Risk-free purchase',
@@ -834,6 +1082,14 @@ const ui = computed(() => {
       reviewPhotoSizeError: 'Each image must be under 2MB.',
       reviewSubmit: 'Submit review',
       reviewOnlyAfterPurchase: 'You can leave a review only after buying this product.',
+      reviewEligibilityChecking: 'Checking your confirmed orders for this product...',
+      reviewGoOrders: 'My orders',
+      reviewVerified: 'Verified purchase',
+      reviewFilterAll: 'All',
+      reviewFilter5: '5★',
+      reviewFilter4Plus: '4★+',
+      reviewFilterPhoto: 'With photos',
+      reviewEmptyFilter: 'No reviews for this filter yet.',
       reviewStarsError: 'Choose a rating between 1 and 5 stars.',
       reviewTextError: 'Please write a short review before submitting.',
       reviewSuccess: 'Review saved successfully.',
@@ -876,6 +1132,15 @@ const ui = computed(() => {
     trustReturn: 'Возврат 14 дней',
     trustPayment: 'Безопасная оплата',
     trustGuarantee: 'Гарантия качества',
+    guaranteeTitle1: 'Покупка без риска',
+    guaranteeText1: 'Лёгкий обмен или возврат за 14 дней.',
+    guaranteeTitle2: 'Быстрое подтверждение',
+    guaranteeText2: 'Подтверждаем заказ в ближайшее время.',
+    socialProofTitle: 'Реальный спрос',
+    socialProofLoading: 'Загружаем статистику покупок...',
+    socialProofBuyersSuffix: 'покупателей за 7 дней',
+    socialProofOrdersSuffix: 'подтвержденных заказов',
+    faqNearBuyTitle: 'Частые вопросы перед покупкой',
     proofTitle1: 'Проверено клиентами',
     proofText1: 'Высокие оценки за посадку и комфорт каждый день.',
     proofTitle2: 'Покупка без риска',
@@ -901,6 +1166,14 @@ const ui = computed(() => {
     reviewPhotoSizeError: 'Каждое изображение должно быть меньше 2MB.',
     reviewSubmit: 'Отправить отзыв',
     reviewOnlyAfterPurchase: 'Оставить отзыв можно только после покупки этого товара.',
+    reviewEligibilityChecking: 'Проверяем подтвержденные заказы по этому товару...',
+    reviewGoOrders: 'Мои заказы',
+    reviewVerified: 'Проверенная покупка',
+    reviewFilterAll: 'Все',
+    reviewFilter5: '5★',
+    reviewFilter4Plus: '4★+',
+    reviewFilterPhoto: 'С фото',
+    reviewEmptyFilter: 'По этому фильтру пока нет отзывов.',
     reviewStarsError: 'Выберите оценку от 1 до 5 звёзд.',
     reviewTextError: 'Напишите короткий отзыв перед отправкой.',
     reviewSuccess: 'Отзыв сохранён.',
@@ -993,49 +1266,173 @@ const faqItems = computed(() => {
   ]
 })
 
-const siteUrl = 'https://onestyleforever.com'
+const config = useRuntimeConfig()
+const siteUrl = String(config.public.siteUrl || 'https://onestyleforever.com').replace(/\/+$/, '')
 const defaultImage = `${siteUrl}/logo-preview.png`
+const productPath = computed(() => localePath(`/product/${productId.value}`))
+const productUrl = computed(() => {
+  const path = productPath.value === '/' ? '/' : String(productPath.value).replace(/\/+$/, '')
+  return `${siteUrl}${path}`
+})
+const primaryProductImage = computed(() => {
+  if (!product.value) return defaultImage
+  const first = product.value.images?.[0] || product.value.image
+  return first ? `${siteUrl}${first}` : defaultImage
+})
+const productImagesForSchema = computed(() => {
+  if (!product.value) return [defaultImage]
+  const images = product.value.images?.length ? product.value.images : [product.value.image]
+  const normalized = images
+    .filter((image): image is string => typeof image === 'string' && !!image)
+    .map((image) => `${siteUrl}${image}`)
+  return normalized.length ? normalized : [defaultImage]
+})
+const primaryImagePath = computed(() => {
+  if (!product.value) return '/logo-preview.png'
+  return product.value.images?.[0] || product.value.image || '/logo-preview.png'
+})
+const primaryImageAvif = computed(() => String(primaryImagePath.value).replace(/\.(png|jpg|jpeg)$/i, '.avif'))
+const primaryImageWebp = computed(() => String(primaryImagePath.value).replace(/\.(png|jpg|jpeg)$/i, '.webp'))
+
+const schemaOfferAvailability = (size: ProductSize) => {
+  if (!product.value) return 'https://schema.org/InStock'
+  const stockMap = liveStockBySize.value[product.value.id]
+  if (!stockMap || typeof stockMap[size] !== 'number') return 'https://schema.org/InStock'
+  return stockMap[size] > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock'
+}
+
+const breadcrumbLabels = computed(() => {
+  if (locale.value === 'ro') return { home: 'Acasă', catalog: 'Catalog' }
+  if (locale.value === 'en') return { home: 'Home', catalog: 'Catalog' }
+  return { home: 'Главная', catalog: 'Каталог' }
+})
 
 useSeoMeta({
   title: () => (product.value ? `${product.value.title} | ONE STYLE FOREVER` : `ONE STYLE FOREVER | ${ui.value.notFoundTitle}`),
   description: () => (product.value ? product.value.description : ui.value.notFoundText),
   ogTitle: () => (product.value ? `${product.value.title} | ONE STYLE FOREVER` : `ONE STYLE FOREVER`),
   ogDescription: () => (product.value ? product.value.description : ui.value.notFoundText),
-  ogImage: () => (product.value ? `${siteUrl}${product.value.image}` : defaultImage),
+  ogImage: () => primaryProductImage.value,
   ogType: 'website',
+  ogUrl: () => productUrl.value,
   twitterCard: 'summary_large_image',
-  twitterImage: () => (product.value ? `${siteUrl}${product.value.image}` : defaultImage)
+  twitterTitle: () => (product.value ? `${product.value.title} | ONE STYLE FOREVER` : 'ONE STYLE FOREVER'),
+  twitterDescription: () => (product.value ? product.value.description : ui.value.notFoundText),
+  twitterImage: () => primaryProductImage.value
 })
 
 useHead(
   computed(() => {
-    if (!product.value) {
+    const currentProduct = product.value
+
+    if (!currentProduct) {
       return {}
     }
 
     return {
       script: [
         {
+          key: 'product-schema',
           type: 'application/ld+json',
-          children: JSON.stringify({
+          textContent: JSON.stringify({
             '@context': 'https://schema.org',
             '@type': 'Product',
-            name: product.value.title,
-            image: [`${siteUrl}${product.value.image}`],
-            description: product.value.description,
-            sku: product.value.id,
+            name: currentProduct.title,
+            image: productImagesForSchema.value,
+            description: currentProduct.description,
+            sku: currentProduct.id,
+            url: productUrl.value,
             brand: {
               '@type': 'Brand',
               name: 'ONE STYLE FOREVER'
             },
-            offers: {
+            offers: currentProduct.sizes.map((size) => ({
               '@type': 'Offer',
-              url: `${siteUrl}/product/${product.value.id}`,
+              url: productUrl.value,
               priceCurrency: 'MDL',
-              price: product.value.price,
-              availability: 'https://schema.org/InStock'
-            }
+              price: currentProduct.price,
+              priceValidUntil: '2027-12-31',
+              availability: schemaOfferAvailability(size as ProductSize),
+              itemCondition: 'https://schema.org/NewCondition',
+              seller: {
+                '@type': 'Organization',
+                name: 'ONE STYLE FOREVER'
+              },
+              sku: `${currentProduct.id}-${size}`
+            })),
+            ...(reviews.value.length
+              ? {
+                  aggregateRating: {
+                    '@type': 'AggregateRating',
+                    ratingValue: averageRating.value,
+                    reviewCount: reviews.value.length
+                  },
+                  review: reviews.value.slice(0, 8).map((item) => ({
+                    '@type': 'Review',
+                    reviewRating: {
+                      '@type': 'Rating',
+                      ratingValue: item.rating,
+                      bestRating: 5,
+                      worstRating: 1
+                    },
+                    author: {
+                      '@type': 'Person',
+                      name: 'Verified Customer'
+                    },
+                    datePublished: item.createdAt,
+                    reviewBody: item.text
+                  }))
+                }
+              : {})
           })
+        },
+        {
+          key: 'breadcrumb-schema',
+          type: 'application/ld+json',
+          textContent: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              {
+                '@type': 'ListItem',
+                position: 1,
+                name: breadcrumbLabels.value.home,
+                item: `${siteUrl}${localePath('/')}`
+              },
+              {
+                '@type': 'ListItem',
+                position: 2,
+                name: breadcrumbLabels.value.catalog,
+                item: `${siteUrl}${localePath('/catalog')}`
+              },
+              {
+                '@type': 'ListItem',
+                position: 3,
+                name: currentProduct.title,
+                item: productUrl.value
+              }
+            ]
+          })
+        }
+      ],
+      link: [
+        {
+          rel: 'preload',
+          as: 'image',
+          href: primaryImageAvif.value,
+          type: 'image/avif',
+          fetchpriority: 'high'
+        },
+        {
+          rel: 'preload',
+          as: 'image',
+          href: primaryImageWebp.value,
+          type: 'image/webp',
+          fetchpriority: 'high'
+        },
+        {
+          rel: 'canonical',
+          href: productUrl.value
         }
       ]
     }
@@ -1332,6 +1729,67 @@ useHead(
   color: #fff;
 }
 
+.cta-guarantees {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.guarantee-card {
+  border-radius: 14px;
+  border: 1px solid #cfe0d4;
+  background: #f7fcf8;
+  padding: 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.guarantee-card strong {
+  font-size: 13px;
+}
+
+.guarantee-card span {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #4f6a57;
+}
+
+.inline-faq {
+  margin-top: 12px;
+}
+
+.inline-faq-title {
+  display: inline-flex;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #1f5e3b;
+}
+
+.social-proof-card {
+  margin-top: 10px;
+  border-radius: 14px;
+  border: 1px dashed #b8d4c1;
+  background: #f8fcf8;
+  padding: 10px 12px;
+  display: grid;
+  gap: 3px;
+}
+
+.social-proof-card strong {
+  font-size: 13px;
+  color: #1f5e3b;
+}
+
+.social-proof-card span {
+  font-size: 12px;
+  color: #4f6a57;
+}
+
+.faq-list.inline {
+  margin-top: 0;
+}
+
 .benefits-row {
   margin-top: 20px;
   display: flex;
@@ -1603,6 +2061,20 @@ useHead(
 .review-note {
   color: #4e6655;
   font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.review-help-link {
+  font-size: 12px;
+  font-weight: 800;
+  color: #1f5e3b;
+}
+
+.review-help-link:hover {
+  text-decoration: underline;
 }
 
 .reviews-list {
@@ -1611,11 +2083,56 @@ useHead(
   gap: 10px;
 }
 
+.review-filters {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.review-filter-btn {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: #42576f;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.review-filter-btn.active {
+  border-color: #9ac6a9;
+  background: #edf7ef;
+  color: #1f5e3b;
+}
+
+.review-empty-filter {
+  margin: 14px 0 0;
+  color: #5e7766;
+  font-size: 13px;
+}
+
 .review-item {
   border: 1px solid #d3dfd5;
   border-radius: 14px;
   background: #fff;
   padding: 12px;
+}
+
+.review-verified {
+  margin-top: 8px;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #b8d4c1;
+  background: #eff8f2;
+  color: #1f5e3b;
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .review-item p {
@@ -1884,6 +2401,11 @@ useHead(
   }
 
   .proof-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .cta-guarantees {
     grid-template-columns: 1fr;
     gap: 8px;
   }

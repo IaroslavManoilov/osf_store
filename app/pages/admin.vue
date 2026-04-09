@@ -40,9 +40,14 @@
         <div class="surface-card inventory-card">
           <div class="inventory-head">
             <h2>{{ ui.inventoryTitle }}</h2>
-            <button type="button" class="btn-alt" :disabled="loadingInventory" @click="loadInventory">
-              {{ loadingInventory ? ui.loading : ui.refreshInventory }}
-            </button>
+            <div class="inventory-actions">
+              <button type="button" class="btn-alt" :disabled="loadingInventory" @click="loadInventory">
+                {{ loadingInventory ? ui.loading : ui.refreshInventory }}
+              </button>
+              <button type="button" class="btn-alt" :disabled="exportingCsv" @click="exportOrdersCsv">
+                {{ exportingCsv ? ui.loading : ui.exportCsv }}
+              </button>
+            </div>
           </div>
 
           <div class="inventory-grid" v-if="inventoryProducts.length">
@@ -94,6 +99,95 @@
               </li>
             </ul>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="loaded" class="section-space">
+      <div class="site-container">
+        <div class="surface-card products-card">
+          <div class="products-head">
+            <h2>{{ ui.productsTitle }}</h2>
+            <button type="button" class="btn-alt" :disabled="savingProducts" @click="saveProductsBulk">
+              {{ savingProducts ? ui.saving : ui.saveProducts }}
+            </button>
+          </div>
+
+          <div class="products-grid">
+            <article v-for="product in editableProducts" :key="product.id" class="products-item">
+              <div class="products-item-head">
+                <strong>{{ product.id }}</strong>
+                <label class="toggle-active">
+                  <input v-model="product.isActive" type="checkbox" />
+                  <span>{{ ui.productActive }}</span>
+                </label>
+              </div>
+
+              <div class="products-row">
+                <label>
+                  <span>{{ ui.productPrice }}</span>
+                  <input v-model.number="product.price" type="number" min="0" max="1000000" step="1" />
+                </label>
+                <label>
+                  <span>{{ ui.productBadge }}</span>
+                  <select v-model="product.badge">
+                    <option value="NEW">NEW</option>
+                    <option value="HOT">HOT</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="products-row columns-3">
+                <label>
+                  <span>{{ ui.productTitleRu }}</span>
+                  <input v-model.trim="product.titleRu" type="text" />
+                </label>
+                <label>
+                  <span>{{ ui.productTitleRo }}</span>
+                  <input v-model.trim="product.titleRo" type="text" />
+                </label>
+                <label>
+                  <span>{{ ui.productTitleEn }}</span>
+                  <input v-model.trim="product.titleEn" type="text" />
+                </label>
+              </div>
+
+              <div class="products-row columns-3">
+                <label>
+                  <span>{{ ui.productShortRu }}</span>
+                  <input v-model.trim="product.shortRu" type="text" />
+                </label>
+                <label>
+                  <span>{{ ui.productShortRo }}</span>
+                  <input v-model.trim="product.shortRo" type="text" />
+                </label>
+                <label>
+                  <span>{{ ui.productShortEn }}</span>
+                  <input v-model.trim="product.shortEn" type="text" />
+                </label>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="loaded && auditEntries.length" class="section-space">
+      <div class="site-container">
+        <div class="surface-card audit-card">
+          <div class="audit-head">
+            <h2>{{ ui.globalAuditTitle }}</h2>
+            <button type="button" class="btn-alt" :disabled="loadingAudit" @click="loadAudit">
+              {{ loadingAudit ? ui.loading : ui.refreshAudit }}
+            </button>
+          </div>
+
+          <ul class="global-audit-list">
+            <li v-for="entry in auditEntries" :key="entry.id">
+              {{ formatDate(entry.createdAt) }} · {{ entry.actor || ui.auditUnknown }} · {{ entry.action }}
+              <span v-if="entry.targetType || entry.targetId"> · {{ entry.targetType || '-' }} / {{ entry.targetId || '-' }}</span>
+            </li>
+          </ul>
         </div>
       </div>
     </section>
@@ -228,6 +322,41 @@ type InventoryHistoryEntry = {
   actor?: string
 }
 
+type ProductOverrideRow = {
+  productId: string
+  price: number | null
+  badge: 'NEW' | 'HOT' | null
+  isActive: boolean | null
+  titleRu: string | null
+  titleRo: string | null
+  titleEn: string | null
+  shortRu: string | null
+  shortRo: string | null
+  shortEn: string | null
+}
+
+type EditableProduct = {
+  id: string
+  price: number
+  badge: 'NEW' | 'HOT'
+  isActive: boolean
+  titleRu: string
+  titleRo: string
+  titleEn: string
+  shortRu: string
+  shortRo: string
+  shortEn: string
+}
+
+type AuditEntry = {
+  id: number
+  createdAt: string
+  actor: string
+  action: string
+  targetType?: string
+  targetId?: string
+}
+
 const { locale } = useI18n()
 const uiStore = useUiStore()
 
@@ -251,6 +380,11 @@ const savingInventoryId = ref('')
 const inventoryDraft = reactive<Record<string, Record<InventorySize, number>>>({})
 const inventoryProducts = computed(() => getProducts(locale.value))
 const inventoryHistory = ref<InventoryHistoryEntry[]>([])
+const editableProducts = ref<EditableProduct[]>([])
+const savingProducts = ref(false)
+const exportingCsv = ref(false)
+const loadingAudit = ref(false)
+const auditEntries = ref<AuditEntry[]>([])
 
 const ui = computed(() => {
   if (locale.value === 'ro') {
@@ -279,6 +413,20 @@ const ui = computed(() => {
       inventoryProductCode: 'Cod produs',
       inventoryTotal: 'Total stoc',
       inventoryLogTitle: 'Jurnal modificări stoc',
+      productsTitle: 'Editare produse în masă',
+      saveProducts: 'Salvează produse',
+      productActive: 'Activ',
+      productPrice: 'Preț',
+      productBadge: 'Badge',
+      productTitleRu: 'Titlu (RU)',
+      productTitleRo: 'Titlu (RO)',
+      productTitleEn: 'Titlu (EN)',
+      productShortRu: 'Scurt (RU)',
+      productShortRo: 'Scurt (RO)',
+      productShortEn: 'Scurt (EN)',
+      exportCsv: 'Export CSV',
+      globalAuditTitle: 'Jurnal acțiuni admin',
+      refreshAudit: 'Reîncarcă jurnal',
       auditTitle: 'Audit status',
       changedBy: 'De:',
       auditUnknown: 'admin',
@@ -315,6 +463,20 @@ const ui = computed(() => {
       inventoryProductCode: 'Product code',
       inventoryTotal: 'Total stock',
       inventoryLogTitle: 'Inventory change log',
+      productsTitle: 'Bulk product editor',
+      saveProducts: 'Save products',
+      productActive: 'Active',
+      productPrice: 'Price',
+      productBadge: 'Badge',
+      productTitleRu: 'Title (RU)',
+      productTitleRo: 'Title (RO)',
+      productTitleEn: 'Title (EN)',
+      productShortRu: 'Short text (RU)',
+      productShortRo: 'Short text (RO)',
+      productShortEn: 'Short text (EN)',
+      exportCsv: 'Export CSV',
+      globalAuditTitle: 'Admin action log',
+      refreshAudit: 'Refresh log',
       auditTitle: 'Status audit',
       changedBy: 'By:',
       auditUnknown: 'admin',
@@ -350,6 +512,20 @@ const ui = computed(() => {
     inventoryProductCode: 'Код товара',
     inventoryTotal: 'Всего на складе',
     inventoryLogTitle: 'Журнал изменений остатков',
+    productsTitle: 'Массовое редактирование товаров',
+    saveProducts: 'Сохранить товары',
+    productActive: 'Активен',
+    productPrice: 'Цена',
+    productBadge: 'Бейдж',
+    productTitleRu: 'Название (RU)',
+    productTitleRo: 'Название (RO)',
+    productTitleEn: 'Название (EN)',
+    productShortRu: 'Коротко (RU)',
+    productShortRo: 'Коротко (RO)',
+    productShortEn: 'Коротко (EN)',
+    exportCsv: 'Экспорт CSV',
+    globalAuditTitle: 'Журнал действий админа',
+    refreshAudit: 'Обновить журнал',
     auditTitle: 'Аудит статусов',
     changedBy: 'Кто:',
     auditUnknown: 'admin',
@@ -463,6 +639,171 @@ const loadInventory = async () => {
   }
 }
 
+const buildDefaultEditableProducts = () => {
+  const baseRu = getProducts('ru')
+  const baseRo = getProducts('ro')
+  const baseEn = getProducts('en')
+  const byRo = new Map(baseRo.map((item) => [item.id, item]))
+  const byEn = new Map(baseEn.map((item) => [item.id, item]))
+
+  editableProducts.value = baseRu.map((product) => ({
+    id: product.id,
+    price: product.price,
+    badge: product.badge,
+    isActive: true,
+    titleRu: product.title,
+    titleRo: byRo.get(product.id)?.title || '',
+    titleEn: byEn.get(product.id)?.title || '',
+    shortRu: product.shortDescription,
+    shortRo: byRo.get(product.id)?.shortDescription || '',
+    shortEn: byEn.get(product.id)?.shortDescription || ''
+  }))
+}
+
+const mergeProductOverrides = (rows: ProductOverrideRow[]) => {
+  if (!editableProducts.value.length) {
+    buildDefaultEditableProducts()
+  }
+  const byId = new Map(rows.map((row) => [row.productId, row]))
+
+  editableProducts.value = editableProducts.value.map((product) => {
+    const row = byId.get(product.id)
+    if (!row) return product
+
+    return {
+      ...product,
+      price: Number.isFinite(Number(row.price)) ? Math.max(0, Math.round(Number(row.price))) : product.price,
+      badge: row.badge === 'HOT' || row.badge === 'NEW' ? row.badge : product.badge,
+      isActive: row.isActive === false ? false : true,
+      titleRu: row.titleRu || product.titleRu,
+      titleRo: row.titleRo || product.titleRo,
+      titleEn: row.titleEn || product.titleEn,
+      shortRu: row.shortRu || product.shortRu,
+      shortRo: row.shortRo || product.shortRo,
+      shortEn: row.shortEn || product.shortEn
+    }
+  })
+}
+
+const loadProductOverrides = async () => {
+  if (!csrfToken.value) return
+  if (!editableProducts.value.length) {
+    buildDefaultEditableProducts()
+  }
+
+  try {
+    const response = await $fetch<{ success: boolean; rows: Array<any> }>('/api/admin/products', {
+      headers: {
+        'x-csrf-token': csrfToken.value
+      }
+    })
+
+    const rows: ProductOverrideRow[] = (Array.isArray(response?.rows) ? response.rows : []).map((row) => ({
+      productId: String(row.product_id || '').trim(),
+      price: row.price === null || row.price === undefined ? null : Number(row.price),
+      badge: row.badge === 'HOT' || row.badge === 'NEW' ? row.badge : null,
+      isActive: row.is_active === null || row.is_active === undefined ? null : !!row.is_active,
+      titleRu: row.title_ru || null,
+      titleRo: row.title_ro || null,
+      titleEn: row.title_en || null,
+      shortRu: row.short_description_ru || null,
+      shortRo: row.short_description_ro || null,
+      shortEn: row.short_description_en || null
+    }))
+
+    mergeProductOverrides(rows)
+  } catch (error) {
+    uiStore.showToast(resolveErrorMessage(error), 'error')
+  }
+}
+
+const saveProductsBulk = async () => {
+  if (!csrfToken.value || !editableProducts.value.length) return
+
+  savingProducts.value = true
+  try {
+    await $fetch('/api/admin/products', {
+      method: 'PATCH',
+      headers: {
+        'x-csrf-token': csrfToken.value
+      },
+      body: {
+        rows: editableProducts.value.map((product) => ({
+          productId: product.id,
+          price: Number(product.price || 0),
+          badge: product.badge,
+          isActive: !!product.isActive,
+          titleRu: product.titleRu,
+          titleRo: product.titleRo,
+          titleEn: product.titleEn,
+          shortDescriptionRu: product.shortRu,
+          shortDescriptionRo: product.shortRo,
+          shortDescriptionEn: product.shortEn
+        }))
+      }
+    })
+
+    uiStore.showToast(locale.value === 'en' ? 'Products updated' : locale.value === 'ro' ? 'Produse actualizate' : 'Товары обновлены', 'success')
+  } catch (error) {
+    uiStore.showToast(resolveErrorMessage(error), 'error')
+  } finally {
+    savingProducts.value = false
+  }
+}
+
+const exportOrdersCsv = async () => {
+  if (!csrfToken.value) return
+  exportingCsv.value = true
+  try {
+    const csv = await $fetch<string>('/api/admin/orders/export.csv', {
+      headers: {
+        'x-csrf-token': csrfToken.value
+      },
+      query: statusFilter.value ? { status: statusFilter.value } : undefined,
+      responseType: 'text'
+    })
+
+    if (import.meta.client) {
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `orders-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+  } catch (error) {
+    uiStore.showToast(resolveErrorMessage(error), 'error')
+  } finally {
+    exportingCsv.value = false
+  }
+}
+
+const loadAudit = async () => {
+  if (!csrfToken.value) return
+  loadingAudit.value = true
+  try {
+    const response = await $fetch<{ success: boolean; entries: Array<any> }>('/api/admin/audit', {
+      headers: {
+        'x-csrf-token': csrfToken.value
+      }
+    })
+
+    auditEntries.value = (Array.isArray(response?.entries) ? response.entries : []).map((entry) => ({
+      id: Number(entry.id || 0),
+      createdAt: String(entry.created_at || ''),
+      actor: String(entry.actor || ''),
+      action: String(entry.action || ''),
+      targetType: entry.target_type ? String(entry.target_type) : '',
+      targetId: entry.target_id ? String(entry.target_id) : ''
+    }))
+  } catch (error) {
+    uiStore.showToast(resolveErrorMessage(error), 'error')
+  } finally {
+    loadingAudit.value = false
+  }
+}
+
 const saveInventory = async (productId: string) => {
   const row = inventoryDraft[productId]
   if (!row) return
@@ -569,6 +910,8 @@ const loadOrders = async () => {
 
   await fetchOrders()
   await loadInventory()
+  await loadProductOverrides()
+  await loadAudit()
 }
 
 const updateStatus = async (orderId: string) => {
@@ -649,6 +992,8 @@ const logout = async (showToast = false) => {
   orders.value = []
   stockBySize.value = {}
   inventoryHistory.value = []
+  editableProducts.value = []
+  auditEntries.value = []
   for (const key of Object.keys(inventoryDraft)) {
     delete inventoryDraft[key]
   }
@@ -674,7 +1019,8 @@ onMounted(() => {
         persistAdminActor()
       }
       csrfToken.value = response?.csrfToken || ''
-      return Promise.all([fetchOrders(), loadInventory()])
+      buildDefaultEditableProducts()
+      return Promise.all([fetchOrders(), loadInventory(), loadProductOverrides(), loadAudit()])
     })
     .catch(() => {
       loaded.value = false
@@ -757,6 +1103,12 @@ useSeoMeta({
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.inventory-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .inventory-head h2 {
@@ -843,6 +1195,109 @@ useSeoMeta({
 
 .inventory-history ul {
   margin: 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 6px;
+  color: #4a5a70;
+  font-size: 13px;
+}
+
+.products-card {
+  padding: 16px;
+}
+
+.products-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.products-head h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.products-grid {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.products-item {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  background: #fff;
+  display: grid;
+  gap: 10px;
+}
+
+.products-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.toggle-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.products-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.products-row.columns-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.products-row label {
+  display: grid;
+  gap: 4px;
+}
+
+.products-row span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #3a4d63;
+}
+
+.products-row input,
+.products-row select {
+  min-height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 0 10px;
+  font: inherit;
+  color: var(--text);
+  outline: none;
+}
+
+.audit-card {
+  padding: 16px;
+}
+
+.audit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.audit-head h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.global-audit-list {
+  margin: 12px 0 0;
   padding-left: 16px;
   display: grid;
   gap: 6px;
@@ -986,6 +1441,14 @@ useSeoMeta({
     grid-template-columns: 1fr;
   }
 
+  .inventory-actions {
+    width: 100%;
+  }
+
+  .inventory-actions .btn-alt {
+    flex: 1;
+  }
+
   .inventory-foot {
     flex-direction: column;
     align-items: stretch;
@@ -997,6 +1460,11 @@ useSeoMeta({
 
   .update-row {
     width: 100%;
+  }
+
+  .products-row,
+  .products-row.columns-3 {
+    grid-template-columns: 1fr;
   }
 
   .status-select,

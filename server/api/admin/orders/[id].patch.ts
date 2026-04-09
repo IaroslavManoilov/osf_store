@@ -6,6 +6,8 @@ import {
 import { getSupabaseAdmin } from '../../../utils/supabase-admin'
 import { requireAdminCsrf } from '../../../utils/admin-session'
 import { reserveInventory, restoreInventory } from '../../../utils/inventory'
+import { assertRateLimit } from '../../../utils/rate-limit'
+import { writeAdminAuditLog } from '../../../utils/audit-log'
 
 type OrderStatus =
   | 'new'
@@ -26,6 +28,11 @@ const validStatuses: OrderStatus[] = [
 
 export default defineEventHandler(async (event) => {
   const { actor } = requireAdminCsrf(event)
+  assertRateLimit(event, {
+    namespace: 'admin-order-status-patch',
+    limit: 60,
+    windowMs: 60 * 1000
+  })
 
   const orderId = String(event.context.params?.id || '').trim()
   if (!orderId) {
@@ -159,6 +166,18 @@ export default defineEventHandler(async (event) => {
       statusMessage: statusHistoryError.message
     })
   }
+
+  await writeAdminAuditLog(event, {
+    actor,
+    action: 'order.status_update',
+    targetType: 'order',
+    targetId: orderId,
+    details: {
+      previousStatus,
+      nextStatus,
+      note
+    }
+  })
 
   return {
     success: true,

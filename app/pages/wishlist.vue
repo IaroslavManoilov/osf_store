@@ -25,7 +25,7 @@
               class="wishlist-image-link"
             >
               <div class="wishlist-image">
-                <img :src="item.image" :alt="item.title" />
+                <OptimizedImage :src="item.image" :alt="item.title" loading="lazy" width="700" height="700" sizes="(max-width: 900px) 88vw, 220px" />
               </div>
             </NuxtLink>
 

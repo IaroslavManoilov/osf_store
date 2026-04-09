@@ -13,7 +13,14 @@
       <div class="header-box">
         <NuxtLink :to="localePath('/')" class="brand" @click="closeMobileMenu">
           <span class="brand-mark">
-            <img src="/logo-mark.png" alt="ONE STYLE FOREVER" />
+            <OptimizedImage
+              src="/logo-mark.png"
+              alt="ONE STYLE FOREVER"
+              loading="eager"
+              fetchpriority="high"
+              width="160"
+              height="160"
+            />
           </span>
 
           <span class="brand-text">

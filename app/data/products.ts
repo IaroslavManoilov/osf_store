@@ -20,6 +20,18 @@ export type LocalizedProduct = {
   colorLabel: string
 }
 
+export type ProductOverride = {
+  price?: number | null
+  badge?: ProductBadge | null
+  isActive?: boolean | null
+  titleRu?: string | null
+  titleRo?: string | null
+  titleEn?: string | null
+  shortDescriptionRu?: string | null
+  shortDescriptionRo?: string | null
+  shortDescriptionEn?: string | null
+}
+
 type ProductBase = {
   id: string
   price: number
@@ -47,6 +59,20 @@ type ProductDefinition = ProductBase & {
 const normalizeLocale = (locale: string): LocaleCode => {
   if (locale === 'ro' || locale === 'en') return locale
   return 'ru'
+}
+
+const getOverrideMap = (): Record<string, ProductOverride> => {
+  const key = '__OSF_CATALOG_OVERRIDES__'
+  try {
+    const raw = (globalThis as unknown as Record<string, unknown>)[key]
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      return raw as Record<string, ProductOverride>
+    }
+  } catch {
+    // noop
+  }
+
+  return {}
 }
 
 const labels: Record<
@@ -277,25 +303,46 @@ const productDefinitions: ProductDefinition[] = [
 export const getProducts = (locale: string): LocalizedProduct[] => {
   const currentLocale = normalizeLocale(locale)
   const localeLabels = labels[currentLocale]
+  const overrides = getOverrideMap()
 
   return productDefinitions.map((product) => {
+    const override = overrides[product.id] || {}
     const translation = product.translations[currentLocale]
+    const price = Number.isFinite(Number(override.price))
+      ? Math.max(0, Math.round(Number(override.price)))
+      : product.price
+    const badge = override.badge === 'HOT' || override.badge === 'NEW' ? override.badge : product.badge
+    const titleByLocale =
+      currentLocale === 'ru'
+        ? override.titleRu
+        : currentLocale === 'ro'
+          ? override.titleRo
+          : override.titleEn
+    const shortByLocale =
+      currentLocale === 'ru'
+        ? override.shortDescriptionRu
+        : currentLocale === 'ro'
+          ? override.shortDescriptionRo
+          : override.shortDescriptionEn
 
     return {
       id: product.id,
-      price: product.price,
-      badge: product.badge,
+      price,
+      badge,
       category: product.category,
       color: product.color,
       sizes: product.sizes,
       image: product.image,
       images: product.images,
-      title: translation.title,
+      title: typeof titleByLocale === 'string' && titleByLocale.trim() ? titleByLocale.trim() : translation.title,
       description: translation.description,
-      shortDescription: translation.shortDescription,
+      shortDescription: typeof shortByLocale === 'string' && shortByLocale.trim() ? shortByLocale.trim() : translation.shortDescription,
       categoryLabel: localeLabels.categories[product.category],
       colorLabel: localeLabels.colors[product.color]
     }
+  }).filter((product) => {
+    const override = overrides[product.id] || {}
+    return override.isActive === false ? false : true
   })
 }
 

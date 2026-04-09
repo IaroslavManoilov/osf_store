@@ -26,7 +26,9 @@ export default defineNuxtConfig({
     adminKey: process.env.NUXT_ADMIN_KEY || '',
     supabaseUrl: process.env.NUXT_SUPABASE_URL || '',
     supabaseServiceRoleKey: process.env.NUXT_SUPABASE_SERVICE_ROLE_KEY || '',
-    public: {}
+    public: {
+      siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://onestyleforever.com'
+    }
   },
 
   app: {

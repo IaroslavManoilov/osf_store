@@ -1,6 +1,7 @@
 import { defineEventHandler, readBody } from 'h3'
 import { readOrderById } from '../../utils/order-storage'
 import { verifyOrderTrackToken } from '../../utils/order-track-token'
+import { assertRateLimit } from '../../utils/rate-limit'
 
 type TrackedOrderInput = {
   id?: string
@@ -12,6 +13,12 @@ type Payload = {
 }
 
 export default defineEventHandler(async (event) => {
+  assertRateLimit(event, {
+    namespace: 'order-tracked',
+    limit: 60,
+    windowMs: 60 * 1000
+  })
+
   const body = await readBody<Payload>(event)
   const entries = Array.isArray(body?.orders) ? body.orders : []
 

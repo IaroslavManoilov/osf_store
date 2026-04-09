@@ -28,7 +28,14 @@
 
             <div class="intro-visual">
               <div class="visual-box">
-                <img src="/logo-preview.png" alt="ONE STYLE FOREVER" />
+                <OptimizedImage
+                  src="/logo-preview.png"
+                  alt="ONE STYLE FOREVER"
+                  loading="lazy"
+                  width="1200"
+                  height="1200"
+                  sizes="(max-width: 900px) 90vw, 420px"
+                />
               </div>
             </div>
           </div>

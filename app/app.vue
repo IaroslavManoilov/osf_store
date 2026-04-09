@@ -1,7 +1,27 @@
 <script setup lang="ts">
-const siteUrl = 'https://onestyleforever.com'
+const route = useRoute()
+const config = useRuntimeConfig()
+const siteUrl = String(config.public.siteUrl || 'https://onestyleforever.com').replace(/\/+$/, '')
 
-useHead({
+const canonicalUrl = computed(() => {
+  const rawPath = String(route.path || '/')
+  const normalizedPath = rawPath === '/' ? '/' : rawPath.replace(/\/+$/, '')
+  return `${siteUrl}${normalizedPath}`
+})
+
+useHead(() => ({
+  link: [
+    {
+      rel: 'canonical',
+      href: canonicalUrl.value
+    }
+  ],
+  meta: [
+    {
+      property: 'og:url',
+      content: canonicalUrl.value
+    }
+  ],
   script: [
     {
       type: 'application/ld+json',
@@ -26,7 +46,7 @@ useHead({
       })
     }
   ]
-})
+}))
 </script>
 
 <template>

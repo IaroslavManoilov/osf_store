@@ -28,7 +28,15 @@
 
           <div class="surface-card intro-visual-card">
             <div class="intro-visual-main">
-              <img src="/logo-preview.png" alt="ONE STYLE FOREVER" />
+              <OptimizedImage
+                src="/logo-preview.png"
+                alt="ONE STYLE FOREVER"
+                loading="eager"
+                fetchpriority="high"
+                width="1200"
+                height="1200"
+                sizes="(max-width: 900px) 90vw, 360px"
+              />
             </div>
 
             <div class="intro-quote">
@@ -95,7 +103,14 @@
                 </button>
 
                 <NuxtLink :to="localePath(`/product/${product.id}`)" class="product-media-link">
-                  <img :src="product.image" :alt="product.title" />
+                  <OptimizedImage
+                    :src="product.image"
+                    :alt="product.title"
+                    loading="lazy"
+                    width="900"
+                    height="900"
+                    sizes="(max-width: 900px) 45vw, 320px"
+                  />
                 </NuxtLink>
               </div>
 
@@ -166,7 +181,14 @@
           </div>
 
           <div class="philosophy-visual">
-            <img src="/logo-mark.png" alt="ONE STYLE FOREVER mark" />
+            <OptimizedImage
+              src="/logo-mark.png"
+              alt="ONE STYLE FOREVER mark"
+              loading="lazy"
+              width="800"
+              height="800"
+              sizes="(max-width: 900px) 52vw, 320px"
+            />
           </div>
         </div>
       </div>
@@ -233,8 +255,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getProducts } from '~/data/products'
-import type { ProductItem } from '~/stores/shop'
+import { getProducts, type LocalizedProduct } from '~/data/products'
 
 const { locale } = useI18n()
 const localePath = useLocalePath()
@@ -421,7 +442,7 @@ const ui = computed(() => {
 
 const featuredProducts = computed(() => getProducts(locale.value).slice(0, 3))
 
-const addFeaturedToCart = (product: ProductItem) => {
+const addFeaturedToCart = (product: LocalizedProduct) => {
   const added = addProductWithSize(product, {
     chooseSize: ui.value.chooseSize,
     added: ui.value.addedToCart
@@ -434,7 +455,7 @@ const addFeaturedToCart = (product: ProductItem) => {
   }
 }
 
-const toggleProductWishlist = (product: ProductItem) => {
+const toggleProductWishlist = (product: LocalizedProduct) => {
   shopStore.toggleWishlist(product)
 }
 
@@ -448,7 +469,8 @@ const wishlistButtonLabel = (productId: string) => {
   return active ? 'Убрать из избранного' : 'Добавить в избранное'
 }
 
-const siteUrl = 'https://onestyleforever.com'
+const config = useRuntimeConfig()
+const siteUrl = String(config.public.siteUrl || 'https://onestyleforever.com').replace(/\/+$/, '')
 const previewImage = `${siteUrl}/logo-preview.png`
 
 useSeoMeta({
@@ -464,6 +486,22 @@ useSeoMeta({
 
 useHead(
   computed(() => ({
+    link: [
+      {
+        rel: 'preload',
+        as: 'image',
+        href: '/logo-preview.avif',
+        type: 'image/avif',
+        fetchpriority: 'high'
+      },
+      {
+        rel: 'preload',
+        as: 'image',
+        href: '/logo-preview.webp',
+        type: 'image/webp',
+        fetchpriority: 'high'
+      }
+    ],
     script: [
       {
         type: 'application/ld+json',

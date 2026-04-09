@@ -1,13 +1,16 @@
 import { ref } from 'vue'
+import type { ProductSize } from '~/stores/shop'
 import type { ProductItem } from '~/stores/shop'
 import { useAnalytics } from '~/composables/useAnalytics'
+
+type SelectableProduct = ProductItem & { sizes: ProductSize[] }
 
 export const useProductActions = () => {
   const shopStore = useShopStore()
   const uiStore = useUiStore()
   const { track } = useAnalytics()
-  const selectedSizes = ref<Record<string, string>>({})
-  const rememberedSize = ref('')
+  const selectedSizes = ref<Record<string, ProductSize | ''>>({})
+  const rememberedSize = ref<ProductSize | ''>('')
   const sizeStorageKey = 'osf_last_size_global_v1'
   let rememberLoaded = false
 
@@ -16,13 +19,13 @@ export const useProductActions = () => {
     rememberLoaded = true
     try {
       const stored = window.localStorage.getItem(sizeStorageKey)
-      rememberedSize.value = typeof stored === 'string' ? stored : ''
+      rememberedSize.value = typeof stored === 'string' ? stored as ProductSize : ''
     } catch {
       rememberedSize.value = ''
     }
   }
 
-  const persistRememberedSize = (size: string) => {
+  const persistRememberedSize = (size: ProductSize) => {
     rememberedSize.value = size
     if (!import.meta.client) return
     try {
@@ -32,7 +35,7 @@ export const useProductActions = () => {
     }
   }
 
-  const selectSize = (productId: string, size: string) => {
+  const selectSize = (productId: string, size: ProductSize) => {
     selectedSizes.value[productId] = size
     persistRememberedSize(size)
   }
@@ -41,20 +44,20 @@ export const useProductActions = () => {
     return selectedSizes.value[productId] || ''
   }
 
-  const getPreferredSize = (product: ProductItem) => {
+  const getPreferredSize = (product: SelectableProduct): ProductSize | '' => {
     const activeSize = getSelectedSize(product.id)
     if (activeSize && product.sizes.includes(activeSize)) return activeSize
 
     ensureRememberedSize()
     if (rememberedSize.value && product.sizes.includes(rememberedSize.value)) {
-      return rememberedSize.value
+      return rememberedSize.value as ProductSize
     }
 
     return ''
   }
 
   const addProductWithSize = (
-    product: ProductItem,
+    product: SelectableProduct,
     messages?: {
       chooseSize?: string
       added?: string
@@ -64,7 +67,7 @@ export const useProductActions = () => {
       source?: string
     }
   ) => {
-    let selectedSize = getSelectedSize(product.id)
+    let selectedSize: ProductSize | '' = getSelectedSize(product.id)
 
     if (!selectedSize && options?.autoSelectLastSize) {
       selectedSize = getPreferredSize(product)
@@ -78,9 +81,11 @@ export const useProductActions = () => {
       return false
     }
 
+    const normalizedSize = selectedSize as ProductSize
+
     shopStore.addToCart({
       ...product,
-      selectedSize
+      selectedSize: normalizedSize
     })
 
     track('add_to_cart', {
@@ -88,15 +93,15 @@ export const useProductActions = () => {
       productId: product.id,
       title: product.title,
       price: product.price,
-      selectedSize
+      selectedSize: normalizedSize
     })
 
-    persistRememberedSize(selectedSize)
+    persistRememberedSize(normalizedSize)
     uiStore.showToast(messages?.added || 'Товар добавлен в корзину', 'success')
     return true
   }
 
-  const canQuickBuy = (product: ProductItem) => Boolean(getPreferredSize(product))
+  const canQuickBuy = (product: SelectableProduct) => Boolean(getPreferredSize(product))
 
   return {
     selectedSizes,

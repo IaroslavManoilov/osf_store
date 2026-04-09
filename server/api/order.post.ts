@@ -1,10 +1,13 @@
 import { createError, readBody } from 'h3'
+import type { H3Event } from 'h3'
 import { Resend } from 'resend'
 import { saveOrder } from '../utils/order-storage'
 import { getSupabaseAdmin } from '../utils/supabase-admin'
 import { assertRateLimit } from '../utils/rate-limit'
 import { reserveInventory, restoreInventory } from '../utils/inventory'
 import { createOrderTrackToken } from '../utils/order-track-token'
+import { requireCheckoutCsrf } from '../utils/checkout-csrf'
+import { readProductOverridesSafe } from '../utils/product-overrides'
 import { getProducts } from '~/data/products'
 
 type OrderItem = {
@@ -27,19 +30,37 @@ type OrderPayload = {
   total: number
 }
 
-const catalogById = new Map(
-  getProducts('ru').map((product) => [
-    product.id,
-    {
-      id: product.id,
-      title: product.title,
-      price: product.price,
-      sizes: product.sizes
-    }
-  ])
-)
+const buildCatalogById = async (event: H3Event) => {
+  const base = getProducts('ru')
+  const overrides = await readProductOverridesSafe(event)
+  const overrideById = new Map(overrides.map((row) => [String(row.product_id || '').trim(), row]))
+
+  return new Map(
+    base.map((product) => {
+      const override = overrideById.get(product.id)
+      const overridePrice = override?.price === null || override?.price === undefined ? null : Number(override.price)
+      const overrideTitle = String(override?.title_ru || '').trim()
+
+      return [
+        product.id,
+        {
+          id: product.id,
+          title: overrideTitle || product.title,
+          price: Number.isFinite(overridePrice) && overridePrice !== null ? Math.max(0, Math.round(overridePrice)) : product.price,
+          sizes: product.sizes
+        }
+      ]
+    })
+  )
+}
+
+const safeText = (value: unknown, max = 255) => String(value || '').trim().slice(0, max)
+const isEmailValid = (value: string) => !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+const normalizePhone = (value: string) => value.replace(/[^\d+]/g, '')
 
 export default defineEventHandler(async (event) => {
+  requireCheckoutCsrf(event)
+
   assertRateLimit(event, {
     namespace: 'create-order',
     limit: 6,
@@ -48,13 +69,41 @@ export default defineEventHandler(async (event) => {
 
   const config = useRuntimeConfig(event)
   const body = await readBody<OrderPayload>(event)
+  const catalogById = await buildCatalogById(event)
 
   const { customer, items } = body
 
-  if (!customer?.name || !customer?.phone || !customer?.address) {
+  const customerName = safeText(customer?.name, 80)
+  const customerPhone = normalizePhone(safeText(customer?.phone, 30))
+  const customerAddress = safeText(customer?.address, 300)
+  const customerEmail = safeText(customer?.email, 120)
+  const customerComment = safeText(customer?.comment, 1200)
+
+  if (!customerName || !customerPhone || !customerAddress) {
     throw createError({
       statusCode: 400,
       statusMessage: 'Invalid customer data'
+    })
+  }
+
+  if (customerName.length < 2) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Customer name is too short'
+    })
+  }
+
+  if (customerPhone.length < 6 || customerPhone.length > 18) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Invalid phone number'
+    })
+  }
+
+  if (!isEmailValid(customerEmail)) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Invalid email'
     })
   }
 
@@ -127,7 +176,13 @@ export default defineEventHandler(async (event) => {
     await saveOrder(event, {
       id: orderId,
       createdAt: nowIso,
-      customer,
+      customer: {
+        name: customerName,
+        phone: customerPhone,
+        email: customerEmail || undefined,
+        address: customerAddress,
+        comment: customerComment || undefined
+      },
       items: normalizedItems,
       total: serverTotal,
       status: 'new',
@@ -162,11 +217,11 @@ export default defineEventHandler(async (event) => {
 ID: ${orderId}
 
 👤 Клиент:
-Имя: ${customer.name}
-Телефон: ${customer.phone}
-Email: ${customer.email || '-'}
-Адрес: ${customer.address}
-Комментарий: ${customer.comment || '-'}
+Имя: ${customerName}
+Телефон: ${customerPhone}
+Email: ${customerEmail || '-'}
+Адрес: ${customerAddress}
+Комментарий: ${customerComment || '-'}
 
 📦 Товары:
 ${normalizedItems
@@ -204,11 +259,11 @@ ${normalizedItems
         subject: `New order ${orderId}`,
         html: `
       <h2>New order ${orderId}</h2>
-      <p><b>Name:</b> ${customer.name}</p>
-      <p><b>Phone:</b> ${customer.phone}</p>
-      <p><b>Email:</b> ${customer.email || '-'}</p>
-      <p><b>Address:</b> ${customer.address}</p>
-      <p><b>Comment:</b> ${customer.comment || '-'}</p>
+      <p><b>Name:</b> ${customerName}</p>
+      <p><b>Phone:</b> ${customerPhone}</p>
+      <p><b>Email:</b> ${customerEmail || '-'}</p>
+      <p><b>Address:</b> ${customerAddress}</p>
+      <p><b>Comment:</b> ${customerComment || '-'}</p>
 
       <h3>Items:</h3>
       ${normalizedItems
@@ -223,11 +278,11 @@ ${normalizedItems
         text: `
 New order ${orderId}
 
-Name: ${customer.name}
-Phone: ${customer.phone}
-Email: ${customer.email || '-'}
-Address: ${customer.address}
-Comment: ${customer.comment || '-'}
+Name: ${customerName}
+Phone: ${customerPhone}
+Email: ${customerEmail || '-'}
+Address: ${customerAddress}
+Comment: ${customerComment || '-'}
 
 Items:
 ${normalizedItems
@@ -271,7 +326,7 @@ Total: ${serverTotal} MDL
     trackToken: createOrderTrackToken(
       config.orderTrackSecret || config.adminKey || 'osf-order-track-secret',
       orderId,
-      customer.phone
+      customerPhone
     ),
     total: serverTotal,
     notifications: {

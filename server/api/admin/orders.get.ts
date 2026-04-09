@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, getQuery } from 'h3'
 import { getSupabaseAdmin } from '../../utils/supabase-admin'
 import { requireAdminCsrf } from '../../utils/admin-session'
+import { assertRateLimit } from '../../utils/rate-limit'
 
 type OrderStatus =
   | 'new'
@@ -48,6 +49,11 @@ const validStatuses: OrderStatus[] = [
 
 export default defineEventHandler(async (event) => {
   requireAdminCsrf(event)
+  assertRateLimit(event, {
+    namespace: 'admin-orders-get',
+    limit: 120,
+    windowMs: 60 * 1000
+  })
 
   const supabase = getSupabaseAdmin(event)
   const query = getQuery(event)

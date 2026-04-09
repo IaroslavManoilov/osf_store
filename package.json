@@ -6,6 +6,7 @@
     "build": "nuxt build",
     "dev": "./scripts/ensure-single-dev.sh && nuxt dev --port 3000",
     "generate": "nuxt generate",
+    "images:optimize": "node scripts/optimize-images.mjs",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare"
   },
@@ -23,5 +24,8 @@
     "vue": "^3.5.30",
     "vue-i18n": "^11.3.0",
     "vue-router": "^5.0.4"
+  },
+  "devDependencies": {
+    "sharp": "^0.34.5"
   }
 }

@@ -35,7 +35,7 @@
                 class="cart-image-link"
               >
                 <div class="cart-image-wrap">
-                  <img :src="item.image" :alt="item.title" />
+                  <OptimizedImage :src="item.image" :alt="item.title" loading="lazy" width="700" height="700" sizes="(max-width: 900px) 42vw, 320px" />
                 </div>
               </NuxtLink>
 

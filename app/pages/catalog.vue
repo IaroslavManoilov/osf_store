@@ -46,10 +46,20 @@
               </svg>
 
               <input
-                v-model="searchQuery"
+                v-model="searchInput"
                 type="text"
                 :placeholder="ui.searchPlaceholder"
               />
+
+              <button
+                v-if="searchInput"
+                type="button"
+                class="search-reset-btn"
+                :aria-label="ui.clearSearch"
+                @click="clearSearch"
+              >
+                ✕
+              </button>
             </div>
 
             <select v-model="sortBy" class="sort-select">
@@ -57,6 +67,7 @@
               <option value="price-asc">{{ ui.sortPriceAsc }}</option>
               <option value="price-desc">{{ ui.sortPriceDesc }}</option>
               <option value="name-asc">{{ ui.sortNameAsc }}</option>
+              <option value="stock-desc">{{ ui.sortStockDesc }}</option>
             </select>
           </div>
         </div>
@@ -172,6 +183,22 @@
               </div>
             </div>
 
+            <div class="filter-group">
+              <span class="filter-title">{{ ui.availability }}</span>
+              <div class="filter-list">
+                <button
+                  v-for="item in availabilityOptions"
+                  :key="item.value"
+                  type="button"
+                  class="filter-chip"
+                  :class="{ active: selectedAvailability === item.value }"
+                  @click="selectedAvailability = item.value"
+                >
+                  {{ item.label }}
+                </button>
+              </div>
+            </div>
+
             <div class="filter-note">
               <strong>{{ ui.filterNoteTitle }}</strong>
               <p>{{ ui.filterNoteText }}</p>
@@ -231,7 +258,14 @@
                     :to="localePath(`/product/${product.id}`)"
                     class="product-media-link"
                   >
-                    <img :src="product.image" :alt="product.title" />
+                    <OptimizedImage
+                      :src="product.image"
+                      :alt="product.title"
+                      loading="lazy"
+                      width="900"
+                      height="900"
+                      sizes="(max-width: 640px) 46vw, (max-width: 1200px) 38vw, 320px"
+                    />
                   </NuxtLink>
                 </div>
 
@@ -374,21 +408,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAnalytics } from '~/composables/useAnalytics'
 import {
   getProducts,
+  type LocalizedProduct,
   type ProductColor,
   type ProductSize,
   type ProductCategory
 } from '~/data/products'
-import type { ProductItem } from '~/stores/shop'
 
 type CategoryValue = 'all' | ProductCategory
 type ColorValue = 'all' | ProductColor
 type SizeValue = 'all' | ProductSize
-type SortValue = 'default' | 'price-asc' | 'price-desc' | 'name-asc'
+type AvailabilityValue = 'all' | 'in-stock' | 'out-of-stock'
+type SortValue = 'default' | 'price-asc' | 'price-desc' | 'name-asc' | 'stock-desc'
 
 type FilterOption<T extends string> = {
   value: T
@@ -397,6 +432,8 @@ type FilterOption<T extends string> = {
 
 const { locale } = useI18n()
 const localePath = useLocalePath()
+const route = useRoute()
+const router = useRouter()
 const shopStore = useShopStore()
 const uiStore = useUiStore()
 const { track } = useAnalytics()
@@ -408,10 +445,12 @@ definePageMeta({
   }
 })
 
+const searchInput = ref('')
 const searchQuery = ref('')
 const selectedCategory = ref<CategoryValue>('all')
 const selectedColor = ref<ColorValue>('all')
 const selectedSize = ref<SizeValue>('all')
+const selectedAvailability = ref<AvailabilityValue>('all')
 const sortBy = ref<SortValue>('default')
 const minPrice = ref<number | null>(null)
 const maxPrice = ref<number | null>(null)
@@ -419,6 +458,8 @@ const mobileFiltersOpen = ref(false)
 const openQuickSizeFor = ref('')
 const stockTotals = ref<Record<string, number>>({})
 const stockBySize = ref<Record<string, Record<string, number>>>({})
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+const isApplyingRouteQuery = ref(false)
 
 const applyPriceFilter = () => {
   if (minPrice.value !== null && minPrice.value < 0) {
@@ -436,6 +477,11 @@ const applyPriceFilter = () => {
   }
 }
 
+const clearSearch = () => {
+  searchInput.value = ''
+  searchQuery.value = ''
+}
+
 const ui = computed(() => {
   if (locale.value === 'ro') {
     return {
@@ -448,11 +494,16 @@ const ui = computed(() => {
       sortPriceAsc: 'Preț crescător',
       sortPriceDesc: 'Preț descrescător',
       sortNameAsc: 'Nume A-Z',
+      sortStockDesc: 'Mai întâi în stoc',
       filters: 'Filtre',
       reset: 'Resetează',
       category: 'Categorie',
       color: 'Culoare',
       size: 'Mărime',
+      availability: 'Disponibilitate',
+      availabilityAll: 'Toate',
+      availabilityInStock: 'În stoc',
+      availabilityOutOfStock: 'Epuizat',
       priceRange: 'Interval preț',
       minPrice: 'Min',
       maxPrice: 'Max',
@@ -494,7 +545,8 @@ const ui = computed(() => {
       addedToCart: 'Produsul a fost adăugat în coș',
       quickCheckoutAdded: 'Produs adăugat. Te redirecționăm la checkout.',
       outOfStock: 'Stoc epuizat',
-      outOfStockToast: 'Produsul nu mai este în stoc.'
+      outOfStockToast: 'Produsul nu mai este în stoc.',
+      clearSearch: 'Șterge căutarea'
     }
   }
 
@@ -509,11 +561,16 @@ const ui = computed(() => {
       sortPriceAsc: 'Price ascending',
       sortPriceDesc: 'Price descending',
       sortNameAsc: 'Name A-Z',
+      sortStockDesc: 'In-stock first',
       filters: 'Filters',
       reset: 'Reset',
       category: 'Category',
       color: 'Color',
       size: 'Size',
+      availability: 'Availability',
+      availabilityAll: 'All',
+      availabilityInStock: 'In stock',
+      availabilityOutOfStock: 'Out of stock',
       priceRange: 'Price Range',
       minPrice: 'Min',
       maxPrice: 'Max',
@@ -555,7 +612,8 @@ const ui = computed(() => {
       addedToCart: 'Product added to cart',
       quickCheckoutAdded: 'Added to cart. Redirecting to checkout.',
       outOfStock: 'Out of stock',
-      outOfStockToast: 'This product is currently out of stock.'
+      outOfStockToast: 'This product is currently out of stock.',
+      clearSearch: 'Clear search'
     }
   }
 
@@ -569,11 +627,16 @@ const ui = computed(() => {
     sortPriceAsc: 'Сначала дешевле',
     sortPriceDesc: 'Сначала дороже',
     sortNameAsc: 'По названию',
+    sortStockDesc: 'Сначала в наличии',
     filters: 'Фильтры',
     reset: 'Сбросить',
     category: 'Категория',
     color: 'Цвет',
     size: 'Размер',
+    availability: 'Наличие',
+    availabilityAll: 'Все',
+    availabilityInStock: 'В наличии',
+    availabilityOutOfStock: 'Нет в наличии',
     priceRange: 'Ценовой диапазон',
     minPrice: 'Мин',
     maxPrice: 'Макс',
@@ -615,7 +678,8 @@ const ui = computed(() => {
     addedToCart: 'Товар добавлен в корзину',
     quickCheckoutAdded: 'Товар добавлен. Переходим к оформлению.',
     outOfStock: 'Нет в наличии',
-    outOfStockToast: 'Товар закончился на складе.'
+    outOfStockToast: 'Товар закончился на складе.',
+    clearSearch: 'Очистить поиск'
   }
 })
 
@@ -641,17 +705,120 @@ const sizeOptions: FilterOption<SizeValue>[] = [
   { value: 'L', label: 'L' }
 ]
 
+const availabilityOptions = computed<FilterOption<AvailabilityValue>[]>(() => [
+  { value: 'all', label: ui.value.availabilityAll },
+  { value: 'in-stock', label: ui.value.availabilityInStock },
+  { value: 'out-of-stock', label: ui.value.availabilityOutOfStock }
+])
+
+const toSingleQueryValue = (value: string | string[] | null | undefined) => {
+  if (Array.isArray(value)) return String(value[0] || '')
+  return String(value || '')
+}
+
+const toPositiveNumberOrNull = (value: string | string[] | null | undefined) => {
+  const raw = Number(toSingleQueryValue(value))
+  if (!Number.isFinite(raw) || raw < 0) return null
+  return Math.floor(raw)
+}
+
+const isCategoryValue = (value: string): value is CategoryValue => (
+  value === 'all' || value === 'sweaters' || value === 'hoodies' || value === 'polo'
+)
+
+const isColorValue = (value: string): value is ColorValue => (
+  value === 'all' || value === 'white' || value === 'black'
+)
+
+const isSizeValue = (value: string): value is SizeValue => (
+  value === 'all' || value === 'S' || value === 'M' || value === 'L'
+)
+
+const isAvailabilityValue = (value: string): value is AvailabilityValue => (
+  value === 'all' || value === 'in-stock' || value === 'out-of-stock'
+)
+
+const isSortValue = (value: string): value is SortValue => (
+  value === 'default' || value === 'price-asc' || value === 'price-desc' || value === 'name-asc' || value === 'stock-desc'
+)
+
+const applyFiltersFromQuery = (query: Record<string, any>) => {
+  const q = toSingleQueryValue(query.q)
+  const category = toSingleQueryValue(query.category)
+  const color = toSingleQueryValue(query.color)
+  const size = toSingleQueryValue(query.size)
+  const availability = toSingleQueryValue(query.availability)
+  const sort = toSingleQueryValue(query.sort)
+  const min = toPositiveNumberOrNull(query.minPrice)
+  const max = toPositiveNumberOrNull(query.maxPrice)
+
+  searchInput.value = q
+  searchQuery.value = q
+  selectedCategory.value = isCategoryValue(category) ? category : 'all'
+  selectedColor.value = isColorValue(color) ? color : 'all'
+  selectedSize.value = isSizeValue(size) ? size : 'all'
+  selectedAvailability.value = isAvailabilityValue(availability) ? availability : 'all'
+  sortBy.value = isSortValue(sort) ? sort : 'default'
+  minPrice.value = min
+  maxPrice.value = max
+  applyPriceFilter()
+}
+
+const buildFiltersQuery = () => {
+  const query: Record<string, string> = {}
+  const normalizedSearch = searchQuery.value.trim()
+
+  if (normalizedSearch) query.q = normalizedSearch
+  if (selectedCategory.value !== 'all') query.category = selectedCategory.value
+  if (selectedColor.value !== 'all') query.color = selectedColor.value
+  if (selectedSize.value !== 'all') query.size = selectedSize.value
+  if (selectedAvailability.value !== 'all') query.availability = selectedAvailability.value
+  if (sortBy.value !== 'default') query.sort = sortBy.value
+  if (minPrice.value !== null) query.minPrice = String(minPrice.value)
+  if (maxPrice.value !== null) query.maxPrice = String(maxPrice.value)
+
+  return query
+}
+
+const areQueriesEqual = (nextQuery: Record<string, string>, currentQuery: Record<string, any>) => {
+  const currentKeys = Object.keys(currentQuery).filter((key) => key in nextQuery || [
+    'q',
+    'category',
+    'color',
+    'size',
+    'availability',
+    'sort',
+    'minPrice',
+    'maxPrice'
+  ].includes(key))
+
+  const nextKeys = Object.keys(nextQuery)
+  if (nextKeys.length !== currentKeys.length) return false
+
+  return nextKeys.every((key) => toSingleQueryValue(currentQuery[key]) === nextQuery[key])
+}
+
+const getProductAvailableQuantity = (product: LocalizedProduct) => {
+  const liveValue = stockTotals.value[product.id]
+  if (typeof liveValue === 'number') return Math.max(0, liveValue)
+  return getStockLeftValue(product.id, product.badge, product.sizes.length)
+}
+
+const searchableProducts = computed(() =>
+  products.value.map((item) => ({
+    product: item,
+    searchableText: `${item.title} ${item.description} ${item.categoryLabel} ${item.colorLabel}`.toLowerCase()
+  }))
+)
+
 const filteredProducts = computed(() => {
-  let result = [...products.value]
+  let result = searchableProducts.value.map((entry) => entry.product)
   const search = searchQuery.value.trim().toLowerCase()
 
   if (search) {
-    result = result.filter((item) => {
-      return (
-        item.title.toLowerCase().includes(search) ||
-        item.description.toLowerCase().includes(search)
-      )
-    })
+    result = searchableProducts.value
+      .filter((entry) => entry.searchableText.includes(search))
+      .map((entry) => entry.product)
   }
 
   if (selectedCategory.value !== 'all') {
@@ -665,6 +832,13 @@ const filteredProducts = computed(() => {
   if (selectedSize.value !== 'all') {
     const activeSize = selectedSize.value as ProductSize
     result = result.filter((item) => item.sizes.includes(activeSize))
+  }
+
+  if (selectedAvailability.value !== 'all') {
+    result = result.filter((item) => {
+      const availableQty = getProductAvailableQuantity(item)
+      return selectedAvailability.value === 'in-stock' ? availableQty > 0 : availableQty === 0
+    })
   }
 
   if (minPrice.value !== null) {
@@ -687,14 +861,20 @@ const filteredProducts = computed(() => {
     result.sort((a, b) => a.title.localeCompare(b.title))
   }
 
+  if (sortBy.value === 'stock-desc') {
+    result.sort((a, b) => getProductAvailableQuantity(b) - getProductAvailableQuantity(a))
+  }
+
   return result
 })
 
 const resetFilters = () => {
+  searchInput.value = ''
   searchQuery.value = ''
   selectedCategory.value = 'all'
   selectedColor.value = 'all'
   selectedSize.value = 'all'
+  selectedAvailability.value = 'all'
   sortBy.value = 'default'
   minPrice.value = null
   maxPrice.value = null
@@ -702,7 +882,7 @@ const resetFilters = () => {
   openQuickSizeFor.value = ''
 }
 
-const getAutoSize = (product: ProductItem) => getPreferredSize(product)
+const getAutoSize = (product: LocalizedProduct) => getPreferredSize(product)
 
 const getStockLeftValue = (id: string, badge: string, sizesCount: number) => {
   const liveValue = stockTotals.value[id]
@@ -778,7 +958,7 @@ const toggleQuickSizePicker = (productId: string) => {
   openQuickSizeFor.value = openQuickSizeFor.value === productId ? '' : productId
 }
 
-const applyQuickSize = (productId: string, size: string) => {
+const applyQuickSize = (productId: string, size: ProductSize) => {
   selectSize(productId, size)
   openQuickSizeFor.value = ''
 }
@@ -797,17 +977,65 @@ const handleDocumentClick = (event: MouseEvent) => {
 }
 
 onMounted(() => {
+  isApplyingRouteQuery.value = true
+  applyFiltersFromQuery(route.query as Record<string, any>)
+  nextTick(() => {
+    isApplyingRouteQuery.value = false
+  })
+
   loadLiveInventory()
   if (!import.meta.client) return
   document.addEventListener('click', handleDocumentClick)
 })
 
 onBeforeUnmount(() => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+    searchDebounceTimer = null
+  }
   if (!import.meta.client) return
   document.removeEventListener('click', handleDocumentClick)
 })
 
-const addProductToCart = (product: ProductItem) => {
+watch(searchInput, (value) => {
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+  searchDebounceTimer = setTimeout(() => {
+    searchQuery.value = value.trim()
+  }, 120)
+})
+
+watch(
+  () => route.query,
+  (query) => {
+    if (isApplyingRouteQuery.value) return
+    isApplyingRouteQuery.value = true
+    applyFiltersFromQuery(query as Record<string, any>)
+    nextTick(() => {
+      isApplyingRouteQuery.value = false
+    })
+  }
+)
+
+watch(
+  [
+    searchQuery,
+    selectedCategory,
+    selectedColor,
+    selectedSize,
+    selectedAvailability,
+    sortBy,
+    minPrice,
+    maxPrice
+  ],
+  () => {
+    if (isApplyingRouteQuery.value) return
+    const nextQuery = buildFiltersQuery()
+    if (areQueriesEqual(nextQuery, route.query as Record<string, any>)) return
+    router.replace({ query: nextQuery })
+  }
+)
+
+const addProductToCart = (product: LocalizedProduct) => {
   if (!hasStockForSelectedSize(product)) {
     uiStore.showToast(ui.value.outOfStockToast, 'error')
     return
@@ -825,7 +1053,7 @@ const addProductToCart = (product: ProductItem) => {
   }
 }
 
-const buyNowFromCatalog = async (product: ProductItem) => {
+const buyNowFromCatalog = async (product: LocalizedProduct) => {
   if (!hasStockForSelectedSize(product)) {
     uiStore.showToast(ui.value.outOfStockToast, 'error')
     return
@@ -852,7 +1080,7 @@ const buyNowFromCatalog = async (product: ProductItem) => {
   await navigateTo(localePath('/checkout'))
 }
 
-const toggleProductWishlist = (product: ProductItem) => {
+const toggleProductWishlist = (product: LocalizedProduct) => {
   shopStore.toggleWishlist(product)
 }
 
@@ -874,8 +1102,19 @@ const wishlistButtonLabel = (productId: string) => {
   return active ? 'Убрать из избранного' : 'Добавить в избранное'
 }
 
-const siteUrl = 'https://onestyleforever.com'
+const config = useRuntimeConfig()
+const siteUrl = String(config.public.siteUrl || 'https://onestyleforever.com').replace(/\/+$/, '')
 const previewImage = `${siteUrl}/logo-preview.png`
+const catalogPath = computed(() => localePath('/catalog'))
+const catalogUrl = computed(() => {
+  const path = catalogPath.value === '/' ? '/' : String(catalogPath.value).replace(/\/+$/, '')
+  return `${siteUrl}${path}`
+})
+const breadcrumbLabels = computed(() => {
+  if (locale.value === 'ro') return { home: 'Acasă', catalog: 'Catalog' }
+  if (locale.value === 'en') return { home: 'Home', catalog: 'Catalog' }
+  return { home: 'Главная', catalog: 'Каталог' }
+})
 
 useSeoMeta({
   title: () => `ONE STYLE FOREVER | ${ui.value.title}`,
@@ -884,21 +1123,62 @@ useSeoMeta({
   ogDescription: () => ui.value.subtitle,
   ogImage: previewImage,
   ogType: 'website',
+  ogUrl: () => catalogUrl.value,
   twitterCard: 'summary_large_image',
-  twitterImage: previewImage
+  twitterImage: previewImage,
+  twitterTitle: () => `ONE STYLE FOREVER | ${ui.value.title}`,
+  twitterDescription: () => ui.value.subtitle
 })
 
 useHead(
   computed(() => ({
+    link: [
+      {
+        rel: 'canonical',
+        href: catalogUrl.value
+      }
+    ],
     script: [
       {
+        key: 'catalog-collection-schema',
         type: 'application/ld+json',
         children: JSON.stringify({
           '@context': 'https://schema.org',
           '@type': 'CollectionPage',
           name: ui.value.title,
-          url: `${siteUrl}/catalog`,
-          description: ui.value.subtitle
+          url: catalogUrl.value,
+          description: ui.value.subtitle,
+          mainEntity: {
+            '@type': 'ItemList',
+            itemListElement: filteredProducts.value.slice(0, 24).map((product, index) => ({
+              '@type': 'ListItem',
+              position: index + 1,
+              url: `${siteUrl}${localePath(`/product/${product.id}`)}`,
+              name: product.title
+            }))
+          }
+        })
+      },
+      {
+        key: 'catalog-breadcrumb-schema',
+        type: 'application/ld+json',
+        children: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            {
+              '@type': 'ListItem',
+              position: 1,
+              name: breadcrumbLabels.value.home,
+              item: `${siteUrl}${localePath('/')}`
+            },
+            {
+              '@type': 'ListItem',
+              position: 2,
+              name: breadcrumbLabels.value.catalog,
+              item: catalogUrl.value
+            }
+          ]
         })
       }
     ]
@@ -1011,6 +1291,22 @@ useHead(
   background: transparent;
   font: inherit;
   color: var(--text);
+}
+
+.search-reset-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .sort-select {

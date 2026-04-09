@@ -319,6 +319,7 @@ const orderTracksStorageKey = 'osf_order_tracks_v1'
 const isSubmitting = ref(false)
 const successMessage = ref('')
 const errorMessage = ref('')
+const checkoutCsrfToken = ref('')
 
 const ui = computed<CheckoutUi>(() => {
   if (locale.value === 'ro') {
@@ -788,6 +789,11 @@ const submitOrder = async () => {
 
     const response = await $fetch<OrderResponse>('/api/order', {
       method: 'POST',
+      headers: checkoutCsrfToken.value
+        ? {
+            'x-checkout-csrf': checkoutCsrfToken.value
+          }
+        : undefined,
       body: {
         customer: {
           name: form.name,
@@ -832,6 +838,13 @@ const previewImage = `${siteUrl}/logo-preview.png`
 onMounted(() => {
   shopStore.sanitizeCart()
   loadCheckoutProfile()
+  $fetch<{ success: boolean; csrfToken?: string }>('/api/checkout/csrf')
+    .then((response) => {
+      checkoutCsrfToken.value = String(response?.csrfToken || '')
+    })
+    .catch(() => {
+      checkoutCsrfToken.value = ''
+    })
 })
 
 useSeoMeta({

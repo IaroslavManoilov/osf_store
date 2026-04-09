@@ -2,6 +2,7 @@ import { createError, defineEventHandler, readBody } from 'h3'
 import { restoreInventory } from '../../utils/inventory'
 import { verifyOrderTrackToken } from '../../utils/order-track-token'
 import { patchOrderStatus, readOrderById } from '../../utils/order-storage'
+import { assertRateLimit } from '../../utils/rate-limit'
 
 type CancelPayload = {
   orderId?: string
@@ -24,6 +25,12 @@ const toPublicOrder = (order: NonNullable<Awaited<ReturnType<typeof readOrderByI
 })
 
 export default defineEventHandler(async (event) => {
+  assertRateLimit(event, {
+    namespace: 'order-cancel',
+    limit: 12,
+    windowMs: 60 * 1000
+  })
+
   const body = await readBody<CancelPayload>(event)
   const orderId = String(body?.orderId || '').trim()
   const token = String(body?.token || '').trim()

@@ -199,7 +199,7 @@ useHead({
   script: [
     {
       type: 'application/ld+json',
-      children: JSON.stringify({
+      textContent: JSON.stringify({
         '@context': 'https://schema.org',
         '@type': 'Organization',
         name: 'ONE STYLE FOREVER',
