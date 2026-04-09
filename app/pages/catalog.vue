@@ -225,12 +225,13 @@
               </span>
             </div>
 
-            <div v-if="filteredProducts.length" class="product-grid">
-              <article
-                v-for="product in filteredProducts"
-                :key="product.id"
-                class="product-card"
-              >
+            <template v-if="filteredProducts.length">
+              <div class="product-grid">
+                <article
+                  v-for="product in filteredProducts"
+                  :key="product.id"
+                  class="product-card"
+                >
                 <div class="product-media">
                   <span class="product-badge" :class="{ hot: product.badge === 'HOT' }">
                     {{ product.badge }}
@@ -378,8 +379,50 @@
                     </div>
                   </div>
                 </div>
-              </article>
-            </div>
+                </article>
+              </div>
+
+              <div
+                v-if="smartRows.length"
+                class="smart-sections"
+              >
+                <section
+                  v-for="row in smartRows"
+                  :key="row.key"
+                  class="surface-card smart-row"
+                >
+                  <div class="smart-head">
+                    <h3>{{ row.title }}</h3>
+                    <span>{{ row.subtitle }}</span>
+                  </div>
+
+                  <div class="smart-grid">
+                    <article v-for="item in row.items" :key="`${row.key}-${item.id}`" class="smart-card">
+                      <NuxtLink :to="localePath(`/product/${item.id}`)" class="smart-image-link">
+                        <OptimizedImage
+                          :src="item.image"
+                          :alt="item.title"
+                          loading="lazy"
+                          width="520"
+                          height="520"
+                          sizes="(max-width: 640px) 44vw, 200px"
+                        />
+                      </NuxtLink>
+                      <div class="smart-body">
+                        <NuxtLink :to="localePath(`/product/${item.id}`)" class="smart-title-link">{{ item.title }}</NuxtLink>
+                        <span class="smart-meta">{{ item.categoryLabel }} · {{ item.colorLabel }}</span>
+                        <div class="smart-bottom">
+                          <strong>{{ item.price }} MDL</strong>
+                          <button type="button" class="smart-add-btn" @click="quickAddFromSmart(item)">
+                            {{ ui.quickAdd }}
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+                </section>
+              </div>
+            </template>
 
             <div v-else class="surface-card empty-box">
               <h3>{{ ui.emptyTitle }}</h3>
@@ -411,6 +454,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAnalytics } from '~/composables/useAnalytics'
+import { getRecentlyViewedIds } from '~/composables/useRecentlyViewed'
 import {
   getProducts,
   type LocalizedProduct,
@@ -428,6 +472,13 @@ type SortValue = 'default' | 'price-asc' | 'price-desc' | 'name-asc' | 'stock-de
 type FilterOption<T extends string> = {
   value: T
   label: string
+}
+
+type SmartRow = {
+  key: string
+  title: string
+  subtitle: string
+  items: LocalizedProduct[]
 }
 
 const { locale } = useI18n()
@@ -458,7 +509,9 @@ const mobileFiltersOpen = ref(false)
 const openQuickSizeFor = ref('')
 const stockTotals = ref<Record<string, number>>({})
 const stockBySize = ref<Record<string, Record<string, number>>>({})
+const recentlyViewedIds = ref<string[]>([])
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+let focusRefreshHandler: (() => void) | null = null
 const isApplyingRouteQuery = ref(false)
 
 const applyPriceFilter = () => {
@@ -546,7 +599,14 @@ const ui = computed(() => {
       quickCheckoutAdded: 'Produs adăugat. Te redirecționăm la checkout.',
       outOfStock: 'Stoc epuizat',
       outOfStockToast: 'Produsul nu mai este în stoc.',
-      clearSearch: 'Șterge căutarea'
+      clearSearch: 'Șterge căutarea',
+      quickAdd: 'Adaugă rapid',
+      withItemTitle: 'Cu acest produs cumpără',
+      withItemSubtitle: 'Completează comanda într-un singur clic',
+      viewedTitle: 'Văzute recent',
+      viewedSubtitle: 'Revino rapid la modelele verificate',
+      recommendTitle: 'Recomandat pentru tine',
+      recommendSubtitle: 'Selectat după mărimea și categoriile tale'
     }
   }
 
@@ -613,7 +673,14 @@ const ui = computed(() => {
       quickCheckoutAdded: 'Added to cart. Redirecting to checkout.',
       outOfStock: 'Out of stock',
       outOfStockToast: 'This product is currently out of stock.',
-      clearSearch: 'Clear search'
+      clearSearch: 'Clear search',
+      quickAdd: 'Quick add',
+      withItemTitle: 'Frequently bought together',
+      withItemSubtitle: 'Complete the look in one click',
+      viewedTitle: 'Recently viewed',
+      viewedSubtitle: 'Jump back to products you checked',
+      recommendTitle: 'Recommended for you',
+      recommendSubtitle: 'Picked by your size and category'
     }
   }
 
@@ -679,7 +746,14 @@ const ui = computed(() => {
     quickCheckoutAdded: 'Товар добавлен. Переходим к оформлению.',
     outOfStock: 'Нет в наличии',
     outOfStockToast: 'Товар закончился на складе.',
-    clearSearch: 'Очистить поиск'
+    clearSearch: 'Очистить поиск',
+    quickAdd: 'Быстро добавить',
+    withItemTitle: 'С этим товаром покупают',
+    withItemSubtitle: 'Дополните заказ в один клик',
+    viewedTitle: 'Недавно смотрели',
+    viewedSubtitle: 'Быстро вернитесь к просмотренным моделям',
+    recommendTitle: 'Рекомендовано для вас',
+    recommendSubtitle: 'Подобрано по размеру и любимой категории'
   }
 })
 
@@ -868,6 +942,99 @@ const filteredProducts = computed(() => {
   return result
 })
 
+const cartProductIds = computed(() => new Set(shopStore.cart.map((item) => item.id)))
+
+const dominantCategory = computed<ProductCategory | null>(() => {
+  const score = new Map<ProductCategory, number>()
+  for (const item of shopStore.cart) {
+    const product = products.value.find((entry) => entry.id === item.id)
+    if (!product) continue
+    score.set(product.category, (score.get(product.category) || 0) + Math.max(1, item.quantity))
+  }
+  if (!score.size) return null
+  return Array.from(score.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || null
+})
+
+const dominantSize = computed<ProductSize | null>(() => {
+  const score = new Map<ProductSize, number>()
+  for (const item of shopStore.cart) {
+    const size = String(item.selectedSize || '') as ProductSize
+    if (size !== 'S' && size !== 'M' && size !== 'L') continue
+    score.set(size, (score.get(size) || 0) + Math.max(1, item.quantity))
+  }
+  if (!score.size) return null
+  return Array.from(score.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || null
+})
+
+const recentlyViewedProducts = computed(() => {
+  if (!recentlyViewedIds.value.length) return [] as LocalizedProduct[]
+  const map = new Map(products.value.map((item) => [item.id, item]))
+  return recentlyViewedIds.value
+    .map((id) => map.get(id))
+    .filter((item): item is LocalizedProduct => !!item)
+    .filter((item) => !cartProductIds.value.has(item.id))
+    .slice(0, 6)
+})
+
+const frequentlyBoughtTogetherProducts = computed(() => {
+  const firstCart = shopStore.cart[0]
+  if (!firstCart) return [] as LocalizedProduct[]
+  const base = products.value.find((item) => item.id === firstCart.id)
+  if (!base) return [] as LocalizedProduct[]
+  return products.value
+    .filter((item) => item.id !== base.id && !cartProductIds.value.has(item.id))
+    .sort((a, b) => {
+      const aScore = (a.category === base.category ? 2 : 0) + (a.color !== base.color ? 1 : 0) + (a.badge === 'HOT' ? 1 : 0)
+      const bScore = (b.category === base.category ? 2 : 0) + (b.color !== base.color ? 1 : 0) + (b.badge === 'HOT' ? 1 : 0)
+      return bScore - aScore
+    })
+    .slice(0, 4)
+})
+
+const personalizedProducts = computed(() => {
+  return products.value
+    .filter((item) => !cartProductIds.value.has(item.id))
+    .sort((a, b) => {
+      const aSize = dominantSize.value && a.sizes.includes(dominantSize.value) ? 2 : 0
+      const bSize = dominantSize.value && b.sizes.includes(dominantSize.value) ? 2 : 0
+      const aCategory = dominantCategory.value && a.category === dominantCategory.value ? 2 : 0
+      const bCategory = dominantCategory.value && b.category === dominantCategory.value ? 2 : 0
+      const aHot = a.badge === 'HOT' ? 1 : 0
+      const bHot = b.badge === 'HOT' ? 1 : 0
+      return (bSize + bCategory + bHot) - (aSize + aCategory + aHot)
+    })
+    .slice(0, 4)
+})
+
+const smartRows = computed<SmartRow[]>(() => {
+  const rows: SmartRow[] = []
+  if (frequentlyBoughtTogetherProducts.value.length) {
+    rows.push({
+      key: 'together',
+      title: ui.value.withItemTitle,
+      subtitle: ui.value.withItemSubtitle,
+      items: frequentlyBoughtTogetherProducts.value
+    })
+  }
+  if (recentlyViewedProducts.value.length) {
+    rows.push({
+      key: 'recent',
+      title: ui.value.viewedTitle,
+      subtitle: ui.value.viewedSubtitle,
+      items: recentlyViewedProducts.value
+    })
+  }
+  if (personalizedProducts.value.length) {
+    rows.push({
+      key: 'recommended',
+      title: ui.value.recommendTitle,
+      subtitle: ui.value.recommendSubtitle,
+      items: personalizedProducts.value
+    })
+  }
+  return rows
+})
+
 const resetFilters = () => {
   searchInput.value = ''
   searchQuery.value = ''
@@ -984,7 +1151,12 @@ onMounted(() => {
   })
 
   loadLiveInventory()
+  recentlyViewedIds.value = getRecentlyViewedIds()
   if (!import.meta.client) return
+  focusRefreshHandler = () => {
+    recentlyViewedIds.value = getRecentlyViewedIds()
+  }
+  window.addEventListener('focus', focusRefreshHandler)
   document.addEventListener('click', handleDocumentClick)
 })
 
@@ -994,6 +1166,10 @@ onBeforeUnmount(() => {
     searchDebounceTimer = null
   }
   if (!import.meta.client) return
+  if (focusRefreshHandler) {
+    window.removeEventListener('focus', focusRefreshHandler)
+    focusRefreshHandler = null
+  }
   document.removeEventListener('click', handleDocumentClick)
 })
 
@@ -1051,6 +1227,16 @@ const addProductToCart = (product: LocalizedProduct) => {
   if (added) {
     selectedSizes.value[product.id] = ''
   }
+}
+
+const quickAddFromSmart = (product: LocalizedProduct) => {
+  const size = getAutoSize(product) || product.sizes[0]
+  if (!size) {
+    uiStore.showToast(ui.value.chooseSize, 'error')
+    return
+  }
+  selectSize(product.id, size)
+  addProductToCart(product)
 }
 
 const buyNowFromCatalog = async (product: LocalizedProduct) => {
@@ -1212,6 +1398,97 @@ useHead(
   font-size: 12px;
   font-weight: 700;
   color: #42556d;
+}
+
+.smart-sections {
+  margin-top: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.smart-row {
+  padding: 18px;
+}
+
+.smart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.smart-head h3 {
+  margin: 0;
+  font-size: clamp(20px, 2vw, 28px);
+}
+
+.smart-head span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.smart-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.smart-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.smart-image-link {
+  display: block;
+  aspect-ratio: 1 / 1;
+  background: #fff;
+}
+
+.smart-image-link :deep(img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.smart-body {
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.smart-title-link {
+  font-weight: 800;
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1.25;
+}
+
+.smart-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.smart-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.smart-add-btn {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #bdd4c0;
+  border-radius: 999px;
+  background: #eff8f1;
+  color: #1f5e3b;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .catalog-intro {
@@ -1871,6 +2148,10 @@ useHead(
   .product-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .smart-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 900px) {
@@ -2074,6 +2355,20 @@ useHead(
   .catalog-sticky-cart {
     display: flex;
   }
+
+  .smart-row {
+    padding: 14px;
+  }
+
+  .smart-head {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-bottom: 10px;
+  }
+
+  .smart-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
@@ -2147,6 +2442,24 @@ useHead(
     min-height: 28px;
     font-size: 10px;
     padding: 0 9px;
+  }
+
+  .smart-grid {
+    gap: 8px;
+  }
+
+  .smart-body {
+    padding: 8px;
+  }
+
+  .smart-title-link {
+    font-size: 14px;
+  }
+
+  .smart-add-btn {
+    min-height: 30px;
+    padding: 0 8px;
+    font-size: 11px;
   }
 
   .product-grid {

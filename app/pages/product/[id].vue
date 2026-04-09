@@ -415,6 +415,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { addRecentlyViewed } from '~/composables/useRecentlyViewed'
 import { getProductById, getProducts } from '~/data/products'
 import type { ProductSize } from '~/stores/shop'
 type ProductReview = {
@@ -504,6 +505,9 @@ watch(
     void loadReviewState()
     void loadSocialProof()
     loadLiveInventory()
+    if (nextProduct?.id) {
+      addRecentlyViewed(nextProduct.id)
+    }
   },
   { immediate: true }
 )

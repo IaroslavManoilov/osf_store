@@ -38,12 +38,13 @@
 
             <form id="checkoutForm" class="checkout-form" @submit.prevent="submitOrder">
               <div class="form-grid">
-                <label class="field">
+                <label class="field" :class="{ invalid: !!fieldErrors.name }">
                   <span>{{ ui.name }}</span>
                   <input v-model.trim="form.name" type="text" autocomplete="name" required />
+                  <small v-if="fieldErrors.name" class="field-error">{{ fieldErrors.name }}</small>
                 </label>
 
-                <label class="field">
+                <label class="field" :class="{ invalid: !!fieldErrors.phone }">
                   <span>{{ ui.phone }}</span>
                   <div class="phone-group">
                     <select v-model="form.phoneCode" :aria-label="ui.phoneCode">
@@ -53,10 +54,12 @@
                       v-model.trim="form.phoneLocal"
                       type="tel"
                       autocomplete="tel-national"
-                      :placeholder="ui.phoneNumber"
+                      :placeholder="phonePlaceholderByCode"
+                      @input="onPhoneInput"
                       required
                     />
                   </div>
+                  <small v-if="fieldErrors.phone" class="field-error">{{ fieldErrors.phone }}</small>
                 </label>
 
                 <label class="field field-full">
@@ -68,19 +71,40 @@
                   </select>
                 </label>
 
-                <label class="field">
+                <label class="field" :class="{ invalid: !!fieldErrors.city }">
                   <span>{{ ui.city }}</span>
-                  <input v-model.trim="form.city" type="text" autocomplete="address-level2" required />
+                  <input
+                    v-model.trim="form.city"
+                    type="text"
+                    list="checkout-city-list"
+                    autocomplete="address-level2"
+                    required
+                  />
+                  <datalist id="checkout-city-list">
+                    <option v-for="city in citySuggestions" :key="`city-${city}`" :value="city" />
+                  </datalist>
+                  <small v-if="fieldErrors.city" class="field-error">{{ fieldErrors.city }}</small>
                 </label>
 
-                <label v-if="form.deliveryType === 'courier'" class="field">
+                <label v-if="form.deliveryType === 'courier'" class="field" :class="{ invalid: !!fieldErrors.street }">
                   <span>{{ ui.street }}</span>
-                  <input v-model.trim="form.street" type="text" autocomplete="street-address" required />
+                  <input
+                    v-model.trim="form.street"
+                    type="text"
+                    list="checkout-street-list"
+                    autocomplete="street-address"
+                    required
+                  />
+                  <datalist id="checkout-street-list">
+                    <option v-for="street in streetSuggestions" :key="`street-${street}`" :value="street" />
+                  </datalist>
+                  <small v-if="fieldErrors.street" class="field-error">{{ fieldErrors.street }}</small>
                 </label>
 
-                <label v-if="form.deliveryType === 'courier'" class="field">
+                <label v-if="form.deliveryType === 'courier'" class="field" :class="{ invalid: !!fieldErrors.house }">
                   <span>{{ ui.house }}</span>
                   <input v-model.trim="form.house" type="text" autocomplete="address-line1" required />
+                  <small v-if="fieldErrors.house" class="field-error">{{ fieldErrors.house }}</small>
                 </label>
 
                 <label v-if="form.deliveryType === 'courier'" class="field">
@@ -93,9 +117,13 @@
                   <input v-model.trim="form.postalCode" type="text" autocomplete="postal-code" />
                 </label>
 
-                <label v-if="form.deliveryType !== 'courier'" class="field field-full">
+                <label v-if="form.deliveryType !== 'courier'" class="field field-full" :class="{ invalid: !!fieldErrors.pickupPoint }">
                   <span>{{ ui.pickupPoint }}</span>
-                  <input v-model.trim="form.pickupPoint" type="text" :placeholder="ui.pickupPoint" required />
+                  <input v-model.trim="form.pickupPoint" type="text" :placeholder="ui.pickupPoint" list="checkout-pickup-list" required />
+                  <datalist id="checkout-pickup-list">
+                    <option v-for="point in pickupPointSuggestions" :key="`pickup-${point}`" :value="point" />
+                  </datalist>
+                  <small v-if="fieldErrors.pickupPoint" class="field-error">{{ fieldErrors.pickupPoint }}</small>
                 </label>
 
                 <label class="field field-full">
@@ -141,6 +169,7 @@
                 <span>{{ ui.miniTrust2 }}</span>
                 <span>{{ ui.miniTrust3 }}</span>
               </div>
+              <p v-if="draftSavedAtLabel" class="draft-note">{{ ui.draftSaved }} {{ draftSavedAtLabel }}</p>
             </form>
 
             <div v-if="successMessage" class="success-wrap">
@@ -224,7 +253,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getProducts } from '~/data/products'
 
@@ -281,6 +310,7 @@ type CheckoutUi = {
   emptyTitle: string
   emptyText: string
   toCatalog: string
+  draftSaved: string
 }
 
 type CheckoutForm = {
@@ -320,14 +350,24 @@ const form = reactive<CheckoutForm>({
 })
 
 const profileStorageKey = 'osf_checkout_profile_v1'
+const draftStorageKey = 'osf_checkout_draft_v1'
 const orderTracksStorageKey = 'osf_order_tracks_v1'
 
 const isSubmitting = ref(false)
 const successMessage = ref('')
 const errorMessage = ref('')
+const draftSavedAt = ref('')
 const checkoutCsrfToken = ref('')
 const lastOrderId = ref('')
 const lastTrackToken = ref('')
+const fieldErrors = reactive<Record<'name' | 'phone' | 'city' | 'street' | 'house' | 'pickupPoint', string>>({
+  name: '',
+  phone: '',
+  city: '',
+  street: '',
+  house: '',
+  pickupPoint: ''
+})
 
 const ordersTrackLink = computed(() => {
   if (!lastOrderId.value || !lastTrackToken.value) return ''
@@ -387,7 +427,8 @@ const ui = computed<CheckoutUi>(() => {
       backToCart: 'Înapoi la coș',
       emptyTitle: 'Nu există produse pentru checkout',
       emptyText: 'Adaugă produse în coș pentru a continua.',
-      toCatalog: 'Mergi la catalog'
+      toCatalog: 'Mergi la catalog',
+      draftSaved: 'Ciornă salvată:'
     }
   }
 
@@ -437,7 +478,8 @@ const ui = computed<CheckoutUi>(() => {
       backToCart: 'Back to cart',
       emptyTitle: 'No products for checkout',
       emptyText: 'Add products to your cart to continue.',
-      toCatalog: 'Go to catalog'
+      toCatalog: 'Go to catalog',
+      draftSaved: 'Draft saved:'
     }
   }
 
@@ -486,7 +528,8 @@ const ui = computed<CheckoutUi>(() => {
     backToCart: 'Вернуться в корзину',
     emptyTitle: 'Нет товаров для оформления',
     emptyText: 'Добавь товары в корзину, чтобы продолжить.',
-    toCatalog: 'Перейти в каталог'
+    toCatalog: 'Перейти в каталог',
+    draftSaved: 'Черновик сохранён:'
   }
 })
 
@@ -504,6 +547,7 @@ const resetForm = () => {
   form.pickupPoint = ''
   form.mapQuery = ''
   form.comment = ''
+  clearFieldErrors()
 }
 
 const loadCheckoutProfile = () => {
@@ -557,6 +601,58 @@ const saveCheckoutProfile = () => {
   } catch {
     // Ignore storage write failures.
   }
+}
+
+const loadCheckoutDraft = () => {
+  if (!import.meta.client) return
+  try {
+    const raw = window.localStorage.getItem(draftStorageKey)
+    const parsed = raw ? JSON.parse(raw) : null
+    if (!parsed || typeof parsed !== 'object') return
+    const draft = parsed as Partial<CheckoutForm> & { savedAt?: string }
+    if (typeof draft.name === 'string') form.name = draft.name
+    if (typeof draft.phoneCode === 'string') form.phoneCode = draft.phoneCode
+    if (typeof draft.phoneLocal === 'string') form.phoneLocal = draft.phoneLocal
+    if (typeof draft.email === 'string') form.email = draft.email
+    if (draft.deliveryType === 'courier' || draft.deliveryType === 'post_office' || draft.deliveryType === 'postamat') {
+      form.deliveryType = draft.deliveryType
+    }
+    if (typeof draft.city === 'string') form.city = draft.city
+    if (typeof draft.street === 'string') form.street = draft.street
+    if (typeof draft.house === 'string') form.house = draft.house
+    if (typeof draft.apartment === 'string') form.apartment = draft.apartment
+    if (typeof draft.postalCode === 'string') form.postalCode = draft.postalCode
+    if (typeof draft.pickupPoint === 'string') form.pickupPoint = draft.pickupPoint
+    if (typeof draft.mapQuery === 'string') form.mapQuery = draft.mapQuery
+    if (typeof draft.comment === 'string') form.comment = draft.comment
+    if (typeof draft.savedAt === 'string') draftSavedAt.value = draft.savedAt
+  } catch {
+    // Ignore malformed draft payload.
+  }
+}
+
+const saveCheckoutDraft = () => {
+  if (!import.meta.client) return
+  const savedAt = new Date().toISOString()
+  try {
+    window.localStorage.setItem(draftStorageKey, JSON.stringify({
+      ...form,
+      savedAt
+    }))
+    draftSavedAt.value = savedAt
+  } catch {
+    // Ignore localStorage write errors.
+  }
+}
+
+const clearCheckoutDraft = () => {
+  if (!import.meta.client) return
+  try {
+    window.localStorage.removeItem(draftStorageKey)
+  } catch {
+    // Ignore remove errors.
+  }
+  draftSavedAt.value = ''
 }
 
 const markPurchasedProducts = (ids: string[]) => {
@@ -640,6 +736,49 @@ const phoneCodes = [
   { value: '+49', label: '+49 Germany' }
 ]
 
+const countryPhoneRules: Record<string, { min: number; max: number; groups: number[]; placeholder: string }> = {
+  '+373': { min: 8, max: 8, groups: [2, 3, 3], placeholder: '68 123 456' },
+  '+40': { min: 9, max: 9, groups: [3, 3, 3], placeholder: '712 345 678' },
+  '+380': { min: 9, max: 9, groups: [2, 3, 2, 2], placeholder: '67 123 45 67' },
+  '+7': { min: 10, max: 10, groups: [3, 3, 2, 2], placeholder: '999 123 45 67' },
+  '+49': { min: 10, max: 11, groups: [3, 3, 2, 2], placeholder: '151 234 56 78' }
+}
+const defaultPhoneRule = countryPhoneRules['+373']!
+
+const countryCitySuggestions: Record<string, string[]> = {
+  '+373': ['Chișinău', 'Bălți', 'Tiraspol', 'Bender', 'Cahul', 'Comrat', 'Orhei', 'Ungheni'],
+  '+40': ['Bucharest', 'Iași', 'Cluj-Napoca', 'Timișoara', 'Brașov', 'Constanța'],
+  '+380': ['Kyiv', 'Odesa', 'Lviv', 'Dnipro', 'Kharkiv'],
+  '+7': ['Moscow', 'Saint Petersburg', 'Kazan', 'Novosibirsk', 'Almaty', 'Astana'],
+  '+49': ['Berlin', 'Munich', 'Hamburg', 'Cologne', 'Frankfurt']
+}
+
+const defaultStreetSuggestions = [
+  'Stefan cel Mare',
+  'Alba Iulia',
+  'Independentei',
+  'Decebal',
+  'Dacia',
+  'Trandafirilor',
+  'Puskin',
+  'Mihai Eminescu'
+]
+
+const cityStreetSuggestions: Record<string, string[]> = {
+  'chișinău': ['Stefan cel Mare', 'Alba Iulia', 'Dacia', 'Bulevardul Moscova', 'Trandafirilor'],
+  'bălți': ['Independentei', 'Stefan cel Mare', 'Calea Ieșilor'],
+  'tiraspol': ['25 Octombrie', 'Mira', 'Karl Liebknecht'],
+  'bender': ['Lenin', 'Suvorov', 'Dzerjinski']
+}
+
+const pickupPointBase: Record<string, string[]> = {
+  '+373': ['Poșta Moldovei • Chișinău Centru', 'Poșta Moldovei • Botanica', 'Poștomat Nova Poshta'],
+  '+40': ['Post Office • City Center', 'Easybox • Main Station'],
+  '+380': ['Nova Poshta • Branch 1', 'Nova Poshta • Parcel Locker'],
+  '+7': ['PickPoint • Center', 'CDEK • Pickup point'],
+  '+49': ['DHL Packstation', 'Hermes PaketShop']
+}
+
 const deliveryTypeOptions = computed(() => {
   if (locale.value === 'en') {
     return [
@@ -665,6 +804,38 @@ const deliveryTypeOptions = computed(() => {
 })
 
 const digitsOnly = (value: string) => value.replace(/\D/g, '')
+
+const phoneRule = computed(() => countryPhoneRules[form.phoneCode] || defaultPhoneRule)
+const phonePlaceholderByCode = computed(() => phoneRule.value.placeholder || ui.value.phoneNumber)
+
+const formatPhoneLocalByRule = (value: string, groups: number[]) => {
+  const digits = digitsOnly(value)
+  const chunks: string[] = []
+  let pointer = 0
+  for (const size of groups) {
+    if (pointer >= digits.length) break
+    chunks.push(digits.slice(pointer, pointer + size))
+    pointer += size
+  }
+  if (pointer < digits.length) chunks.push(digits.slice(pointer))
+  return chunks.join(' ')
+}
+
+const onPhoneInput = () => {
+  const rule = phoneRule.value
+  const clean = digitsOnly(form.phoneLocal).slice(0, rule.max)
+  form.phoneLocal = formatPhoneLocalByRule(clean, rule.groups)
+}
+
+const citySuggestions = computed(() => countryCitySuggestions[form.phoneCode] || countryCitySuggestions['+373'])
+
+const streetSuggestions = computed(() => {
+  const city = String(form.city || '').trim().toLowerCase()
+  if (!city) return defaultStreetSuggestions
+  return cityStreetSuggestions[city] || defaultStreetSuggestions
+})
+
+const pickupPointSuggestions = computed(() => pickupPointBase[form.phoneCode] || pickupPointBase['+373'])
 
 const fullPhone = computed(() => `${form.phoneCode} ${digitsOnly(form.phoneLocal)}`.trim())
 
@@ -702,33 +873,67 @@ const fullAddress = computed(() => {
     .join(', ')
 })
 
+const draftSavedAtLabel = computed(() => {
+  if (!draftSavedAt.value) return ''
+  const date = new Date(draftSavedAt.value)
+  if (Number.isNaN(date.getTime())) return ''
+  const localeCode = locale.value === 'ro' ? 'ro-RO' : locale.value === 'en' ? 'en-US' : 'ru-RU'
+  return date.toLocaleString(localeCode, {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit'
+  })
+})
+
+const clearFieldErrors = () => {
+  fieldErrors.name = ''
+  fieldErrors.phone = ''
+  fieldErrors.city = ''
+  fieldErrors.street = ''
+  fieldErrors.house = ''
+  fieldErrors.pickupPoint = ''
+}
+
 const validateCheckoutContact = () => {
+  clearFieldErrors()
+  const name = String(form.name || '').trim()
   const phone = digitsOnly(form.phoneLocal)
-  if (phone.length < 6 || phone.length > 12) {
-    return locale.value === 'en'
-      ? 'Enter valid phone number'
+  const rule = phoneRule.value
+
+  if (name.length < 2) {
+    fieldErrors.name = locale.value === 'en'
+      ? 'Enter your name'
       : locale.value === 'ro'
-        ? 'Introdu un număr valid'
-        : 'Введи корректный номер телефона'
+        ? 'Introdu numele tău'
+        : 'Введи имя'
+  }
+
+  if (phone.length < rule.min || phone.length > rule.max) {
+    fieldErrors.phone = locale.value === 'en'
+      ? `Enter valid phone (${rule.min}-${rule.max} digits)`
+      : locale.value === 'ro'
+        ? `Introdu telefon valid (${rule.min}-${rule.max} cifre)`
+        : `Введи корректный номер (${rule.min}-${rule.max} цифр)`
   }
 
   if (form.deliveryType === 'courier') {
-    if (!form.city || !form.street || !form.house) {
-      return locale.value === 'en'
-        ? 'Fill city, street and house for courier'
+    if (!form.city) fieldErrors.city = locale.value === 'en' ? 'Enter city' : locale.value === 'ro' ? 'Completează orașul' : 'Заполни город'
+    if (!form.street) fieldErrors.street = locale.value === 'en' ? 'Enter street' : locale.value === 'ro' ? 'Completează strada' : 'Заполни улицу'
+    if (!form.house) fieldErrors.house = locale.value === 'en' ? 'Enter house/building' : locale.value === 'ro' ? 'Completează casa/blocul' : 'Заполни дом/блок'
+  } else {
+    if (!form.city) fieldErrors.city = locale.value === 'en' ? 'Enter city' : locale.value === 'ro' ? 'Completează orașul' : 'Заполни город'
+    if (!form.pickupPoint) {
+      fieldErrors.pickupPoint = locale.value === 'en'
+        ? 'Select pickup point'
         : locale.value === 'ro'
-          ? 'Completează orașul, strada și casa pentru curier'
-          : 'Для курьера заполни город, улицу и дом'
+          ? 'Alege punctul de ridicare'
+          : 'Выбери пункт выдачи'
     }
-  } else if (!form.pickupPoint || !form.city) {
-    return locale.value === 'en'
-      ? 'Fill pickup point and city'
-      : locale.value === 'ro'
-        ? 'Completează punctul de ridicare și orașul'
-        : 'Заполни пункт выдачи и город'
   }
 
-  return ''
+  const firstError = fieldErrors.name || fieldErrors.phone || fieldErrors.city || fieldErrors.street || fieldErrors.house || fieldErrors.pickupPoint
+  return firstError || ''
 }
 
 const openMapSearch = () => {
@@ -778,6 +983,7 @@ const getErrorMessage = (error: unknown) => {
 const submitOrder = async () => {
   successMessage.value = ''
   errorMessage.value = ''
+  clearFieldErrors()
   lastOrderId.value = ''
   lastTrackToken.value = ''
 
@@ -839,6 +1045,7 @@ const submitOrder = async () => {
     }
     markPurchasedProducts(purchasedIds)
     saveCheckoutProfile()
+    clearCheckoutDraft()
     resetForm()
     shopStore.clearCart()
   } catch (error: unknown) {
@@ -864,6 +1071,8 @@ const previewImage = `${siteUrl}/logo-preview.png`
 onMounted(() => {
   shopStore.sanitizeCart()
   loadCheckoutProfile()
+  loadCheckoutDraft()
+  onPhoneInput()
   $fetch<{ success: boolean; csrfToken?: string }>('/api/checkout/csrf')
     .then((response) => {
       checkoutCsrfToken.value = String(response?.csrfToken || '')
@@ -871,6 +1080,69 @@ onMounted(() => {
     .catch(() => {
       checkoutCsrfToken.value = ''
     })
+})
+
+let draftTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(
+  () => ({
+    name: form.name,
+    phoneCode: form.phoneCode,
+    phoneLocal: form.phoneLocal,
+    email: form.email,
+    deliveryType: form.deliveryType,
+    city: form.city,
+    street: form.street,
+    house: form.house,
+    apartment: form.apartment,
+    postalCode: form.postalCode,
+    pickupPoint: form.pickupPoint,
+    mapQuery: form.mapQuery,
+    comment: form.comment
+  }),
+  () => {
+    if (draftTimer) clearTimeout(draftTimer)
+    draftTimer = setTimeout(() => {
+      saveCheckoutDraft()
+    }, 260)
+  },
+  { deep: true }
+)
+
+watch(() => form.phoneCode, () => {
+  onPhoneInput()
+  fieldErrors.phone = ''
+})
+
+watch(() => form.phoneLocal, () => {
+  fieldErrors.phone = ''
+})
+
+watch(() => form.name, () => {
+  fieldErrors.name = ''
+})
+
+watch(() => form.city, () => {
+  fieldErrors.city = ''
+})
+
+watch(() => form.street, () => {
+  fieldErrors.street = ''
+})
+
+watch(() => form.house, () => {
+  fieldErrors.house = ''
+})
+
+watch(() => form.pickupPoint, () => {
+  fieldErrors.pickupPoint = ''
+})
+
+onBeforeUnmount(() => {
+  if (draftTimer) {
+    clearTimeout(draftTimer)
+    draftTimer = null
+  }
 })
 
 useSeoMeta({
@@ -1032,6 +1304,13 @@ useSeoMeta({
   font-weight: 800;
 }
 
+.field.invalid input,
+.field.invalid select,
+.field.invalid textarea {
+  border-color: #e39e9e;
+  box-shadow: 0 0 0 3px #fff3f3;
+}
+
 .field input,
 .field select,
 .field textarea {
@@ -1044,6 +1323,12 @@ useSeoMeta({
   font: inherit;
   color: var(--text);
   outline: none;
+}
+
+.field-error {
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .phone-group {
@@ -1102,6 +1387,13 @@ useSeoMeta({
   color: #41586c;
   display: inline-flex;
   align-items: center;
+}
+
+.draft-note {
+  margin: 10px 0 0;
+  color: #5f7187;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .success-text {
