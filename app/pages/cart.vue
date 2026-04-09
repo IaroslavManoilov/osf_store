@@ -100,6 +100,38 @@
                 </div>
               </div>
             </article>
+
+            <article v-if="bundleOffers.length" class="surface-card bundle-card">
+              <div class="bundle-head">
+                <span class="section-label">{{ ui.bundleLabel }}</span>
+                <h3>{{ ui.bundleTitle }}</h3>
+                <p>{{ ui.bundleSubtitle }}</p>
+              </div>
+
+              <div class="bundle-list">
+                <div v-for="offer in bundleOffers" :key="offer.id" class="bundle-offer">
+                  <div class="bundle-info">
+                    <strong>{{ offer.title }}</strong>
+                    <span>{{ offer.subtitle }}</span>
+                    <div class="bundle-products">
+                      <span v-for="item in offer.items" :key="`${offer.id}-${item.id}`">
+                        {{ item.title }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="bundle-price">
+                    <span class="bundle-regular">{{ offer.regularTotal }} MDL</span>
+                    <strong>{{ offer.bundleTotal }} MDL</strong>
+                    <small>{{ ui.bundleSave }} {{ offer.savings }} MDL</small>
+                  </div>
+
+                  <button type="button" class="btn-main bundle-btn" @click="addBundleOffer(offer)">
+                    {{ ui.bundleAdd }}
+                  </button>
+                </div>
+              </div>
+            </article>
           </div>
 
           <aside class="surface-card summary-box">
@@ -170,6 +202,17 @@
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CartItem } from '~/stores/shop'
+import { getProducts, type LocalizedProduct } from '~/data/products'
+
+type BundleOffer = {
+  id: string
+  title: string
+  subtitle: string
+  items: LocalizedProduct[]
+  regularTotal: number
+  bundleTotal: number
+  savings: number
+}
 
 type CartPageUi = {
   label: string
@@ -190,6 +233,11 @@ type CartPageUi = {
   checkout: string
   continueShopping: string
   clearCart: string
+  bundleLabel: string
+  bundleTitle: string
+  bundleSubtitle: string
+  bundleSave: string
+  bundleAdd: string
   emptyTitle: string
   emptyText: string
   toCatalog: string
@@ -200,6 +248,46 @@ const localePath = useLocalePath()
 const shopStore = useShopStore()
 
 const cartItems = computed(() => shopStore.cart)
+const catalogProducts = computed(() => getProducts(locale.value))
+const cartProductIds = computed(() => new Set(shopStore.cart.map((item) => item.id)))
+const cartCategorySet = computed(() => new Set(
+  catalogProducts.value
+    .filter((product) => cartProductIds.value.has(product.id))
+    .map((product) => product.category)
+))
+
+const bundleOffers = computed<BundleOffer[]>(() => {
+  const categoryPriority = ['hoodies', 'polo', 'sweaters'] as const
+  const missingCategory = categoryPriority.find((category) => !cartCategorySet.value.has(category))
+
+  const sameCategoryItems = catalogProducts.value.filter((product) =>
+    cartCategorySet.value.size ? cartCategorySet.value.has(product.category) : true
+  )
+  const addOnItems = catalogProducts.value.filter((product) =>
+    !cartProductIds.value.has(product.id) &&
+    (!missingCategory || product.category === missingCategory)
+  )
+
+  const base = sameCategoryItems[0]
+  const addOn = addOnItems[0]
+  if (!base || !addOn) return []
+
+  const regularTotal = base.price + addOn.price
+  const savings = Math.max(40, Math.round(regularTotal * 0.1))
+  const bundleTotal = Math.max(0, regularTotal - savings)
+
+  return [
+    {
+      id: `${base.id}-${addOn.id}`,
+      title: `${base.categoryLabel} + ${addOn.categoryLabel}`,
+      subtitle: ui.value.bundleSubtitle,
+      items: [base, addOn],
+      regularTotal,
+      bundleTotal,
+      savings
+    }
+  ]
+})
 
 const ui = computed<CartPageUi>(() => {
   if (locale.value === 'ro') {
@@ -223,6 +311,11 @@ const ui = computed<CartPageUi>(() => {
       checkout: 'Continuă spre checkout',
       continueShopping: 'Înapoi la catalog',
       clearCart: 'Golește coșul',
+      bundleLabel: 'Set recomandat',
+      bundleTitle: 'Economisește cu bundle',
+      bundleSubtitle: 'Produse care se potrivesc perfect în comandă',
+      bundleSave: 'Economisești',
+      bundleAdd: 'Adaugă bundle',
       emptyTitle: 'Coșul este gol',
       emptyText:
         'Adaugă produse din catalog și construiește selecția ta ONE STYLE FOREVER.',
@@ -251,6 +344,11 @@ const ui = computed<CartPageUi>(() => {
       checkout: 'Continue to checkout',
       continueShopping: 'Back to catalog',
       clearCart: 'Clear cart',
+      bundleLabel: 'Bundle offer',
+      bundleTitle: 'Save with a bundle',
+      bundleSubtitle: 'Products that match your current order',
+      bundleSave: 'You save',
+      bundleAdd: 'Add bundle',
       emptyTitle: 'Your cart is empty',
       emptyText:
         'Add products from the catalog and build your ONE STYLE FOREVER selection.',
@@ -278,6 +376,11 @@ const ui = computed<CartPageUi>(() => {
     checkout: 'Перейти к оформлению',
     continueShopping: 'Вернуться в каталог',
     clearCart: 'Очистить корзину',
+    bundleLabel: 'Выгодный комплект',
+    bundleTitle: 'Собери bundle и сэкономь',
+    bundleSubtitle: 'Товары, которые чаще берут вместе',
+    bundleSave: 'Экономия',
+    bundleAdd: 'Добавить комплект',
     emptyTitle: 'Корзина пуста',
     emptyText:
       'Добавь товары из каталога и собери свою подборку ONE STYLE FOREVER.',
@@ -286,6 +389,22 @@ const ui = computed<CartPageUi>(() => {
 })
 
 const cartItemKey = (item: CartItem) => `${item.id}-${item.selectedSize}`
+
+const addBundleOffer = (offer: BundleOffer) => {
+  for (const product of offer.items) {
+    if (cartProductIds.value.has(product.id)) continue
+    const selectedSize = product.sizes[0]
+    if (!selectedSize) continue
+    shopStore.addToCart({
+      id: product.id,
+      title: product.title,
+      price: product.price,
+      image: product.image,
+      description: product.description,
+      selectedSize
+    })
+  }
+}
 
 onMounted(() => {
   shopStore.sanitizeCart()
@@ -525,6 +644,96 @@ onMounted(() => {
   align-self: start;
 }
 
+.bundle-card {
+  padding: 22px;
+  display: grid;
+  gap: 14px;
+}
+
+.bundle-head h3 {
+  margin: 8px 0 0;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.bundle-head p {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+
+.bundle-list {
+  display: grid;
+  gap: 12px;
+}
+
+.bundle-offer {
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: #fff;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) auto auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.bundle-info {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.bundle-info strong {
+  font-size: 18px;
+}
+
+.bundle-info span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.bundle-products {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bundle-products span {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  color: #48637e;
+}
+
+.bundle-price {
+  text-align: right;
+  display: grid;
+  gap: 4px;
+}
+
+.bundle-regular {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.bundle-price strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.bundle-price small {
+  color: #1f6a43;
+  font-weight: 700;
+}
+
+.bundle-btn {
+  min-width: 180px;
+}
+
 .summary-title {
   margin: 8px 0 0;
   font-size: 34px;
@@ -654,6 +863,19 @@ onMounted(() => {
     padding: 6px;
     aspect-ratio: 1 / 1;
   }
+
+  .bundle-offer {
+    grid-template-columns: 1fr;
+  }
+
+  .bundle-price {
+    text-align: left;
+  }
+
+  .bundle-btn {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 @media (max-width: 640px) {
@@ -730,6 +952,14 @@ onMounted(() => {
 
   .summary-title {
     font-size: 28px;
+  }
+
+  .bundle-card {
+    padding: 14px;
+  }
+
+  .bundle-head h3 {
+    font-size: 24px;
   }
 
   .summary-total strong {

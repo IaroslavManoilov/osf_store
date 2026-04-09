@@ -7,6 +7,8 @@
     "dev": "./scripts/ensure-single-dev.sh && nuxt dev --port 3000",
     "generate": "nuxt generate",
     "images:optimize": "node scripts/optimize-images.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare"
   },
@@ -26,6 +28,7 @@
     "vue-router": "^5.0.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.54.2",
     "sharp": "^0.34.5"
   }
 }

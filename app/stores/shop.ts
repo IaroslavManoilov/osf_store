@@ -10,6 +10,8 @@ export interface ProductItem {
   price: number
   image: string
   description: string
+  badge?: 'NEW' | 'HOT'
+  sizes?: ProductSize[]
 }
 
 export interface CartItem extends ProductItem {
@@ -26,6 +28,7 @@ const catalogById = new Map(
       price: product.price,
       image: product.image,
       description: product.description,
+      badge: product.badge,
       sizes: product.sizes
     }
   ])

@@ -517,12 +517,12 @@ let focusRefreshHandler: (() => void) | null = null
 const isApplyingRouteQuery = ref(false)
 
 const applyPriceFilter = () => {
-  if (minPrice.value !== null && minPrice.value < 0) {
-    minPrice.value = 0
+  if (minPrice.value !== null && minPrice.value <= 0) {
+    minPrice.value = null
   }
 
-  if (maxPrice.value !== null && maxPrice.value < 0) {
-    maxPrice.value = 0
+  if (maxPrice.value !== null && maxPrice.value <= 0) {
+    maxPrice.value = null
   }
 
   if (minPrice.value !== null && maxPrice.value !== null && minPrice.value > maxPrice.value) {
@@ -794,7 +794,7 @@ const toSingleQueryValue = (value: string | string[] | null | undefined) => {
 
 const toPositiveNumberOrNull = (value: string | string[] | null | undefined) => {
   const raw = Number(toSingleQueryValue(value))
-  if (!Number.isFinite(raw) || raw < 0) return null
+  if (!Number.isFinite(raw) || raw <= 0) return null
   return Math.floor(raw)
 }
 
@@ -850,8 +850,8 @@ const buildFiltersQuery = () => {
   if (selectedSize.value !== 'all') query.size = selectedSize.value
   if (selectedAvailability.value !== 'all') query.availability = selectedAvailability.value
   if (sortBy.value !== 'default') query.sort = sortBy.value
-  if (minPrice.value !== null) query.minPrice = String(minPrice.value)
-  if (maxPrice.value !== null) query.maxPrice = String(maxPrice.value)
+  if (minPrice.value !== null && minPrice.value > 0) query.minPrice = String(minPrice.value)
+  if (maxPrice.value !== null && maxPrice.value > 0) query.maxPrice = String(maxPrice.value)
 
   return query
 }
@@ -917,11 +917,11 @@ const filteredProducts = computed(() => {
     })
   }
 
-  if (minPrice.value !== null) {
+  if (minPrice.value !== null && minPrice.value > 0) {
     result = result.filter((item) => item.price >= minPrice.value!)
   }
 
-  if (maxPrice.value !== null) {
+  if (maxPrice.value !== null && maxPrice.value > 0) {
     result = result.filter((item) => item.price <= maxPrice.value!)
   }
 

@@ -30,3 +30,5 @@ export function getSupabaseAdmin(event: H3Event) {
 
   return cachedClient
 }
+
+export const getSupabaseAdminClient = getSupabaseAdmin

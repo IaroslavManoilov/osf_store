@@ -744,6 +744,10 @@ const countryPhoneRules: Record<string, { min: number; max: number; groups: numb
   '+49': { min: 10, max: 11, groups: [3, 3, 2, 2], placeholder: '151 234 56 78' }
 }
 const defaultPhoneRule = countryPhoneRules['+373']!
+const remoteCitySuggestions = ref<string[]>([])
+const remoteStreetSuggestions = ref<string[]>([])
+let citySuggestTimer: ReturnType<typeof setTimeout> | null = null
+let streetSuggestTimer: ReturnType<typeof setTimeout> | null = null
 
 const countryCitySuggestions: Record<string, string[]> = {
   '+373': ['Chișinău', 'Bălți', 'Tiraspol', 'Bender', 'Cahul', 'Comrat', 'Orhei', 'Ungheni'],
@@ -827,12 +831,18 @@ const onPhoneInput = () => {
   form.phoneLocal = formatPhoneLocalByRule(clean, rule.groups)
 }
 
-const citySuggestions = computed(() => countryCitySuggestions[form.phoneCode] || countryCitySuggestions['+373'])
+const mergeUnique = (items: string[]) =>
+  Array.from(new Set(items.map((item) => String(item || '').trim()).filter(Boolean))).slice(0, 10)
+
+const citySuggestions = computed(() => {
+  const local = countryCitySuggestions[form.phoneCode] || countryCitySuggestions['+373']
+  return mergeUnique([...remoteCitySuggestions.value, ...local])
+})
 
 const streetSuggestions = computed(() => {
   const city = String(form.city || '').trim().toLowerCase()
-  if (!city) return defaultStreetSuggestions
-  return cityStreetSuggestions[city] || defaultStreetSuggestions
+  const local = !city ? defaultStreetSuggestions : (cityStreetSuggestions[city] || defaultStreetSuggestions)
+  return mergeUnique([...remoteStreetSuggestions.value, ...local])
 })
 
 const pickupPointSuggestions = computed(() => pickupPointBase[form.phoneCode] || pickupPointBase['+373'])
@@ -941,6 +951,36 @@ const openMapSearch = () => {
   const query = encodeURIComponent(form.mapQuery || [form.city, form.street, form.house].filter(Boolean).join(' '))
   const url = `https://www.google.com/maps/search/?api=1&query=${query || 'Moldova'}`
   window.open(url, '_blank', 'noopener,noreferrer')
+}
+
+const fetchGeoSuggestions = async (kind: 'city' | 'street', query: string) => {
+  const q = String(query || '').trim()
+  if (q.length < 2) {
+    if (kind === 'city') remoteCitySuggestions.value = []
+    if (kind === 'street') remoteStreetSuggestions.value = []
+    return
+  }
+
+  try {
+    const response = await $fetch<{ success: boolean; items?: string[] }>('/api/geo/suggest', {
+      method: 'GET',
+      query: {
+        kind,
+        q,
+        city: form.city,
+        phoneCode: form.phoneCode
+      }
+    })
+    const items = Array.isArray(response?.items) ? response.items : []
+    if (kind === 'city') {
+      remoteCitySuggestions.value = mergeUnique(items)
+      return
+    }
+    remoteStreetSuggestions.value = mergeUnique(items)
+  } catch {
+    if (kind === 'city') remoteCitySuggestions.value = []
+    if (kind === 'street') remoteStreetSuggestions.value = []
+  }
 }
 
 const catalogSizesById = computed(() => {
@@ -1112,6 +1152,13 @@ watch(
 watch(() => form.phoneCode, () => {
   onPhoneInput()
   fieldErrors.phone = ''
+  remoteCitySuggestions.value = []
+  remoteStreetSuggestions.value = []
+
+  if (citySuggestTimer) clearTimeout(citySuggestTimer)
+  citySuggestTimer = setTimeout(() => {
+    fetchGeoSuggestions('city', form.city)
+  }, 260)
 })
 
 watch(() => form.phoneLocal, () => {
@@ -1124,10 +1171,20 @@ watch(() => form.name, () => {
 
 watch(() => form.city, () => {
   fieldErrors.city = ''
+
+  if (citySuggestTimer) clearTimeout(citySuggestTimer)
+  citySuggestTimer = setTimeout(() => {
+    fetchGeoSuggestions('city', form.city)
+  }, 260)
 })
 
 watch(() => form.street, () => {
   fieldErrors.street = ''
+
+  if (streetSuggestTimer) clearTimeout(streetSuggestTimer)
+  streetSuggestTimer = setTimeout(() => {
+    fetchGeoSuggestions('street', form.street)
+  }, 260)
 })
 
 watch(() => form.house, () => {
@@ -1142,6 +1199,14 @@ onBeforeUnmount(() => {
   if (draftTimer) {
     clearTimeout(draftTimer)
     draftTimer = null
+  }
+  if (citySuggestTimer) {
+    clearTimeout(citySuggestTimer)
+    citySuggestTimer = null
+  }
+  if (streetSuggestTimer) {
+    clearTimeout(streetSuggestTimer)
+    streetSuggestTimer = null
   }
 })
 
