@@ -89,11 +89,22 @@
                 <input v-model.trim="lookup.phone" type="tel" :placeholder="ui.phonePlaceholder" required />
               </label>
 
-              <button type="submit" class="btn-main" :disabled="lookupLoading">
-                {{ lookupLoading ? ui.loading : ui.find }}
-              </button>
+              <label class="field">
+                <span>{{ ui.otpCode }}</span>
+                <input v-model.trim="lookup.code" type="text" inputmode="numeric" :placeholder="ui.otpPlaceholder" maxlength="6" />
+              </label>
+
+              <div class="lookup-actions">
+                <button type="button" class="btn-alt order-btn" :disabled="codeRequestLoading || !canRequestCode" @click="requestLoginCode">
+                  {{ codeRequestLoading ? ui.sendingCode : ui.sendCode }}
+                </button>
+                <button type="submit" class="btn-main" :disabled="lookupLoading">
+                  {{ lookupLoading ? ui.loading : lookup.code ? ui.verifyCode : ui.find }}
+                </button>
+              </div>
             </form>
 
+            <p v-if="otpInfo" class="orders-help otp-info">{{ otpInfo }}</p>
             <p v-if="lookupError" class="error-text">{{ lookupError }}</p>
 
             <article v-if="lookupResult" class="order-card lookup-result">
@@ -194,6 +205,12 @@ type Ui = {
   orderId: string
   phone: string
   phonePlaceholder: string
+  otpCode: string
+  otpPlaceholder: string
+  sendCode: string
+  sendingCode: string
+  verifyCode: string
+  codeSent: string
   find: string
   loading: string
   noOrders: string
@@ -224,6 +241,7 @@ type Ui = {
   cancelSuccess: string
   cancelError: string
   statusChanged: string
+  codeLoginError: string
   autoRefresh: string
   noticeCenter: string
   clearNoticeCenter: string
@@ -248,8 +266,10 @@ const maxNotices = 20
 const trackedOrders = ref<PublicOrder[]>([])
 const trackedLoading = ref(false)
 const lookupLoading = ref(false)
+const codeRequestLoading = ref(false)
 const lookupError = ref('')
 const lookupResult = ref<PublicOrder | null>(null)
+const otpInfo = ref('')
 const cancelLoadingById = ref<Record<string, boolean>>({})
 const trackTokenByOrderId = ref<Record<string, string>>({})
 const ordersPollTimer = ref<ReturnType<typeof setInterval> | null>(null)
@@ -260,7 +280,8 @@ const notificationsMode = ref<'all' | 'history' | 'off'>('all')
 
 const lookup = reactive({
   orderId: '',
-  phone: ''
+  phone: '',
+  code: ''
 })
 
 const ui = computed<Ui>(() => {
@@ -276,6 +297,12 @@ const ui = computed<Ui>(() => {
       orderId: 'ID comandă',
       phone: 'Telefon',
       phonePlaceholder: '+373 68 123 456',
+      otpCode: 'Cod unic',
+      otpPlaceholder: '123456',
+      sendCode: 'Trimite cod',
+      sendingCode: 'Se trimite...',
+      verifyCode: 'Intră cu cod',
+      codeSent: 'Codul a fost trimis în Telegram. Introdu-l mai jos.',
       find: 'Găsește comanda',
       loading: 'Se încarcă...',
       noOrders: 'Încă nu există comenzi salvate pe acest dispozitiv.',
@@ -306,6 +333,7 @@ const ui = computed<Ui>(() => {
       cancelSuccess: 'Comanda a fost anulată.',
       cancelError: 'Nu am reușit anularea comenzii.',
       statusChanged: 'Status actualizat',
+      codeLoginError: 'Cod invalid sau expirat.',
       autoRefresh: 'Actualizare automată activă',
       noticeCenter: 'Notificări comandă',
       clearNoticeCenter: 'Curăță',
@@ -328,6 +356,12 @@ const ui = computed<Ui>(() => {
       orderId: 'Order ID',
       phone: 'Phone',
       phonePlaceholder: '+373 68 123 456',
+      otpCode: 'One-time code',
+      otpPlaceholder: '123456',
+      sendCode: 'Send code',
+      sendingCode: 'Sending...',
+      verifyCode: 'Login with code',
+      codeSent: 'Code sent to Telegram. Enter it below.',
       find: 'Find order',
       loading: 'Loading...',
       noOrders: 'No saved orders on this device yet.',
@@ -358,6 +392,7 @@ const ui = computed<Ui>(() => {
       cancelSuccess: 'Order was cancelled.',
       cancelError: 'Could not cancel order.',
       statusChanged: 'Status updated',
+      codeLoginError: 'Invalid or expired code.',
       autoRefresh: 'Auto refresh is active',
       noticeCenter: 'Order notifications',
       clearNoticeCenter: 'Clear',
@@ -379,6 +414,12 @@ const ui = computed<Ui>(() => {
     orderId: 'ID заказа',
     phone: 'Телефон',
     phonePlaceholder: '+373 68 123 456',
+    otpCode: 'Одноразовый код',
+    otpPlaceholder: '123456',
+    sendCode: 'Отправить код',
+    sendingCode: 'Отправка...',
+    verifyCode: 'Войти по коду',
+    codeSent: 'Код отправлен в Telegram. Введи его ниже.',
     find: 'Найти заказ',
     loading: 'Загрузка...',
     noOrders: 'На этом устройстве пока нет сохраненных заказов.',
@@ -409,6 +450,7 @@ const ui = computed<Ui>(() => {
     cancelSuccess: 'Заказ отменен.',
     cancelError: 'Не удалось отменить заказ.',
     statusChanged: 'Статус обновлен',
+    codeLoginError: 'Неверный или просроченный код.',
     autoRefresh: 'Автообновление включено',
     noticeCenter: 'Уведомления по заказам',
     clearNoticeCenter: 'Очистить',
@@ -609,6 +651,10 @@ const clearOrderNotices = () => {
   saveNotices()
 }
 
+const canRequestCode = computed(() => {
+  return !!String(lookup.orderId || '').trim() && !!String(lookup.phone || '').trim()
+})
+
 const rememberTrackedState = (orders: PublicOrder[]) => {
   const nextStatusMap: Record<string, PublicOrder['status']> = {}
   const nextHistoryMap: Record<string, number> = {}
@@ -760,9 +806,30 @@ const loadTrackedOrders = async (options?: { silent?: boolean; detectChanges?: b
 const lookupOrder = async () => {
   lookupLoading.value = true
   lookupError.value = ''
-  lookupResult.value = null
+  otpInfo.value = ''
 
   try {
+    if (lookup.code) {
+      const response = await $fetch<{ success: boolean; order: PublicOrder; trackToken?: string }>('/api/order/auth/verify', {
+        method: 'POST',
+        body: {
+          orderId: lookup.orderId,
+          phone: lookup.phone,
+          code: lookup.code
+        }
+      })
+      lookupResult.value = response.order
+      if (response.trackToken) {
+        persistTrack({
+          id: response.order.id,
+          token: response.trackToken,
+          createdAt: response.order.createdAt
+        })
+        await loadTrackedOrders({ silent: true })
+      }
+      return
+    }
+
     const response = await $fetch<{ success: boolean; order: PublicOrder; trackToken?: string }>('/api/order/lookup', {
       method: 'POST',
       body: {
@@ -780,9 +847,32 @@ const lookupOrder = async () => {
       await loadTrackedOrders({ silent: true })
     }
   } catch {
-    lookupError.value = ui.value.lookupError
+    lookupError.value = lookup.code ? ui.value.codeLoginError : ui.value.lookupError
   } finally {
     lookupLoading.value = false
+  }
+}
+
+const requestLoginCode = async () => {
+  if (!canRequestCode.value) return
+  codeRequestLoading.value = true
+  lookupError.value = ''
+  otpInfo.value = ''
+
+  try {
+    await $fetch('/api/order/auth/request', {
+      method: 'POST',
+      body: {
+        orderId: lookup.orderId,
+        phone: lookup.phone,
+        channel: 'telegram'
+      }
+    })
+    otpInfo.value = ui.value.codeSent
+  } catch {
+    lookupError.value = ui.value.lookupError
+  } finally {
+    codeRequestLoading.value = false
   }
 }
 
@@ -1062,6 +1152,18 @@ useSeoMeta({
   gap: 12px;
 }
 
+.lookup-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.otp-info {
+  margin-top: 10px;
+  color: #2d6a43;
+  font-weight: 700;
+}
+
 .field {
   display: grid;
   gap: 8px;
@@ -1188,6 +1290,10 @@ useSeoMeta({
 
   .order-btn {
     width: 100%;
+  }
+
+  .lookup-actions {
+    grid-template-columns: 1fr;
   }
 }
 </style>
