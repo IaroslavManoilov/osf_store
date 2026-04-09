@@ -8,6 +8,20 @@ type RequestBody = {
 
 const ALLOWED_STATUSES = new Set(['confirmed', 'assembled', 'shipped', 'delivered'])
 
+const getRecencyWeight = (createdAt: unknown) => {
+  const ms = new Date(String(createdAt || '')).getTime()
+  if (!Number.isFinite(ms)) return 0.65
+
+  const daysAgo = Math.max(0, (Date.now() - ms) / (1000 * 60 * 60 * 24))
+
+  if (daysAgo <= 7) return 1.85
+  if (daysAgo <= 14) return 1.55
+  if (daysAgo <= 30) return 1.3
+  if (daysAgo <= 60) return 1
+  if (daysAgo <= 90) return 0.8
+  return 0.6
+}
+
 const normalizeIds = (value: unknown, limit = 12) => {
   if (!Array.isArray(value)) return [] as string[]
   const cleaned = value
@@ -74,7 +88,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const rows = Array.isArray(data) ? (data as Row[]) : []
-  const orderToProducts = new Map<string, Set<string>>()
+  const orderToProducts = new Map<string, { products: Set<string>; weight: number }>()
   const popularity = new Map<string, number>()
 
   for (const row of rows) {
@@ -84,12 +98,19 @@ export default defineEventHandler(async (event) => {
     const orderId = String(row?.order_id || '').trim()
     const productId = String(row?.product_id || '').trim()
     if (!orderId || !productId) continue
+    const recencyWeight = getRecencyWeight(row?.orders?.created_at)
+    const qty = Math.max(1, Number(row?.quantity || 1))
 
     if (!orderToProducts.has(orderId)) {
-      orderToProducts.set(orderId, new Set())
+      orderToProducts.set(orderId, {
+        products: new Set(),
+        weight: recencyWeight
+      })
     }
-    orderToProducts.get(orderId)!.add(productId)
-    popularity.set(productId, (popularity.get(productId) || 0) + Math.max(1, Number(row?.quantity || 1)))
+    const meta = orderToProducts.get(orderId)!
+    meta.products.add(productId)
+    meta.weight = Math.max(meta.weight, recencyWeight)
+    popularity.set(productId, (popularity.get(productId) || 0) + qty * recencyWeight)
   }
 
   const cartSet = new Set(cartIds)
@@ -97,17 +118,18 @@ export default defineEventHandler(async (event) => {
   const togetherScore = new Map<string, number>()
   const recommendScore = new Map<string, number>()
 
-  for (const productsInOrder of orderToProducts.values()) {
-    const ids = Array.from(productsInOrder)
+  for (const orderMeta of orderToProducts.values()) {
+    const ids = Array.from(orderMeta.products)
+    const orderWeight = orderMeta.weight
     const cartMatches = ids.filter((id) => cartSet.has(id)).length
     const viewedMatches = ids.filter((id) => viewedSet.has(id)).length
 
     for (const id of ids) {
       if (!cartSet.has(id) && cartMatches > 0) {
-        togetherScore.set(id, (togetherScore.get(id) || 0) + cartMatches)
+        togetherScore.set(id, (togetherScore.get(id) || 0) + cartMatches * orderWeight)
       }
       if (!cartSet.has(id) && viewedMatches > 0) {
-        recommendScore.set(id, (recommendScore.get(id) || 0) + viewedMatches)
+        recommendScore.set(id, (recommendScore.get(id) || 0) + viewedMatches * orderWeight)
       }
     }
   }
