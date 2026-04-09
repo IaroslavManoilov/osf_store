@@ -19,7 +19,9 @@ export default defineEventHandler(async (event) => {
 
   const query = getQuery(event)
   const status = String(query.status || '').trim() || undefined
-  const orders = await readOrders(event, status)
+  const from = String(query.from || '').trim() || undefined
+  const to = String(query.to || '').trim() || undefined
+  const orders = await readOrders(event, { status, from, to })
 
   const headers = [
     'order_id',
@@ -67,10 +69,11 @@ export default defineEventHandler(async (event) => {
     targetType: 'order',
     details: {
       status: status || 'all',
+      from: from || null,
+      to: to || null,
       count: orders.length
     }
   })
 
   return csv
 })
-

@@ -68,6 +68,9 @@
                   <button type="button" class="btn-alt order-btn" @click="repeatOrder(order)">
                     {{ ui.repeatOrder }}
                   </button>
+                  <a class="btn-alt order-btn" href="https://t.me/one_style_forever_bot" target="_blank" rel="noopener noreferrer">
+                    {{ ui.contactSupport }}
+                  </a>
                   <button
                     v-if="canCancelOrder(order.status)"
                     type="button"
@@ -185,6 +188,9 @@
                 <button type="button" class="btn-alt order-btn" @click="repeatOrder(lookupResult)">
                   {{ ui.repeatOrder }}
                 </button>
+                <a class="btn-alt order-btn" href="https://t.me/one_style_forever_bot" target="_blank" rel="noopener noreferrer">
+                  {{ ui.contactSupport }}
+                </a>
               </div>
             </article>
 
@@ -308,6 +314,7 @@ type Ui = {
   repeatOrder: string
   repeatSuccess: string
   repeatEmpty: string
+  contactSupport: string
   cancelOrder: string
   canceling: string
   cancelSuccess: string
@@ -418,6 +425,7 @@ const ui = computed<Ui>(() => {
       repeatOrder: 'Repetă comanda',
       repeatSuccess: 'Produsele au fost adăugate în coș.',
       repeatEmpty: 'Nu am putut adăuga produse în coș.',
+      contactSupport: 'Suport Telegram',
       cancelOrder: 'Anulează comanda',
       canceling: 'Se anulează...',
       cancelSuccess: 'Comanda a fost anulată.',
@@ -486,6 +494,7 @@ const ui = computed<Ui>(() => {
       repeatOrder: 'Repeat order',
       repeatSuccess: 'Products were added to cart.',
       repeatEmpty: 'Could not add products to cart.',
+      contactSupport: 'Telegram support',
       cancelOrder: 'Cancel order',
       canceling: 'Cancelling...',
       cancelSuccess: 'Order was cancelled.',
@@ -553,6 +562,7 @@ const ui = computed<Ui>(() => {
     repeatOrder: 'Повторить заказ',
     repeatSuccess: 'Товары добавлены в корзину.',
     repeatEmpty: 'Не удалось добавить товары в корзину.',
+    contactSupport: 'Поддержка Telegram',
     cancelOrder: 'Отменить заказ',
     canceling: 'Отменяем...',
     cancelSuccess: 'Заказ отменен.',

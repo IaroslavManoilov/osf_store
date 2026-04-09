@@ -85,6 +85,18 @@
             </article>
           </div>
 
+          <div class="low-stock-box" v-if="lowStockItems.length">
+            <div class="inventory-history-head">
+              <strong>{{ ui.lowStockTitle }}</strong>
+              <span>{{ ui.lowStockThresholdLabel }}: {{ lowStockThreshold }}</span>
+            </div>
+            <ul>
+              <li v-for="entry in lowStockItems" :key="`${entry.productId}-${entry.size}`">
+                {{ ui.inventoryProductCode }}: {{ entry.productId }} · {{ ui.size }} {{ entry.size }} · {{ entry.quantity }}
+              </li>
+            </ul>
+          </div>
+
           <div class="inventory-history" v-if="inventoryHistory.length">
             <div class="inventory-history-head">
               <strong>{{ ui.inventoryLogTitle }}</strong>
@@ -197,18 +209,58 @@
     <section v-if="loaded && orders.length" class="section-space">
       <div class="site-container">
         <div class="admin-topbar">
-          <strong>{{ ui.ordersCount }}: {{ orders.length }}</strong>
+          <div class="orders-filters">
+            <strong>{{ ui.ordersCount }}: {{ orders.length }}</strong>
+            <select v-model="statusFilter" class="status-filter" @change="loadOrders">
+              <option value="">{{ ui.statusAll }}</option>
+              <option v-for="status in statuses" :key="status" :value="status">{{ statusLabel(status) }}</option>
+            </select>
+            <input v-model="dateFrom" type="date" class="status-filter date-filter" />
+            <input v-model="dateTo" type="date" class="status-filter date-filter" />
+            <button type="button" class="btn-alt" @click="loadOrders">{{ ui.applyFilters }}</button>
+            <button type="button" class="btn-alt" @click="resetOrderFilters">{{ ui.resetFilters }}</button>
+          </div>
+        </div>
 
-          <select v-model="statusFilter" class="status-filter" @change="loadOrders">
-            <option value="">{{ ui.statusAll }}</option>
-            <option v-for="status in statuses" :key="status" :value="status">{{ statusLabel(status) }}</option>
-          </select>
+        <div class="surface-card bulk-status-card">
+          <div class="bulk-row">
+            <label class="bulk-check-all">
+              <input type="checkbox" :checked="allVisibleSelected" @change="toggleAllVisible($event)" />
+              <span>{{ ui.selectAllVisible }}</span>
+            </label>
+            <strong>{{ ui.selectedOrders }}: {{ selectedCount }}</strong>
+          </div>
+          <div class="bulk-row">
+            <select v-model="bulkStatus" class="status-select">
+              <option v-for="status in statuses" :key="`bulk-${status}`" :value="status">
+                {{ statusLabel(status) }}
+              </option>
+            </select>
+            <input
+              v-model.trim="bulkNote"
+              class="status-note-input"
+              type="text"
+              :placeholder="ui.bulkNotePlaceholder"
+            />
+            <button
+              type="button"
+              class="btn-main"
+              :disabled="bulkLoading || !selectedCount"
+              @click="applyBulkStatus"
+            >
+              {{ bulkLoading ? ui.loading : ui.applyBulk }}
+            </button>
+          </div>
         </div>
 
         <div class="orders-grid">
           <article v-for="order in orders" :key="order.id" class="surface-card order-card">
             <div class="order-head">
               <div>
+                <label class="order-select-row">
+                  <input type="checkbox" :checked="isOrderSelected(order.id)" @change="toggleOrderSelection(order.id, $event)" />
+                  <span>{{ ui.selectOrder }}</span>
+                </label>
                 <h2>{{ order.id }}</h2>
                 <p>{{ formatDate(order.createdAt) }}</p>
               </div>
@@ -379,9 +431,15 @@ const loading = ref(false)
 const loaded = ref(false)
 const savingId = ref('')
 const statusFilter = ref('')
+const dateFrom = ref('')
+const dateTo = ref('')
 const errorMessage = ref('')
 const csrfToken = ref('')
 const orders = ref<AdminOrder[]>([])
+const selectedOrderIds = ref<string[]>([])
+const bulkStatus = ref<OrderStatus>('confirmed')
+const bulkNote = ref('')
+const bulkLoading = ref(false)
 const draftStatus = reactive<Record<string, OrderStatus>>({})
 const draftNote = reactive<Record<string, string>>({})
 const sizes: InventorySize[] = ['S', 'M', 'L']
@@ -391,11 +449,37 @@ const savingInventoryId = ref('')
 const inventoryDraft = reactive<Record<string, Record<InventorySize, number>>>({})
 const inventoryProducts = computed(() => getProducts(locale.value))
 const inventoryHistory = ref<InventoryHistoryEntry[]>([])
+const lowStockThreshold = ref(3)
 const editableProducts = ref<EditableProduct[]>([])
 const savingProducts = ref(false)
 const exportingCsv = ref(false)
 const loadingAudit = ref(false)
 const auditEntries = ref<AuditEntry[]>([])
+
+const selectedCount = computed(() => selectedOrderIds.value.length)
+const allVisibleSelected = computed(() => !!orders.value.length && orders.value.every((order) => selectedOrderIds.value.includes(order.id)))
+
+const lowStockItems = computed(() => {
+  const threshold = Number(lowStockThreshold.value || 0)
+  const out: Array<{ productId: string; size: InventorySize; quantity: number }> = []
+
+  for (const productId of Object.keys(stockBySize.value)) {
+    const bySize = stockBySize.value[productId] || {}
+    for (const size of sizes) {
+      const quantity = Number(bySize[size] || 0)
+      if (quantity <= threshold) {
+        out.push({
+          productId,
+          size,
+          quantity
+        })
+      }
+    }
+  }
+
+  out.sort((a, b) => a.quantity - b.quantity)
+  return out
+})
 
 const ui = computed(() => {
   if (locale.value === 'ro') {
@@ -409,6 +493,13 @@ const ui = computed(() => {
       logout: 'Ieșire',
       ordersCount: 'Comenzi',
       statusAll: 'Toate statusurile',
+      applyFilters: 'Aplică filtre',
+      resetFilters: 'Resetează filtre',
+      selectAllVisible: 'Selectează tot din listă',
+      selectedOrders: 'Selectate',
+      selectOrder: 'Selectează',
+      bulkNotePlaceholder: 'Notă comună (opțional)',
+      applyBulk: 'Aplică în masă',
       customer: 'Client:',
       phone: 'Telefon:',
       address: 'Adresă:',
@@ -425,6 +516,8 @@ const ui = computed(() => {
       inventoryProductCode: 'Cod produs',
       inventoryTotal: 'Total stoc',
       inventoryLogTitle: 'Jurnal modificări stoc',
+      lowStockTitle: 'Alerte stoc mic',
+      lowStockThresholdLabel: 'Prag',
       source: 'Sursă',
       reason: 'Motiv',
       productsTitle: 'Editare produse în masă',
@@ -462,6 +555,13 @@ const ui = computed(() => {
       logout: 'Logout',
       ordersCount: 'Orders',
       statusAll: 'All statuses',
+      applyFilters: 'Apply filters',
+      resetFilters: 'Reset filters',
+      selectAllVisible: 'Select all visible',
+      selectedOrders: 'Selected',
+      selectOrder: 'Select',
+      bulkNotePlaceholder: 'Bulk note (optional)',
+      applyBulk: 'Apply bulk status',
       customer: 'Customer:',
       phone: 'Phone:',
       address: 'Address:',
@@ -478,6 +578,8 @@ const ui = computed(() => {
       inventoryProductCode: 'Product code',
       inventoryTotal: 'Total stock',
       inventoryLogTitle: 'Inventory change log',
+      lowStockTitle: 'Low stock alerts',
+      lowStockThresholdLabel: 'Threshold',
       source: 'Source',
       reason: 'Reason',
       productsTitle: 'Bulk product editor',
@@ -514,6 +616,13 @@ const ui = computed(() => {
     logout: 'Выйти',
     ordersCount: 'Заказы',
     statusAll: 'Все статусы',
+    applyFilters: 'Применить фильтры',
+    resetFilters: 'Сбросить фильтры',
+    selectAllVisible: 'Выбрать все в списке',
+    selectedOrders: 'Выбрано',
+    selectOrder: 'Выбрать',
+    bulkNotePlaceholder: 'Общий комментарий (необязательно)',
+    applyBulk: 'Применить массово',
     customer: 'Клиент:',
     phone: 'Телефон:',
     address: 'Адрес:',
@@ -530,6 +639,8 @@ const ui = computed(() => {
     inventoryProductCode: 'Код товара',
     inventoryTotal: 'Всего на складе',
     inventoryLogTitle: 'Журнал изменений остатков',
+    lowStockTitle: 'Низкие остатки',
+    lowStockThresholdLabel: 'Порог',
     source: 'Источник',
     reason: 'Причина',
     productsTitle: 'Массовое редактирование товаров',
@@ -666,6 +777,31 @@ const inventoryTotal = (productId: string) => {
   const row = inventoryDraft[productId]
   if (!row) return 0
   return Number(row.S || 0) + Number(row.M || 0) + Number(row.L || 0)
+}
+
+const isOrderSelected = (orderId: string) => selectedOrderIds.value.includes(orderId)
+
+const toggleOrderSelection = (orderId: string, event: Event) => {
+  const target = event.target as HTMLInputElement | null
+  const checked = !!target?.checked
+  const current = new Set(selectedOrderIds.value)
+
+  if (checked) current.add(orderId)
+  else current.delete(orderId)
+
+  selectedOrderIds.value = Array.from(current)
+}
+
+const toggleAllVisible = (event: Event) => {
+  const target = event.target as HTMLInputElement | null
+  const checked = !!target?.checked
+
+  if (checked) {
+    selectedOrderIds.value = Array.from(new Set([...selectedOrderIds.value, ...orders.value.map((item) => item.id)]))
+  } else {
+    const visible = new Set(orders.value.map((item) => item.id))
+    selectedOrderIds.value = selectedOrderIds.value.filter((id) => !visible.has(id))
+  }
 }
 
 const loadInventory = async () => {
@@ -814,7 +950,11 @@ const exportOrdersCsv = async () => {
       headers: {
         'x-csrf-token': csrfToken.value
       },
-      query: statusFilter.value ? { status: statusFilter.value } : undefined,
+      query: {
+        ...(statusFilter.value ? { status: statusFilter.value } : {}),
+        ...(dateFrom.value ? { from: dateFrom.value } : {}),
+        ...(dateTo.value ? { to: dateTo.value } : {})
+      },
       responseType: 'text'
     })
 
@@ -917,7 +1057,11 @@ const fetchOrders = async () => {
             'x-csrf-token': csrfToken.value
           }
         : undefined,
-      query: statusFilter.value ? { status: statusFilter.value } : undefined
+      query: {
+        ...(statusFilter.value ? { status: statusFilter.value } : {}),
+        ...(dateFrom.value ? { from: dateFrom.value } : {}),
+        ...(dateTo.value ? { to: dateTo.value } : {})
+      }
     })
 
     orders.value = response.orders.map((order) => ({
@@ -934,6 +1078,8 @@ const fetchOrders = async () => {
         draftNote[order.id] = ''
       }
     }
+    const visible = new Set(orders.value.map((order) => order.id))
+    selectedOrderIds.value = selectedOrderIds.value.filter((id) => visible.has(id))
 
     loaded.value = true
   } catch (error) {
@@ -970,6 +1116,72 @@ const loadOrders = async () => {
   await loadInventory()
   await loadProductOverrides()
   await loadAudit()
+}
+
+const resetOrderFilters = async () => {
+  statusFilter.value = ''
+  dateFrom.value = ''
+  dateTo.value = ''
+  await loadOrders()
+}
+
+const applyBulkStatus = async () => {
+  if (!csrfToken.value || !selectedOrderIds.value.length) return
+
+  bulkLoading.value = true
+  try {
+    const response = await $fetch<{
+      success: boolean
+      updatedIds: string[]
+      failed: Array<{ orderId: string; reason: string }>
+    }>('/api/admin/orders/bulk', {
+      method: 'PATCH',
+      headers: {
+        'x-csrf-token': csrfToken.value
+      },
+      body: {
+        orderIds: selectedOrderIds.value,
+        status: bulkStatus.value,
+        note: bulkNote.value.trim() || undefined
+      }
+    })
+
+    const updatedCount = Array.isArray(response?.updatedIds) ? response.updatedIds.length : 0
+    const failedCount = Array.isArray(response?.failed) ? response.failed.length : 0
+
+    await fetchOrders()
+
+    if (updatedCount > 0) {
+      uiStore.showToast(
+        locale.value === 'en'
+          ? `Updated ${updatedCount} orders`
+          : locale.value === 'ro'
+            ? `Actualizate ${updatedCount} comenzi`
+            : `Обновлено заказов: ${updatedCount}`,
+        'success'
+      )
+    }
+
+    if (failedCount > 0) {
+      uiStore.showToast(
+        locale.value === 'en'
+          ? `Failed: ${failedCount}`
+          : locale.value === 'ro'
+            ? `Eșuate: ${failedCount}`
+            : `Ошибок: ${failedCount}`,
+        'error'
+      )
+    }
+
+    if (updatedCount > 0 && failedCount === 0) {
+      selectedOrderIds.value = []
+      bulkNote.value = ''
+    }
+  } catch (error) {
+    uiStore.showToast(resolveErrorMessage(error), 'error')
+  } finally {
+    bulkLoading.value = false
+  }
 }
 
 const updateStatus = async (orderId: string) => {
@@ -1049,6 +1261,10 @@ const logout = async (showToast = false) => {
 
   adminKey.value = ''
   csrfToken.value = ''
+  selectedOrderIds.value = []
+  dateFrom.value = ''
+  dateTo.value = ''
+  bulkNote.value = ''
   orders.value = []
   stockBySize.value = {}
   inventoryHistory.value = []
@@ -1157,6 +1373,17 @@ useSeoMeta({
   align-items: center;
 }
 
+.orders-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.date-filter {
+  min-width: 168px;
+}
+
 .inventory-card {
   padding: 16px;
 }
@@ -1250,6 +1477,21 @@ useSeoMeta({
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px solid var(--border);
+}
+
+.low-stock-box {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.low-stock-box ul {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 6px;
+  color: #4a5a70;
+  font-size: 13px;
 }
 
 .inventory-history-head {
@@ -1389,6 +1631,15 @@ useSeoMeta({
   font-size: 20px;
 }
 
+.order-select-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .order-head p {
   margin: 6px 0 0;
   color: var(--muted);
@@ -1482,6 +1733,30 @@ useSeoMeta({
   align-items: center;
 }
 
+.bulk-status-card {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+}
+
+.bulk-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.bulk-row + .bulk-row {
+  margin-top: 8px;
+}
+
+.bulk-check-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
 .status-note-input {
   min-height: 40px;
   border-radius: 12px;
@@ -1509,6 +1784,11 @@ useSeoMeta({
   }
 
   .admin-topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .orders-filters {
     flex-direction: column;
     align-items: stretch;
   }
@@ -1545,7 +1825,8 @@ useSeoMeta({
 
   .status-note-input,
   .status-select,
-  .update-row .btn-alt {
+  .update-row .btn-alt,
+  .bulk-row .btn-main {
     width: 100%;
   }
 }

@@ -60,6 +60,11 @@ export default defineEventHandler(async (event) => {
   const supabase = getSupabaseAdmin(event)
   const query = getQuery(event)
   const status = String(query.status || '').trim() as OrderStatus | ''
+  const fromRaw = String(query.from || '').trim()
+  const toRaw = String(query.to || '').trim()
+
+  const fromIso = fromRaw ? new Date(`${fromRaw}T00:00:00.000Z`) : null
+  const toIso = toRaw ? new Date(`${toRaw}T23:59:59.999Z`) : null
 
   let ordersQuery = supabase
     .from('orders')
@@ -68,6 +73,12 @@ export default defineEventHandler(async (event) => {
 
   if (status && validStatuses.includes(status)) {
     ordersQuery = ordersQuery.eq('status', status)
+  }
+  if (fromIso && Number.isFinite(fromIso.getTime())) {
+    ordersQuery = ordersQuery.gte('created_at', fromIso.toISOString())
+  }
+  if (toIso && Number.isFinite(toIso.getTime())) {
+    ordersQuery = ordersQuery.lte('created_at', toIso.toISOString())
   }
 
   const { data: ordersRows, error: ordersError } = await ordersQuery

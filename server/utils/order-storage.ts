@@ -135,7 +135,7 @@ function toAdminOrder(row: OrderRow): AdminOrder {
   }
 }
 
-async function fetchOrders(event: H3Event, options?: { status?: string; id?: string }) {
+async function fetchOrders(event: H3Event, options?: { status?: string; id?: string; from?: string; to?: string }) {
   const client = getSupabaseAdmin(event)
 
   let query = client
@@ -180,6 +180,22 @@ async function fetchOrders(event: H3Event, options?: { status?: string; id?: str
     query = query.eq('id', requestedId)
   }
 
+  const requestedFrom = typeof options?.from === 'string' ? options.from.trim() : ''
+  if (requestedFrom) {
+    const fromDate = new Date(`${requestedFrom}T00:00:00.000Z`)
+    if (Number.isFinite(fromDate.getTime())) {
+      query = query.gte('created_at', fromDate.toISOString())
+    }
+  }
+
+  const requestedTo = typeof options?.to === 'string' ? options.to.trim() : ''
+  if (requestedTo) {
+    const toDate = new Date(`${requestedTo}T23:59:59.999Z`)
+    if (Number.isFinite(toDate.getTime())) {
+      query = query.lte('created_at', toDate.toISOString())
+    }
+  }
+
   const { data, error } = await query
     .order('created_at', { ascending: false })
     .order('id', { foreignTable: 'order_items', ascending: true })
@@ -196,8 +212,19 @@ async function fetchOrders(event: H3Event, options?: { status?: string; id?: str
   return rows.map(toAdminOrder)
 }
 
-export async function readOrders(event: H3Event, status?: string): Promise<AdminOrder[]> {
-  return fetchOrders(event, { status })
+export async function readOrders(
+  event: H3Event,
+  statusOrOptions?: string | { status?: string; from?: string; to?: string }
+): Promise<AdminOrder[]> {
+  if (typeof statusOrOptions === 'string' || statusOrOptions === undefined) {
+    return fetchOrders(event, { status: statusOrOptions })
+  }
+
+  return fetchOrders(event, {
+    status: statusOrOptions.status,
+    from: statusOrOptions.from,
+    to: statusOrOptions.to
+  })
 }
 
 export async function readOrderById(event: H3Event, id: string): Promise<AdminOrder | null> {

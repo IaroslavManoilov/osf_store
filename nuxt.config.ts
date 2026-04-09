@@ -26,6 +26,7 @@ export default defineNuxtConfig({
     orderTrackSecret: process.env.NUXT_ORDER_TRACK_SECRET || '',
     orderOtpSecret: process.env.NUXT_ORDER_OTP_SECRET || '',
     orderOtpTelegramChatId: process.env.NUXT_ORDER_OTP_TELEGRAM_CHAT_ID || '',
+    cleanupSecret: process.env.NUXT_CLEANUP_SECRET || '',
     adminKey: process.env.NUXT_ADMIN_KEY || '',
     supabaseUrl: process.env.NUXT_SUPABASE_URL || '',
     supabaseServiceRoleKey: process.env.NUXT_SUPABASE_SERVICE_ROLE_KEY || '',
