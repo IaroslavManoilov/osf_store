@@ -45,10 +45,13 @@
                       :key="`${order.id}-${step}`"
                       :class="{ done: isTimelineStepDone(order, step), current: order.status === step }"
                     >
-                      <span class="step-name">{{ statusLabel(step) }}</span>
-                      <span class="step-note">
-                        {{ timelineNote(order, step) }}
-                      </span>
+                      <span class="step-marker" aria-hidden="true"></span>
+                      <div class="step-content">
+                        <span class="step-name">{{ statusLabel(step) }}</span>
+                        <span class="step-note">
+                          {{ timelineNote(order, step) }}
+                        </span>
+                      </div>
                     </li>
                   </ul>
                 </div>
@@ -167,10 +170,13 @@
                     :key="`${lookupResult.id}-${step}`"
                     :class="{ done: isTimelineStepDone(lookupResult, step), current: lookupResult.status === step }"
                   >
-                    <span class="step-name">{{ statusLabel(step) }}</span>
-                    <span class="step-note">
-                      {{ timelineNote(lookupResult, step) }}
-                    </span>
+                    <span class="step-marker" aria-hidden="true"></span>
+                    <div class="step-content">
+                      <span class="step-name">{{ statusLabel(step) }}</span>
+                      <span class="step-note">
+                        {{ timelineNote(lookupResult, step) }}
+                      </span>
+                    </div>
                   </li>
                 </ul>
               </div>
@@ -1338,18 +1344,62 @@ useSeoMeta({
 
 .order-timeline ul {
   margin: 0;
-  padding: 0;
+  padding: 2px 0 0;
   list-style: none;
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .order-timeline li {
+  position: relative;
   display: grid;
-  grid-template-columns: 140px minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
   color: #66788d;
   font-size: 12px;
+  min-height: 42px;
+}
+
+.order-timeline li::after {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 20px;
+  bottom: -10px;
+  width: 2px;
+  background: #d9e2dc;
+}
+
+.order-timeline li:last-child::after {
+  display: none;
+}
+
+.step-marker {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 2px solid #c9d6cd;
+  background: #fff;
+}
+
+.step-marker::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #b7c6bb;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.step-content {
+  display: grid;
+  gap: 2px;
+  padding-top: 1px;
 }
 
 .order-timeline li.done .step-name {
@@ -1357,8 +1407,32 @@ useSeoMeta({
   font-weight: 800;
 }
 
+.order-timeline li.done .step-marker {
+  border-color: #2e8f56;
+  background: #e8f7ef;
+}
+
+.order-timeline li.done .step-marker::after {
+  background: #2e8f56;
+}
+
+.order-timeline li.done::after {
+  background: #a7d8b9;
+}
+
 .order-timeline li.current .step-name {
   color: #20344a;
+}
+
+.order-timeline li.current .step-marker {
+  border-color: #1f5e3b;
+  box-shadow: 0 0 0 3px #edf7f0;
+}
+
+.order-timeline li.current .step-marker::after {
+  width: 8px;
+  height: 8px;
+  background: #1f5e3b;
 }
 
 .step-name {
@@ -1593,11 +1667,6 @@ useSeoMeta({
 
   .order-actions {
     flex-direction: column;
-  }
-
-  .order-timeline li {
-    grid-template-columns: 1fr;
-    gap: 2px;
   }
 
   .order-btn {
