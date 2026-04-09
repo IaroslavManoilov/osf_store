@@ -18,6 +18,7 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     telegramBotToken: process.env.NUXT_TELEGRAM_BOT_TOKEN || '',
+    telegramBotUsername: process.env.NUXT_TELEGRAM_BOT_USERNAME || '',
     telegramChatId: process.env.NUXT_TELEGRAM_CHAT_ID || '',
     resendApiKey: process.env.NUXT_RESEND_API_KEY || '',
     orderEmailTo: process.env.NUXT_ORDER_EMAIL_TO || '',

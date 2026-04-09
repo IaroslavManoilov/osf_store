@@ -99,6 +99,25 @@ create table if not exists public.order_auth_codes (
   unique (order_id, phone_norm)
 );
 
+create table if not exists public.customer_telegram_contacts (
+  phone_norm text primary key,
+  telegram_chat_id text not null,
+  telegram_username text,
+  telegram_first_name text,
+  telegram_last_name text,
+  linked_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.telegram_link_tokens (
+  token text primary key,
+  order_id text not null references public.orders(id) on delete cascade,
+  phone_norm text not null,
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists idx_orders_created_at_desc on public.orders (created_at desc);
 create index if not exists idx_orders_status on public.orders (status);
 create index if not exists idx_order_items_order_id on public.order_items (order_id);
@@ -112,6 +131,9 @@ create index if not exists idx_admin_audit_log_created_at on public.admin_audit_
 create index if not exists idx_admin_audit_log_action on public.admin_audit_log (action);
 create index if not exists idx_order_auth_codes_order_phone on public.order_auth_codes (order_id, phone_norm);
 create index if not exists idx_order_auth_codes_expires_at on public.order_auth_codes (expires_at);
+create index if not exists idx_customer_telegram_contacts_chat on public.customer_telegram_contacts (telegram_chat_id);
+create index if not exists idx_telegram_link_tokens_order_phone on public.telegram_link_tokens (order_id, phone_norm);
+create index if not exists idx_telegram_link_tokens_expires on public.telegram_link_tokens (expires_at);
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -151,6 +173,12 @@ execute function public.set_updated_at();
 drop trigger if exists trg_order_auth_codes_set_updated_at on public.order_auth_codes;
 create trigger trg_order_auth_codes_set_updated_at
 before update on public.order_auth_codes
+for each row
+execute function public.set_updated_at();
+
+drop trigger if exists trg_customer_telegram_contacts_set_updated_at on public.customer_telegram_contacts;
+create trigger trg_customer_telegram_contacts_set_updated_at
+before update on public.customer_telegram_contacts
 for each row
 execute function public.set_updated_at();
 
@@ -268,6 +296,8 @@ alter table public.inventory_change_log enable row level security;
 alter table public.product_overrides enable row level security;
 alter table public.admin_audit_log enable row level security;
 alter table public.order_auth_codes enable row level security;
+alter table public.customer_telegram_contacts enable row level security;
+alter table public.telegram_link_tokens enable row level security;
 
 -- This project uses server-only access with SERVICE ROLE key.
 -- If you need client-side direct access later, add explicit RLS policies.

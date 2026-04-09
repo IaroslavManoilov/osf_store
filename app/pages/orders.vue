@@ -102,6 +102,30 @@
                   {{ lookupLoading ? ui.loading : lookup.code ? ui.verifyCode : ui.find }}
                 </button>
               </div>
+
+              <div class="lookup-actions">
+                <button type="button" class="btn-alt order-btn" :disabled="linkStartLoading || !canRequestCode" @click="startTelegramLink">
+                  {{ linkStartLoading ? ui.linkingTelegram : ui.linkTelegram }}
+                </button>
+                <button
+                  type="button"
+                  class="btn-alt order-btn"
+                  :disabled="linkConfirmLoading || !telegramLinkToken"
+                  @click="confirmTelegramLink"
+                >
+                  {{ linkConfirmLoading ? ui.linkingTelegram : ui.confirmTelegram }}
+                </button>
+              </div>
+
+              <a
+                v-if="telegramLinkUrl"
+                class="btn-main telegram-open-btn"
+                :href="telegramLinkUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {{ ui.openTelegram }}
+              </a>
             </form>
 
             <p v-if="otpInfo" class="orders-help otp-info">{{ otpInfo }}</p>
@@ -211,6 +235,11 @@ type Ui = {
   sendingCode: string
   verifyCode: string
   codeSent: string
+  linkTelegram: string
+  confirmTelegram: string
+  openTelegram: string
+  linkingTelegram: string
+  linkTelegramReady: string
   find: string
   loading: string
   noOrders: string
@@ -267,9 +296,13 @@ const trackedOrders = ref<PublicOrder[]>([])
 const trackedLoading = ref(false)
 const lookupLoading = ref(false)
 const codeRequestLoading = ref(false)
+const linkStartLoading = ref(false)
+const linkConfirmLoading = ref(false)
 const lookupError = ref('')
 const lookupResult = ref<PublicOrder | null>(null)
 const otpInfo = ref('')
+const telegramLinkUrl = ref('')
+const telegramLinkToken = ref('')
 const cancelLoadingById = ref<Record<string, boolean>>({})
 const trackTokenByOrderId = ref<Record<string, string>>({})
 const ordersPollTimer = ref<ReturnType<typeof setInterval> | null>(null)
@@ -303,6 +336,11 @@ const ui = computed<Ui>(() => {
       sendingCode: 'Se trimite...',
       verifyCode: 'Intră cu cod',
       codeSent: 'Codul a fost trimis în Telegram. Introdu-l mai jos.',
+      linkTelegram: 'Leagă Telegram',
+      confirmTelegram: 'Am apăsat Start',
+      openTelegram: 'Deschide Telegram',
+      linkingTelegram: 'Se conectează...',
+      linkTelegramReady: 'Telegram a fost conectat. Acum poți primi codul.',
       find: 'Găsește comanda',
       loading: 'Se încarcă...',
       noOrders: 'Încă nu există comenzi salvate pe acest dispozitiv.',
@@ -362,6 +400,11 @@ const ui = computed<Ui>(() => {
       sendingCode: 'Sending...',
       verifyCode: 'Login with code',
       codeSent: 'Code sent to Telegram. Enter it below.',
+      linkTelegram: 'Link Telegram',
+      confirmTelegram: 'I pressed Start',
+      openTelegram: 'Open Telegram',
+      linkingTelegram: 'Linking...',
+      linkTelegramReady: 'Telegram is linked. Now you can receive code.',
       find: 'Find order',
       loading: 'Loading...',
       noOrders: 'No saved orders on this device yet.',
@@ -420,6 +463,11 @@ const ui = computed<Ui>(() => {
     sendingCode: 'Отправка...',
     verifyCode: 'Войти по коду',
     codeSent: 'Код отправлен в Telegram. Введи его ниже.',
+    linkTelegram: 'Привязать Telegram',
+    confirmTelegram: 'Я нажал Start',
+    openTelegram: 'Открыть Telegram',
+    linkingTelegram: 'Привязываем...',
+    linkTelegramReady: 'Telegram привязан. Теперь можно получать код.',
     find: 'Найти заказ',
     loading: 'Загрузка...',
     noOrders: 'На этом устройстве пока нет сохраненных заказов.',
@@ -655,6 +703,17 @@ const canRequestCode = computed(() => {
   return !!String(lookup.orderId || '').trim() && !!String(lookup.phone || '').trim()
 })
 
+const getApiMessage = (error: unknown, fallback: string) => {
+  if (typeof error === 'object' && error !== null) {
+    const maybeError = error as {
+      data?: { statusMessage?: string }
+      statusMessage?: string
+    }
+    return maybeError.data?.statusMessage || maybeError.statusMessage || fallback
+  }
+  return fallback
+}
+
 const rememberTrackedState = (orders: PublicOrder[]) => {
   const nextStatusMap: Record<string, PublicOrder['status']> = {}
   const nextHistoryMap: Record<string, number> = {}
@@ -869,10 +928,56 @@ const requestLoginCode = async () => {
       }
     })
     otpInfo.value = ui.value.codeSent
-  } catch {
-    lookupError.value = ui.value.lookupError
+  } catch (error) {
+    lookupError.value = getApiMessage(error, ui.value.lookupError)
   } finally {
     codeRequestLoading.value = false
+  }
+}
+
+const startTelegramLink = async () => {
+  if (!canRequestCode.value) return
+  linkStartLoading.value = true
+  lookupError.value = ''
+  otpInfo.value = ''
+  telegramLinkUrl.value = ''
+  telegramLinkToken.value = ''
+
+  try {
+    const response = await $fetch<{ success: boolean; token: string; botLink: string }>('/api/order/auth/telegram/link/start', {
+      method: 'POST',
+      body: {
+        orderId: lookup.orderId,
+        phone: lookup.phone
+      }
+    })
+    telegramLinkToken.value = String(response.token || '').trim()
+    telegramLinkUrl.value = String(response.botLink || '').trim()
+  } catch (error) {
+    lookupError.value = getApiMessage(error, ui.value.lookupError)
+  } finally {
+    linkStartLoading.value = false
+  }
+}
+
+const confirmTelegramLink = async () => {
+  if (!telegramLinkToken.value) return
+  linkConfirmLoading.value = true
+  lookupError.value = ''
+  otpInfo.value = ''
+
+  try {
+    await $fetch('/api/order/auth/telegram/link/confirm', {
+      method: 'POST',
+      body: {
+        token: telegramLinkToken.value
+      }
+    })
+    otpInfo.value = ui.value.linkTelegramReady
+  } catch (error) {
+    lookupError.value = getApiMessage(error, ui.value.lookupError)
+  } finally {
+    linkConfirmLoading.value = false
   }
 }
 
@@ -1156,6 +1261,10 @@ useSeoMeta({
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+.telegram-open-btn {
+  width: 100%;
 }
 
 .otp-info {

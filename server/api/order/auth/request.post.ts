@@ -56,8 +56,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const config = useRuntimeConfig(event)
-  const chatId = config.orderOtpTelegramChatId || config.telegramChatId
-  if (!config.telegramBotToken || !chatId) {
+  if (!config.telegramBotToken) {
     throw createError({
       statusCode: 500,
       statusMessage: 'Telegram OTP is not configured'
@@ -65,6 +64,26 @@ export default defineEventHandler(async (event) => {
   }
 
   const supabase = getSupabaseAdmin(event)
+  const { data: contact, error: contactError } = await supabase
+    .from('customer_telegram_contacts')
+    .select('telegram_chat_id')
+    .eq('phone_norm', phoneNorm)
+    .maybeSingle()
+
+  if (contactError) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: `Telegram contact read failed: ${contactError.message}`
+    })
+  }
+
+  const chatId = String(contact?.telegram_chat_id || '').trim()
+  if (!chatId) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'Telegram is not linked for this phone'
+    })
+  }
   const { data: existingRow } = await supabase
     .from('order_auth_codes')
     .select('last_sent_at, used_at')
