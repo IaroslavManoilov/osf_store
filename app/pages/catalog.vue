@@ -510,6 +510,8 @@ const openQuickSizeFor = ref('')
 const stockTotals = ref<Record<string, number>>({})
 const stockBySize = ref<Record<string, Record<string, number>>>({})
 const recentlyViewedIds = ref<string[]>([])
+const serverTogetherIds = ref<string[]>([])
+const serverRecommendIds = ref<string[]>([])
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 let focusRefreshHandler: (() => void) | null = null
 const isApplyingRouteQuery = ref(false)
@@ -943,6 +945,7 @@ const filteredProducts = computed(() => {
 })
 
 const cartProductIds = computed(() => new Set(shopStore.cart.map((item) => item.id)))
+const productsById = computed(() => new Map(products.value.map((item) => [item.id, item])))
 
 const dominantCategory = computed<ProductCategory | null>(() => {
   const score = new Map<ProductCategory, number>()
@@ -976,7 +979,23 @@ const recentlyViewedProducts = computed(() => {
     .slice(0, 6)
 })
 
+const mapIdsToProducts = (ids: string[], limit = 6) => {
+  const result: LocalizedProduct[] = []
+  for (const id of ids) {
+    const product = productsById.value.get(id)
+    if (!product) continue
+    if (cartProductIds.value.has(product.id)) continue
+    if (result.some((item) => item.id === product.id)) continue
+    result.push(product)
+    if (result.length >= limit) break
+  }
+  return result
+}
+
 const frequentlyBoughtTogetherProducts = computed(() => {
+  const serverBased = mapIdsToProducts(serverTogetherIds.value, 4)
+  if (serverBased.length) return serverBased
+
   const firstCart = shopStore.cart[0]
   if (!firstCart) return [] as LocalizedProduct[]
   const base = products.value.find((item) => item.id === firstCart.id)
@@ -992,6 +1011,9 @@ const frequentlyBoughtTogetherProducts = computed(() => {
 })
 
 const personalizedProducts = computed(() => {
+  const serverBased = mapIdsToProducts(serverRecommendIds.value, 4)
+  if (serverBased.length) return serverBased
+
   return products.value
     .filter((item) => !cartProductIds.value.has(item.id))
     .sort((a, b) => {
@@ -1113,6 +1135,33 @@ const loadLiveInventory = async () => {
   }
 }
 
+const loadServerRecommendations = async () => {
+  try {
+    const response = await $fetch<{
+      success: boolean
+      togetherIds?: string[]
+      recommendIds?: string[]
+    }>('/api/recommendations/catalog', {
+      method: 'POST',
+      body: {
+        cartIds: Array.from(new Set(shopStore.cart.map((item) => item.id))).slice(0, 10),
+        viewedIds: recentlyViewedIds.value.slice(0, 10)
+      }
+    })
+
+    serverTogetherIds.value = Array.isArray(response?.togetherIds)
+      ? response.togetherIds.map((id) => String(id || '').trim()).filter(Boolean)
+      : []
+
+    serverRecommendIds.value = Array.isArray(response?.recommendIds)
+      ? response.recommendIds.map((id) => String(id || '').trim()).filter(Boolean)
+      : []
+  } catch {
+    serverTogetherIds.value = []
+    serverRecommendIds.value = []
+  }
+}
+
 const getDeliveryDateLabel = (product: { badge: string }) => {
   const date = new Date()
   const offset = product.badge === 'HOT' ? 2 : 3
@@ -1152,9 +1201,11 @@ onMounted(() => {
 
   loadLiveInventory()
   recentlyViewedIds.value = getRecentlyViewedIds()
+  void loadServerRecommendations()
   if (!import.meta.client) return
   focusRefreshHandler = () => {
     recentlyViewedIds.value = getRecentlyViewedIds()
+    void loadServerRecommendations()
   }
   window.addEventListener('focus', focusRefreshHandler)
   document.addEventListener('click', handleDocumentClick)
@@ -1189,6 +1240,13 @@ watch(
     nextTick(() => {
       isApplyingRouteQuery.value = false
     })
+  }
+)
+
+watch(
+  () => shopStore.cart.map((item) => item.id).sort().join('|'),
+  () => {
+    void loadServerRecommendations()
   }
 )
 
