@@ -95,7 +95,9 @@
                 {{ ui.inventoryProductCode }}: {{ entry.productId }} ·
                 {{ ui.size }} {{ entry.size }} ·
                 {{ entry.prevQuantity }} → {{ entry.nextQuantity }} ({{ formatDelta(entry.delta) }}) ·
-                {{ ui.changedBy }} {{ entry.actor || ui.auditUnknown }}
+                {{ ui.changedBy }} {{ entry.actor || ui.auditUnknown }} ·
+                {{ ui.source }}: {{ sourceLabel(entry.source || '') }} ·
+                {{ ui.reason }}: {{ entry.reason || '-' }}
               </li>
             </ul>
           </div>
@@ -326,6 +328,8 @@ type InventoryHistoryEntry = {
   delta: number
   changedAt: string
   actor?: string
+  source?: string
+  reason?: string
 }
 
 type ProductOverrideRow = {
@@ -421,6 +425,8 @@ const ui = computed(() => {
       inventoryProductCode: 'Cod produs',
       inventoryTotal: 'Total stoc',
       inventoryLogTitle: 'Jurnal modificări stoc',
+      source: 'Sursă',
+      reason: 'Motiv',
       productsTitle: 'Editare produse în masă',
       saveProducts: 'Salvează produse',
       productActive: 'Activ',
@@ -472,6 +478,8 @@ const ui = computed(() => {
       inventoryProductCode: 'Product code',
       inventoryTotal: 'Total stock',
       inventoryLogTitle: 'Inventory change log',
+      source: 'Source',
+      reason: 'Reason',
       productsTitle: 'Bulk product editor',
       saveProducts: 'Save products',
       productActive: 'Active',
@@ -522,6 +530,8 @@ const ui = computed(() => {
     inventoryProductCode: 'Код товара',
     inventoryTotal: 'Всего на складе',
     inventoryLogTitle: 'Журнал изменений остатков',
+    source: 'Источник',
+    reason: 'Причина',
     productsTitle: 'Массовое редактирование товаров',
     saveProducts: 'Сохранить товары',
     productActive: 'Активен',
@@ -590,6 +600,38 @@ const formatDate = (iso: string) => {
 
 const formatDelta = (delta: number) => {
   return delta > 0 ? `+${delta}` : String(delta)
+}
+
+const sourceLabel = (source: string) => {
+  const key = String(source || '').trim().toLowerCase()
+  if (!key) return '-'
+
+  const labelsByLocale = {
+    ru: {
+      admin_manual: 'Ручное изменение',
+      checkout: 'Оформление заказа',
+      order_cancel: 'Отмена заказа',
+      admin_status: 'Смена статуса админом',
+      admin_status_rollback: 'Откат статуса'
+    },
+    en: {
+      admin_manual: 'Manual edit',
+      checkout: 'Checkout flow',
+      order_cancel: 'Order cancellation',
+      admin_status: 'Admin status change',
+      admin_status_rollback: 'Status rollback'
+    },
+    ro: {
+      admin_manual: 'Editare manuală',
+      checkout: 'Checkout',
+      order_cancel: 'Anulare comandă',
+      admin_status: 'Schimbare status admin',
+      admin_status_rollback: 'Rollback status'
+    }
+  } as const
+
+  const dict = labelsByLocale[locale.value as 'ru' | 'en' | 'ro'] || labelsByLocale.ru
+  return dict[key as keyof typeof dict] || source
 }
 
 const applyInventoryDraft = () => {

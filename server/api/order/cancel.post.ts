@@ -83,7 +83,11 @@ export default defineEventHandler(async (event) => {
     }))
 
   if (restoreItems.length) {
-    await restoreInventory(event, restoreItems)
+    await restoreInventory(event, restoreItems, {
+      actor: 'customer',
+      source: 'order_cancel',
+      reason: `customer cancel ${order.id}`
+    })
   }
 
   const updated = await patchOrderStatus(

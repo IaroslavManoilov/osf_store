@@ -97,10 +97,18 @@ export default defineEventHandler(async (event) => {
   const shouldReserveStock = !isFinalStockStatus(nextStatus) && isFinalStockStatus(previousStatus)
 
   if (shouldRestoreStock && inventoryItems.length) {
-    await restoreInventory(event, inventoryItems)
+    await restoreInventory(event, inventoryItems, {
+      actor,
+      source: 'admin_status',
+      reason: `status ${previousStatus} -> ${nextStatus} (${orderId})`
+    })
   }
   if (shouldReserveStock && inventoryItems.length) {
-    await reserveInventory(event, inventoryItems)
+    await reserveInventory(event, inventoryItems, {
+      actor,
+      source: 'admin_status',
+      reason: `status ${previousStatus} -> ${nextStatus} (${orderId})`
+    })
   }
 
   const { error: updateError } = await supabase
@@ -113,10 +121,18 @@ export default defineEventHandler(async (event) => {
   if (updateError) {
     // Keep inventory and status consistent if status write fails.
     if (shouldRestoreStock && inventoryItems.length) {
-      await reserveInventory(event, inventoryItems)
+      await reserveInventory(event, inventoryItems, {
+        actor: 'system',
+        source: 'admin_status_rollback',
+        reason: `rollback ${previousStatus} <- ${nextStatus} (${orderId})`
+      })
     }
     if (shouldReserveStock && inventoryItems.length) {
-      await restoreInventory(event, inventoryItems)
+      await restoreInventory(event, inventoryItems, {
+        actor: 'system',
+        source: 'admin_status_rollback',
+        reason: `rollback ${previousStatus} <- ${nextStatus} (${orderId})`
+      })
     }
     throw createError({
       statusCode: 500,

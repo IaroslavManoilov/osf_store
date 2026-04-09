@@ -55,8 +55,15 @@ create table if not exists public.inventory_change_log (
   next_quantity integer not null check (next_quantity >= 0),
   delta integer not null,
   changed_at timestamptz not null default now(),
-  actor text
+  actor text,
+  source text,
+  reason text
 );
+
+alter table public.inventory_change_log
+  add column if not exists source text;
+alter table public.inventory_change_log
+  add column if not exists reason text;
 
 create table if not exists public.product_overrides (
   product_id text primary key,
@@ -126,6 +133,7 @@ create index if not exists idx_order_status_history_changed_at on public.order_s
 create index if not exists idx_product_inventory_product_id on public.product_inventory (product_id);
 create index if not exists idx_inventory_change_log_product on public.inventory_change_log (product_id);
 create index if not exists idx_inventory_change_log_changed_at on public.inventory_change_log (changed_at desc);
+create index if not exists idx_inventory_change_log_source on public.inventory_change_log (source);
 create index if not exists idx_product_overrides_updated_at on public.product_overrides (updated_at desc);
 create index if not exists idx_admin_audit_log_created_at on public.admin_audit_log (created_at desc);
 create index if not exists idx_admin_audit_log_action on public.admin_audit_log (action);

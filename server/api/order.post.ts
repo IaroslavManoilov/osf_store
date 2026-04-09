@@ -170,7 +170,11 @@ export default defineEventHandler(async (event) => {
     quantity: item.quantity
   }))
 
-  await reserveInventory(event, inventoryItems)
+  await reserveInventory(event, inventoryItems, {
+    actor: 'system',
+    source: 'checkout',
+    reason: `reserve on order create ${orderId}`
+  })
 
   try {
     await saveOrder(event, {
@@ -202,7 +206,11 @@ export default defineEventHandler(async (event) => {
     })
   } catch (error) {
     // Roll back stock if order persistence fails.
-    await restoreInventory(event, inventoryItems)
+    await restoreInventory(event, inventoryItems, {
+      actor: 'system',
+      source: 'checkout',
+      reason: `rollback reserve ${orderId}`
+    })
     throw error
   }
 

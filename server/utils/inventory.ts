@@ -7,6 +7,12 @@ type ReserveItem = {
   quantity: number
 }
 
+type InventoryLogMeta = {
+  actor?: string
+  source?: string
+  reason?: string
+}
+
 type InventoryRow = {
   product_id: string
   size: string
@@ -22,12 +28,146 @@ type InventoryHistoryRow = {
   delta: number
   changed_at: string
   actor: string
+  source?: string
+  reason?: string
 }
 
-export const reserveInventory = async (event: H3Event, items: ReserveItem[]) => {
+type InventoryKey = `${string}::${string}`
+
+const toKey = (productId: string, size: string): InventoryKey => `${productId}::${size}`
+
+const sanitizeMeta = (meta?: InventoryLogMeta, fallbackSource = 'system', fallbackReason = 'stock update') => ({
+  actor: String(meta?.actor || 'system').trim() || 'system',
+  source: String(meta?.source || fallbackSource).trim() || fallbackSource,
+  reason: String(meta?.reason || fallbackReason).trim() || fallbackReason
+})
+
+const normalizeReserveItems = (items: ReserveItem[]) => {
+  const merged = new Map<InventoryKey, ReserveItem>()
+
+  for (const item of items || []) {
+    const productId = String(item?.productId || '').trim()
+    const size = String(item?.size || '').trim().toUpperCase()
+    const quantityRaw = Number(item?.quantity || 0)
+    const quantity = Number.isFinite(quantityRaw) ? Math.max(0, Math.floor(quantityRaw)) : 0
+    if (!productId || !size || quantity <= 0) continue
+
+    const key = toKey(productId, size)
+    const prev = merged.get(key)
+    if (prev) {
+      prev.quantity += quantity
+    } else {
+      merged.set(key, {
+        productId,
+        size,
+        quantity
+      })
+    }
+  }
+
+  return Array.from(merged.values())
+}
+
+const readQuantitiesByItems = async (event: H3Event, items: ReserveItem[]) => {
+  const supabase = getSupabaseAdmin(event)
+  const ids = Array.from(new Set(items.map((item) => item.productId)))
+  const sizes = Array.from(new Set(items.map((item) => item.size)))
+
+  if (!ids.length || !sizes.length) {
+    return new Map<InventoryKey, number>()
+  }
+
+  const { data, error } = await supabase
+    .from('product_inventory')
+    .select('product_id, size, quantity')
+    .in('product_id', ids)
+    .in('size', sizes)
+
+  if (error) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: `Inventory snapshot failed: ${error.message}`
+    })
+  }
+
+  const map = new Map<InventoryKey, number>()
+  for (const row of (data || []) as InventoryRow[]) {
+    const productId = String(row.product_id || '').trim()
+    const size = String(row.size || '').trim().toUpperCase()
+    const quantity = Number(row.quantity || 0)
+    if (!productId || !size) continue
+    map.set(toKey(productId, size), Number.isFinite(quantity) ? quantity : 0)
+  }
+
+  return map
+}
+
+const writeInventoryLog = async (
+  event: H3Event,
+  rows: Array<{
+    productId: string
+    size: string
+    prevQuantity: number
+    nextQuantity: number
+    delta: number
+  }>,
+  meta?: InventoryLogMeta
+) => {
+  if (!rows.length) return
+
+  const supabase = getSupabaseAdmin(event)
+  const safeMeta = sanitizeMeta(meta)
+
+  const payload = rows
+    .filter((row) => row.delta !== 0)
+    .map((row) => ({
+      product_id: row.productId,
+      size: row.size,
+      prev_quantity: row.prevQuantity,
+      next_quantity: row.nextQuantity,
+      delta: row.delta,
+      actor: safeMeta.actor,
+      source: safeMeta.source,
+      reason: safeMeta.reason
+    }))
+
+  if (!payload.length) return
+
+  const { error } = await supabase
+    .from('inventory_change_log')
+    .insert(payload)
+
+  if (!error) return
+
+  const message = String(error.message || '').toLowerCase()
+  if (!(message.includes('source') || message.includes('reason'))) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: `Inventory audit write failed: ${error.message}`
+    })
+  }
+
+  const fallbackPayload = payload.map(({ source: _source, reason: _reason, ...rest }) => rest)
+  const { error: fallbackError } = await supabase
+    .from('inventory_change_log')
+    .insert(fallbackPayload)
+
+  if (fallbackError) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: `Inventory audit write failed: ${fallbackError.message}`
+    })
+  }
+}
+
+export const reserveInventory = async (event: H3Event, items: ReserveItem[], meta?: InventoryLogMeta) => {
+  const normalized = normalizeReserveItems(items)
+  if (!normalized.length) return
+
+  const beforeQty = await readQuantitiesByItems(event, normalized)
   const supabase = getSupabaseAdmin(event)
 
-  const payload = items.map((item) => ({
+  const payload = normalized.map((item) => ({
     product_id: item.productId,
     size: item.size,
     quantity: item.quantity
@@ -51,12 +191,32 @@ export const reserveInventory = async (event: H3Event, items: ReserveItem[]) => 
       statusMessage: `Inventory reserve failed: ${error.message}`
     })
   }
+
+  const afterQty = await readQuantitiesByItems(event, normalized)
+  const logRows = normalized.map((item) => {
+    const key = toKey(item.productId, item.size)
+    const prev = Number(beforeQty.get(key) || 0)
+    const next = Number(afterQty.get(key) || 0)
+    return {
+      productId: item.productId,
+      size: item.size,
+      prevQuantity: prev,
+      nextQuantity: next,
+      delta: next - prev
+    }
+  })
+
+  await writeInventoryLog(event, logRows, sanitizeMeta(meta, 'reserve', 'order reserve'))
 }
 
-export const restoreInventory = async (event: H3Event, items: ReserveItem[]) => {
+export const restoreInventory = async (event: H3Event, items: ReserveItem[], meta?: InventoryLogMeta) => {
+  const normalized = normalizeReserveItems(items)
+  if (!normalized.length) return
+
+  const beforeQty = await readQuantitiesByItems(event, normalized)
   const supabase = getSupabaseAdmin(event)
 
-  const payload = items.map((item) => ({
+  const payload = normalized.map((item) => ({
     product_id: item.productId,
     size: item.size,
     quantity: item.quantity
@@ -72,6 +232,22 @@ export const restoreInventory = async (event: H3Event, items: ReserveItem[]) => 
       statusMessage: `Inventory restore failed: ${error.message}`
     })
   }
+
+  const afterQty = await readQuantitiesByItems(event, normalized)
+  const logRows = normalized.map((item) => {
+    const key = toKey(item.productId, item.size)
+    const prev = Number(beforeQty.get(key) || 0)
+    const next = Number(afterQty.get(key) || 0)
+    return {
+      productId: item.productId,
+      size: item.size,
+      prevQuantity: prev,
+      nextQuantity: next,
+      delta: next - prev
+    }
+  })
+
+  await writeInventoryLog(event, logRows, sanitizeMeta(meta, 'restore', 'stock return'))
 }
 
 export const readInventory = async (event: H3Event, productId?: string) => {
@@ -191,29 +367,55 @@ export const setInventoryForProduct = async (
     })
     .filter((row) => row.delta !== 0)
 
-  if (!historyPayload.length) return
-
-  const { error: historyError } = await supabase
-    .from('inventory_change_log')
-    .insert(historyPayload)
-
-  if (historyError) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: `Inventory audit write failed: ${historyError.message}`
-    })
-  }
+  await writeInventoryLog(
+    event,
+    historyPayload.map((row) => ({
+      productId: row.product_id,
+      size: row.size,
+      prevQuantity: row.prev_quantity,
+      nextQuantity: row.next_quantity,
+      delta: row.delta
+    })),
+    {
+      actor,
+      source: 'admin_manual',
+      reason: 'manual stock edit'
+    }
+  )
 }
 
 export const readInventoryHistory = async (event: H3Event, limit = 80) => {
   const supabase = getSupabaseAdmin(event)
   const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(300, Math.floor(limit))) : 80
 
-  const { data, error } = await supabase
+  const primaryQuery = await supabase
     .from('inventory_change_log')
-    .select('id, product_id, size, prev_quantity, next_quantity, delta, changed_at, actor')
+    .select('id, product_id, size, prev_quantity, next_quantity, delta, changed_at, actor, source, reason')
     .order('changed_at', { ascending: false })
     .limit(safeLimit)
+
+  let rows = primaryQuery.data as InventoryHistoryRow[] | null
+  let error = primaryQuery.error
+
+  if (error) {
+    const message = String(error.message || '').toLowerCase()
+    const columnsMissing = message.includes('source') || message.includes('reason')
+    if (!columnsMissing) {
+      throw createError({
+        statusCode: 500,
+        statusMessage: `Inventory history load failed: ${error.message}`
+      })
+    }
+
+    const fallbackQuery = await supabase
+      .from('inventory_change_log')
+      .select('id, product_id, size, prev_quantity, next_quantity, delta, changed_at, actor')
+      .order('changed_at', { ascending: false })
+      .limit(safeLimit)
+
+    rows = fallbackQuery.data as InventoryHistoryRow[] | null
+    error = fallbackQuery.error
+  }
 
   if (error) {
     throw createError({
@@ -223,7 +425,7 @@ export const readInventoryHistory = async (event: H3Event, limit = 80) => {
   }
 
   return {
-    history: ((data || []) as InventoryHistoryRow[]).map((row) => ({
+    history: ((rows || []) as InventoryHistoryRow[]).map((row) => ({
       id: Number(row.id),
       productId: String(row.product_id || ''),
       size: String(row.size || ''),
@@ -231,7 +433,9 @@ export const readInventoryHistory = async (event: H3Event, limit = 80) => {
       nextQuantity: Number(row.next_quantity || 0),
       delta: Number(row.delta || 0),
       changedAt: String(row.changed_at || ''),
-      actor: String(row.actor || '')
+      actor: String(row.actor || ''),
+      source: String(row.source || ''),
+      reason: String(row.reason || '')
     }))
   }
 }
