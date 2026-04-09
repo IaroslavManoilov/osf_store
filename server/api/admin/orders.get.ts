@@ -6,6 +6,7 @@ import { assertRateLimit } from '../../utils/rate-limit'
 type OrderStatus =
   | 'new'
   | 'confirmed'
+  | 'assembled'
   | 'shipped'
   | 'delivered'
   | 'cancelled'
@@ -41,6 +42,7 @@ type AdminOrder = {
 const validStatuses: OrderStatus[] = [
   'new',
   'confirmed',
+  'assembled',
   'shipped',
   'delivered',
   'cancelled',

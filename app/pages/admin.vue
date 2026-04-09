@@ -231,14 +231,20 @@
               </ul>
             </div>
 
-            <div class="order-foot">
-              <strong>{{ ui.total }}: {{ order.total }} MDL</strong>
-              <div class="update-row">
-                <select v-model="draftStatus[order.id]" class="status-select">
-                  <option v-for="status in statuses" :key="`${order.id}-${status}`" :value="status">
-                    {{ statusLabel(status) }}
-                  </option>
-                </select>
+	            <div class="order-foot">
+	              <strong>{{ ui.total }}: {{ order.total }} MDL</strong>
+	              <div class="update-row">
+	                <input
+	                  v-model.trim="draftNote[order.id]"
+	                  class="status-note-input"
+	                  type="text"
+	                  :placeholder="ui.statusNotePlaceholder"
+	                />
+	                <select v-model="draftStatus[order.id]" class="status-select">
+	                  <option v-for="status in statuses" :key="`${order.id}-${status}`" :value="status">
+	                    {{ statusLabel(status) }}
+	                  </option>
+	                </select>
                 <button
                   type="button"
                   class="btn-alt"
@@ -281,7 +287,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getProducts } from '../data/products'
 
-type OrderStatus = 'new' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
+type OrderStatus = 'new' | 'confirmed' | 'assembled' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
 
 type AdminOrder = {
   id: string
@@ -360,7 +366,7 @@ type AuditEntry = {
 const { locale } = useI18n()
 const uiStore = useUiStore()
 
-const statuses: OrderStatus[] = ['new', 'confirmed', 'shipped', 'delivered', 'cancelled', 'returned']
+const statuses: OrderStatus[] = ['new', 'confirmed', 'assembled', 'shipped', 'delivered', 'cancelled', 'returned']
 const adminActorStorageKey = 'osf_admin_actor_v1'
 
 const adminKey = ref('')
@@ -373,6 +379,7 @@ const errorMessage = ref('')
 const csrfToken = ref('')
 const orders = ref<AdminOrder[]>([])
 const draftStatus = reactive<Record<string, OrderStatus>>({})
+const draftNote = reactive<Record<string, string>>({})
 const sizes: InventorySize[] = ['S', 'M', 'L']
 const stockBySize = ref<Record<string, Record<string, number>>>({})
 const loadingInventory = ref(false)
@@ -405,6 +412,7 @@ const ui = computed(() => {
       items: 'Produse',
       size: 'Mărime',
       total: 'Total',
+      statusNotePlaceholder: 'Comentariu status (opțional)',
       saveStatus: 'Salvează status',
       saveInventory: 'Salvează stoc',
       refreshInventory: 'Reîncarcă stocuri',
@@ -455,6 +463,7 @@ const ui = computed(() => {
       items: 'Items',
       size: 'Size',
       total: 'Total',
+      statusNotePlaceholder: 'Status note (optional)',
       saveStatus: 'Save status',
       saveInventory: 'Save stock',
       refreshInventory: 'Refresh stock',
@@ -504,6 +513,7 @@ const ui = computed(() => {
     items: 'Товары',
     size: 'Размер',
     total: 'Итого',
+    statusNotePlaceholder: 'Комментарий к статусу (необязательно)',
     saveStatus: 'Сохранить статус',
     saveInventory: 'Сохранить остатки',
     refreshInventory: 'Обновить остатки',
@@ -541,6 +551,7 @@ const statusLabel = (status: OrderStatus) => {
     return {
       new: 'Nou',
       confirmed: 'Confirmat',
+      assembled: 'Asamblat',
       shipped: 'Expediat',
       delivered: 'Livrat',
       cancelled: 'Anulat',
@@ -552,6 +563,7 @@ const statusLabel = (status: OrderStatus) => {
     return {
       new: 'New',
       confirmed: 'Confirmed',
+      assembled: 'Packed',
       shipped: 'Shipped',
       delivered: 'Delivered',
       cancelled: 'Cancelled',
@@ -562,6 +574,7 @@ const statusLabel = (status: OrderStatus) => {
   return {
     new: 'Новый',
     confirmed: 'Подтвержден',
+    assembled: 'Собран',
     shipped: 'Отправлен',
     delivered: 'Доставлен',
     cancelled: 'Отменен',
@@ -875,6 +888,9 @@ const fetchOrders = async () => {
     }))
     for (const order of orders.value) {
       draftStatus[order.id] = order.status
+      if (!(order.id in draftNote)) {
+        draftNote[order.id] = ''
+      }
     }
 
     loaded.value = true
@@ -923,6 +939,7 @@ const updateStatus = async (orderId: string) => {
   savingId.value = orderId
 
   try {
+    const manualNote = String(draftNote[orderId] || '').trim()
     const response = await $fetch<{ success: boolean; order: AdminOrder }>(`/api/admin/orders/${orderId}`, {
       method: 'PATCH',
       headers: csrfToken.value
@@ -932,7 +949,7 @@ const updateStatus = async (orderId: string) => {
         : undefined,
       body: {
         status: nextStatus,
-        note: previousStatus && previousStatus !== nextStatus ? `${previousStatus} -> ${nextStatus}` : undefined
+        note: manualNote || (previousStatus && previousStatus !== nextStatus ? `${previousStatus} -> ${nextStatus}` : undefined)
       }
     })
 
@@ -946,6 +963,7 @@ const updateStatus = async (orderId: string) => {
     }
 
     uiStore.showToast(locale.value === 'en' ? 'Status updated' : locale.value === 'ro' ? 'Status actualizat' : 'Статус обновлен', 'success')
+    draftNote[orderId] = ''
   } catch (error) {
     uiStore.showToast(resolveErrorMessage(error), 'error')
   } finally {
@@ -996,6 +1014,9 @@ const logout = async (showToast = false) => {
   auditEntries.value = []
   for (const key of Object.keys(inventoryDraft)) {
     delete inventoryDraft[key]
+  }
+  for (const key of Object.keys(draftNote)) {
+    delete draftNote[key]
   }
   loaded.value = false
   errorMessage.value = ''
@@ -1345,6 +1366,7 @@ useSeoMeta({
 
 .s-new { background: #eef7f0; color: #1f5d3b; border-color: #bcdac4; }
 .s-confirmed { background: #edf4fb; color: #2a5678; border-color: #c7d9ec; }
+.s-assembled { background: #f1edff; color: #4f3f86; border-color: #d8cff6; }
 .s-shipped { background: #fff7eb; color: #80511f; border-color: #edd7bb; }
 .s-delivered { background: #edf9f0; color: #1f6f41; border-color: #bfe0c9; }
 .s-cancelled { background: #fff1f1; color: #8a2a2a; border-color: #efcaca; }
@@ -1418,6 +1440,18 @@ useSeoMeta({
   align-items: center;
 }
 
+.status-note-input {
+  min-height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 0 10px;
+  font: inherit;
+  color: var(--text);
+  outline: none;
+  min-width: 220px;
+}
+
 .empty-box {
   padding: 24px;
 }
@@ -1467,6 +1501,7 @@ useSeoMeta({
     grid-template-columns: 1fr;
   }
 
+  .status-note-input,
   .status-select,
   .update-row .btn-alt {
     width: 100%;

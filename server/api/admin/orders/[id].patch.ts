@@ -12,6 +12,7 @@ import { writeAdminAuditLog } from '../../../utils/audit-log'
 type OrderStatus =
   | 'new'
   | 'confirmed'
+  | 'assembled'
   | 'shipped'
   | 'delivered'
   | 'cancelled'
@@ -20,6 +21,7 @@ type OrderStatus =
 const validStatuses: OrderStatus[] = [
   'new',
   'confirmed',
+  'assembled',
   'shipped',
   'delivered',
   'cancelled',

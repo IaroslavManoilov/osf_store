@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from './supabase-admin'
 export type AdminOrderStatus =
   | 'new'
   | 'confirmed'
+  | 'assembled'
   | 'shipped'
   | 'delivered'
   | 'cancelled'
@@ -78,6 +79,7 @@ type OrderHistoryRow = {
 const VALID_STATUSES: AdminOrderStatus[] = [
   'new',
   'confirmed',
+  'assembled',
   'shipped',
   'delivered',
   'cancelled',

@@ -37,6 +37,22 @@
                 <p class="eta">{{ etaLabel(order.status) }}</p>
                 <p v-if="deliveryDateText(order)" class="eta-date">{{ deliveryDateText(order) }}</p>
 
+                <div class="order-timeline">
+                  <strong>{{ ui.timelineTitle }}</strong>
+                  <ul>
+                    <li
+                      v-for="step in timelineSteps"
+                      :key="`${order.id}-${step}`"
+                      :class="{ done: isTimelineStepDone(order, step), current: order.status === step }"
+                    >
+                      <span class="step-name">{{ statusLabel(step) }}</span>
+                      <span class="step-note">
+                        {{ timelineNote(order, step) }}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+
                 <ul class="items">
                   <li v-for="(item, idx) in order.items" :key="`${order.id}-${idx}`">
                     {{ item.title }} · {{ ui.size }} {{ item.selectedSize || '-' }} · {{ item.quantity }} × {{ item.price }} MDL
@@ -142,6 +158,22 @@
 
               <p class="eta">{{ etaLabel(lookupResult.status) }}</p>
               <p v-if="deliveryDateText(lookupResult)" class="eta-date">{{ deliveryDateText(lookupResult) }}</p>
+
+              <div class="order-timeline">
+                <strong>{{ ui.timelineTitle }}</strong>
+                <ul>
+                  <li
+                    v-for="step in timelineSteps"
+                    :key="`${lookupResult.id}-${step}`"
+                    :class="{ done: isTimelineStepDone(lookupResult, step), current: lookupResult.status === step }"
+                  >
+                    <span class="step-name">{{ statusLabel(step) }}</span>
+                    <span class="step-note">
+                      {{ timelineNote(lookupResult, step) }}
+                    </span>
+                  </li>
+                </ul>
+              </div>
               <div class="order-total">{{ ui.total }}: {{ lookupResult.total }} MDL</div>
               <div class="order-actions">
                 <button type="button" class="btn-alt order-btn" @click="repeatOrder(lookupResult)">
@@ -180,14 +212,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { createClient, type RealtimeChannel, type RealtimePostgresChangesPayload, type SupabaseClient } from '@supabase/supabase-js'
 import { getProducts, type ProductSize } from '~/data/products'
 
 type PublicOrder = {
   id: string
   createdAt: string
-  status: 'new' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
+  status: 'new' | 'confirmed' | 'assembled' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
   total: number
   items: Array<{
     id: string
@@ -197,7 +230,7 @@ type PublicOrder = {
     price: number
   }>
   statusHistory?: Array<{
-    status: 'new' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
+    status: 'new' | 'confirmed' | 'assembled' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
     changedAt: string
     note?: string
     actor?: string
@@ -248,12 +281,14 @@ type Ui = {
   backCatalog: string
   statusNew: string
   statusConfirmed: string
+  statusAssembled: string
   statusShipped: string
   statusDelivered: string
   statusCancelled: string
   statusReturned: string
   etaNew: string
   etaConfirmed: string
+  etaAssembled: string
   etaShipped: string
   etaDelivered: string
   etaCancelled: string
@@ -262,6 +297,8 @@ type Ui = {
   deliveredAt: string
   lookupError: string
   history: string
+  timelineTitle: string
+  timelineNotYet: string
   repeatOrder: string
   repeatSuccess: string
   repeatEmpty: string
@@ -285,6 +322,7 @@ const localePath = useLocalePath()
 const route = useRoute()
 const shopStore = useShopStore()
 const uiStore = useUiStore()
+const runtimeConfig = useRuntimeConfig()
 
 const tracksKey = 'osf_order_tracks_v1'
 const noticesKey = 'osf_order_notices_v1'
@@ -306,6 +344,10 @@ const telegramLinkToken = ref('')
 const cancelLoadingById = ref<Record<string, boolean>>({})
 const trackTokenByOrderId = ref<Record<string, string>>({})
 const ordersPollTimer = ref<ReturnType<typeof setInterval> | null>(null)
+const realtimeClient = ref<SupabaseClient | null>(null)
+const realtimeChannel = ref<RealtimeChannel | null>(null)
+const refreshRealtimeInFlight = ref(false)
+const refreshRealtimeQueued = ref(false)
 const knownStatusByOrderId = ref<Record<string, PublicOrder['status']>>({})
 const knownHistoryByOrderId = ref<Record<string, number>>({})
 const orderNotices = ref<OrderNotice[]>([])
@@ -349,12 +391,14 @@ const ui = computed<Ui>(() => {
       backCatalog: 'Înapoi la catalog',
       statusNew: 'Nouă',
       statusConfirmed: 'Confirmată',
+      statusAssembled: 'Asamblată',
       statusShipped: 'Expediată',
       statusDelivered: 'Livrată',
       statusCancelled: 'Anulată',
       statusReturned: 'Returnată',
       etaNew: 'Comanda este primită. Confirmăm în scurt timp.',
       etaConfirmed: 'Confirmată. Pregătim expedierea.',
+      etaAssembled: 'Comanda este asamblată și gata pentru predare la livrare.',
       etaShipped: 'În drum. Livrare estimată 1-3 zile.',
       etaDelivered: 'Livrată cu succes.',
       etaCancelled: 'Comanda a fost anulată.',
@@ -363,6 +407,8 @@ const ui = computed<Ui>(() => {
       deliveredAt: 'Livrat la',
       lookupError: 'Comanda nu a fost găsită sau telefonul nu coincide.',
       history: 'Istoric status',
+      timelineTitle: 'Etape comandă',
+      timelineNotYet: 'Încă nu',
       repeatOrder: 'Repetă comanda',
       repeatSuccess: 'Produsele au fost adăugate în coș.',
       repeatEmpty: 'Nu am putut adăuga produse în coș.',
@@ -413,12 +459,14 @@ const ui = computed<Ui>(() => {
       backCatalog: 'Back to catalog',
       statusNew: 'New',
       statusConfirmed: 'Confirmed',
+      statusAssembled: 'Packed',
       statusShipped: 'Shipped',
       statusDelivered: 'Delivered',
       statusCancelled: 'Cancelled',
       statusReturned: 'Returned',
       etaNew: 'Order received. We will confirm it soon.',
       etaConfirmed: 'Confirmed. Preparing shipment.',
+      etaAssembled: 'Order is packed and ready to hand over for delivery.',
       etaShipped: 'On the way. Estimated delivery in 1-3 days.',
       etaDelivered: 'Delivered successfully.',
       etaCancelled: 'Order was cancelled.',
@@ -427,6 +475,8 @@ const ui = computed<Ui>(() => {
       deliveredAt: 'Delivered on',
       lookupError: 'Order not found or phone does not match.',
       history: 'Status history',
+      timelineTitle: 'Order timeline',
+      timelineNotYet: 'Not yet',
       repeatOrder: 'Repeat order',
       repeatSuccess: 'Products were added to cart.',
       repeatEmpty: 'Could not add products to cart.',
@@ -476,12 +526,14 @@ const ui = computed<Ui>(() => {
     backCatalog: 'Назад в каталог',
     statusNew: 'Новый',
     statusConfirmed: 'Подтвержден',
+    statusAssembled: 'Собран',
     statusShipped: 'Отправлен',
     statusDelivered: 'Доставлен',
     statusCancelled: 'Отменен',
     statusReturned: 'Возврат',
     etaNew: 'Заказ получен. Скоро подтвердим.',
     etaConfirmed: 'Заказ подтвержден. Готовим к отправке.',
+    etaAssembled: 'Заказ собран и готов к передаче в доставку.',
     etaShipped: 'В пути. Ожидаемая доставка 1-3 дня.',
     etaDelivered: 'Заказ успешно доставлен.',
     etaCancelled: 'Заказ отменен.',
@@ -490,6 +542,8 @@ const ui = computed<Ui>(() => {
     deliveredAt: 'Доставлен',
     lookupError: 'Заказ не найден или телефон не совпадает.',
     history: 'История статусов',
+    timelineTitle: 'Этапы заказа',
+    timelineNotYet: 'Еще не выполнено',
     repeatOrder: 'Повторить заказ',
     repeatSuccess: 'Товары добавлены в корзину.',
     repeatEmpty: 'Не удалось добавить товары в корзину.',
@@ -511,6 +565,7 @@ const ui = computed<Ui>(() => {
 
 const statusLabel = (status: PublicOrder['status']) => {
   if (status === 'confirmed') return ui.value.statusConfirmed
+  if (status === 'assembled') return ui.value.statusAssembled
   if (status === 'shipped') return ui.value.statusShipped
   if (status === 'delivered') return ui.value.statusDelivered
   if (status === 'cancelled') return ui.value.statusCancelled
@@ -526,6 +581,7 @@ const noticeModeLabel = computed(() => {
 
 const etaLabel = (status: PublicOrder['status']) => {
   if (status === 'confirmed') return ui.value.etaConfirmed
+  if (status === 'assembled') return ui.value.etaAssembled
   if (status === 'shipped') return ui.value.etaShipped
   if (status === 'delivered') return ui.value.etaDelivered
   if (status === 'cancelled') return ui.value.etaCancelled
@@ -703,6 +759,26 @@ const canRequestCode = computed(() => {
   return !!String(lookup.orderId || '').trim() && !!String(lookup.phone || '').trim()
 })
 
+const timelineSteps: Array<PublicOrder['status']> = ['new', 'confirmed', 'assembled', 'shipped', 'delivered']
+const timelineStepIndex = new Map(timelineSteps.map((status, index) => [status, index]))
+
+const isTimelineStepDone = (order: PublicOrder, step: PublicOrder['status']) => {
+  const history = Array.isArray(order.statusHistory) ? order.statusHistory : []
+  if (order.status === 'cancelled' || order.status === 'returned') {
+    return history.some((entry) => entry.status === step)
+  }
+
+  const currentIndex = timelineStepIndex.get(order.status) ?? -1
+  const stepIndex = timelineStepIndex.get(step) ?? -1
+  return stepIndex >= 0 && currentIndex >= stepIndex
+}
+
+const timelineNote = (order: PublicOrder, step: PublicOrder['status']) => {
+  const history = Array.isArray(order.statusHistory) ? order.statusHistory : []
+  const entry = history.find((item) => item.status === step)
+  return entry?.note || ui.value.timelineNotYet
+}
+
 const getApiMessage = (error: unknown, fallback: string) => {
   if (typeof error === 'object' && error !== null) {
     const maybeError = error as {
@@ -727,7 +803,8 @@ const rememberTrackedState = (orders: PublicOrder[]) => {
   knownHistoryByOrderId.value = nextHistoryMap
 }
 
-const canCancelOrder = (status: PublicOrder['status']) => status === 'new' || status === 'confirmed'
+const canCancelOrder = (status: PublicOrder['status']) =>
+  status === 'new' || status === 'confirmed' || status === 'assembled'
 
 const productsById = computed(() => {
   return new Map(getProducts(locale.value).map((product) => [product.id, product]))
@@ -999,22 +1076,92 @@ const applyOrdersLinkTrack = async () => {
   await loadTrackedOrders({ silent: true })
 }
 
+const teardownRealtime = () => {
+  if (realtimeChannel.value && realtimeClient.value) {
+    realtimeClient.value.removeChannel(realtimeChannel.value as any)
+  }
+  realtimeChannel.value = null
+}
+
+const scheduleRealtimeRefresh = () => {
+  if (refreshRealtimeInFlight.value) {
+    refreshRealtimeQueued.value = true
+    return
+  }
+
+  refreshRealtimeInFlight.value = true
+  loadTrackedOrders({ silent: true, detectChanges: true })
+    .finally(() => {
+      refreshRealtimeInFlight.value = false
+      if (refreshRealtimeQueued.value) {
+        refreshRealtimeQueued.value = false
+        scheduleRealtimeRefresh()
+      }
+    })
+}
+
+const ensureRealtimeSubscription = () => {
+  if (!import.meta.client) return
+  const url = String(runtimeConfig.public?.supabaseUrl || '').trim()
+  const anonKey = String(runtimeConfig.public?.supabaseAnonKey || '').trim()
+  if (!url || !anonKey) {
+    teardownRealtime()
+    return
+  }
+
+  if (!realtimeClient.value) {
+    realtimeClient.value = createClient(url, anonKey)
+  }
+
+  teardownRealtime()
+  const channel = realtimeClient.value
+    .channel('osf-order-status-realtime')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'order_status_history'
+      },
+      (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+        const newRow = payload?.new && typeof payload.new === 'object' ? payload.new as Record<string, unknown> : null
+        const oldRow = payload?.old && typeof payload.old === 'object' ? payload.old as Record<string, unknown> : null
+        const changedOrderId = String(newRow?.order_id || oldRow?.order_id || '').trim()
+        if (!changedOrderId) return
+        if (!trackTokenByOrderId.value[changedOrderId]) return
+        scheduleRealtimeRefresh()
+      }
+    )
+    .subscribe()
+
+  realtimeChannel.value = channel
+}
+
 onMounted(() => {
   loadNoticesMode()
   loadNotices()
   loadTrackedOrders()
   applyOrdersLinkTrack()
+  ensureRealtimeSubscription()
   ordersPollTimer.value = setInterval(() => {
     loadTrackedOrders({ silent: true, detectChanges: true })
   }, 15000)
 })
 
 onBeforeUnmount(() => {
+  teardownRealtime()
   if (ordersPollTimer.value) {
     clearInterval(ordersPollTimer.value)
     ordersPollTimer.value = null
   }
 })
+
+watch(
+  () => Object.keys(trackTokenByOrderId.value).sort().join('|'),
+  () => {
+    ensureRealtimeSubscription()
+  }
+)
 
 const siteUrl = 'https://onestyleforever.com'
 const previewImage = `${siteUrl}/logo-preview.png`
@@ -1155,6 +1302,11 @@ useSeoMeta({
   background: #ecf7ef;
 }
 
+.status-assembled {
+  color: #4f3f86;
+  background: #f1edff;
+}
+
 .status-shipped {
   color: #25569f;
   background: #edf3ff;
@@ -1169,6 +1321,52 @@ useSeoMeta({
 .status-returned {
   color: #9f3131;
   background: #fff0f0;
+}
+
+.order-timeline {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fbfdfb;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.order-timeline strong {
+  font-size: 13px;
+}
+
+.order-timeline ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.order-timeline li {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 8px;
+  color: #66788d;
+  font-size: 12px;
+}
+
+.order-timeline li.done .step-name {
+  color: #1f5e3b;
+  font-weight: 800;
+}
+
+.order-timeline li.current .step-name {
+  color: #20344a;
+}
+
+.step-name {
+  font-weight: 700;
+}
+
+.step-note {
+  color: #556a80;
 }
 
 .eta {
@@ -1395,6 +1593,11 @@ useSeoMeta({
 
   .order-actions {
     flex-direction: column;
+  }
+
+  .order-timeline li {
+    grid-template-columns: 1fr;
+    gap: 2px;
   }
 
   .order-btn {
