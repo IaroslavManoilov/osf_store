@@ -143,9 +143,14 @@
               </div>
             </form>
 
-            <p v-if="successMessage" class="success-text">
-              {{ successMessage }}
-            </p>
+            <div v-if="successMessage" class="success-wrap">
+              <p class="success-text">
+                {{ successMessage }}
+              </p>
+              <NuxtLink v-if="ordersTrackLink" :to="ordersTrackLink" class="btn-alt success-orders-link">
+                {{ ui.openMyOrders }}
+              </NuxtLink>
+            </div>
 
             <p v-if="errorMessage" class="error-text">
               {{ errorMessage }}
@@ -266,6 +271,7 @@ type CheckoutUi = {
   miniTrust2: string
   miniTrust3: string
   successPrefix: string
+  openMyOrders: string
   fallbackError: string
   summaryLabel: string
   summaryTitle: string
@@ -320,6 +326,19 @@ const isSubmitting = ref(false)
 const successMessage = ref('')
 const errorMessage = ref('')
 const checkoutCsrfToken = ref('')
+const lastOrderId = ref('')
+const lastTrackToken = ref('')
+
+const ordersTrackLink = computed(() => {
+  if (!lastOrderId.value || !lastTrackToken.value) return ''
+  return localePath({
+    path: '/orders',
+    query: {
+      orderId: lastOrderId.value,
+      trackToken: lastTrackToken.value
+    }
+  })
+})
 
 const ui = computed<CheckoutUi>(() => {
   if (locale.value === 'ro') {
@@ -359,6 +378,7 @@ const ui = computed<CheckoutUi>(() => {
       miniTrust2: 'Livrare 2-3 zile',
       miniTrust3: 'Suport Telegram',
       successPrefix: 'Comanda a fost trimisă. Număr comandă:',
+      openMyOrders: 'Deschide comenzile mele',
       fallbackError: 'A apărut o eroare la trimiterea comenzii.',
       summaryLabel: 'Sumar',
       summaryTitle: 'Produse în comandă',
@@ -408,6 +428,7 @@ const ui = computed<CheckoutUi>(() => {
       miniTrust2: '2-3 day delivery',
       miniTrust3: 'Telegram support',
       successPrefix: 'Order submitted successfully. Order ID:',
+      openMyOrders: 'Open my orders',
       fallbackError: 'An error occurred while submitting the order.',
       summaryLabel: 'Summary',
       summaryTitle: 'Products in order',
@@ -456,6 +477,7 @@ const ui = computed<CheckoutUi>(() => {
     miniTrust2: 'Доставка 2-3 дня',
     miniTrust3: 'Поддержка в Telegram',
     successPrefix: 'Заказ успешно отправлен. Номер заказа:',
+    openMyOrders: 'Открыть мои заказы',
     fallbackError: 'Произошла ошибка при отправке заказа.',
     summaryLabel: 'Сводка',
     summaryTitle: 'Товары в заказе',
@@ -756,6 +778,8 @@ const getErrorMessage = (error: unknown) => {
 const submitOrder = async () => {
   successMessage.value = ''
   errorMessage.value = ''
+  lastOrderId.value = ''
+  lastTrackToken.value = ''
 
   const contactValidationError = validateCheckoutContact()
   if (contactValidationError) {
@@ -808,7 +832,9 @@ const submitOrder = async () => {
     })
 
     successMessage.value = `${ui.value.successPrefix} ${response.orderId}`
+    lastOrderId.value = response.orderId
     if (response.trackToken) {
+      lastTrackToken.value = response.trackToken
       saveOrderTrack(response.orderId, response.trackToken)
     }
     markPurchasedProducts(purchasedIds)
@@ -1082,6 +1108,20 @@ useSeoMeta({
   margin: 16px 0 0;
   color: var(--primary);
   font-weight: 700;
+}
+
+.success-wrap {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.success-wrap .success-text {
+  margin: 0;
+}
+
+.success-orders-link {
+  width: fit-content;
 }
 
 .error-text {

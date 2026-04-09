@@ -235,6 +235,7 @@ type Ui = {
 
 const { locale } = useI18n()
 const localePath = useLocalePath()
+const route = useRoute()
 const shopStore = useShopStore()
 const uiStore = useUiStore()
 
@@ -503,6 +504,26 @@ const parseSavedTracks = (): SavedTrack[] => {
   }
 }
 
+const persistTrack = (track: SavedTrack) => {
+  if (!import.meta.client || !track.id || !track.token) return
+
+  const current = parseSavedTracks()
+  const next = [
+    {
+      id: String(track.id || '').trim(),
+      token: String(track.token || '').trim(),
+      createdAt: track.createdAt || new Date().toISOString()
+    },
+    ...current.filter((item) => item.id !== track.id)
+  ].slice(0, 30)
+
+  try {
+    window.localStorage.setItem(tracksKey, JSON.stringify(next))
+  } catch {
+    // Ignore local storage write failures.
+  }
+}
+
 const saveNotices = () => {
   if (!import.meta.client) return
   window.localStorage.setItem(noticesKey, JSON.stringify(orderNotices.value))
@@ -742,7 +763,7 @@ const lookupOrder = async () => {
   lookupResult.value = null
 
   try {
-    const response = await $fetch<{ success: boolean; order: PublicOrder }>('/api/order/lookup', {
+    const response = await $fetch<{ success: boolean; order: PublicOrder; trackToken?: string }>('/api/order/lookup', {
       method: 'POST',
       body: {
         orderId: lookup.orderId,
@@ -750,6 +771,14 @@ const lookupOrder = async () => {
       }
     })
     lookupResult.value = response.order
+    if (response.trackToken) {
+      persistTrack({
+        id: response.order.id,
+        token: response.trackToken,
+        createdAt: response.order.createdAt
+      })
+      await loadTrackedOrders({ silent: true })
+    }
   } catch {
     lookupError.value = ui.value.lookupError
   } finally {
@@ -757,10 +786,29 @@ const lookupOrder = async () => {
   }
 }
 
+const applyOrdersLinkTrack = async () => {
+  if (!import.meta.client) return
+  const rawOrderId = route.query.orderId
+  const rawToken = route.query.trackToken
+  const orderId = Array.isArray(rawOrderId) ? rawOrderId[0] : rawOrderId
+  const trackToken = Array.isArray(rawToken) ? rawToken[0] : rawToken
+
+  if (!orderId || !trackToken) return
+
+  persistTrack({
+    id: String(orderId).trim(),
+    token: String(trackToken).trim(),
+    createdAt: new Date().toISOString()
+  })
+
+  await loadTrackedOrders({ silent: true })
+}
+
 onMounted(() => {
   loadNoticesMode()
   loadNotices()
   loadTrackedOrders()
+  applyOrdersLinkTrack()
   ordersPollTimer.value = setInterval(() => {
     loadTrackedOrders({ silent: true, detectChanges: true })
   }, 15000)

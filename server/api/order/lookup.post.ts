@@ -1,6 +1,6 @@
 import { createError, defineEventHandler, readBody } from 'h3'
 import { readOrderById } from '../../utils/order-storage'
-import { normalizeOrderPhone, verifyOrderTrackToken } from '../../utils/order-track-token'
+import { createOrderTrackToken, normalizeOrderPhone, verifyOrderTrackToken } from '../../utils/order-track-token'
 import { assertRateLimit } from '../../utils/rate-limit'
 
 type LookupPayload = {
@@ -73,6 +73,7 @@ export default defineEventHandler(async (event) => {
 
   return {
     success: true,
-    order: toPublicOrder(order)
+    order: toPublicOrder(order),
+    trackToken: createOrderTrackToken(secret, order.id, order.customer.phone)
   }
 })
