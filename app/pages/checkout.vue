@@ -78,6 +78,7 @@
                     type="text"
                     list="checkout-city-list"
                     autocomplete="address-level2"
+                    @change="onCitySuggestionSelected"
                     required
                   />
                   <datalist id="checkout-city-list">
@@ -93,6 +94,7 @@
                     type="text"
                     list="checkout-street-list"
                     autocomplete="street-address"
+                    @change="onStreetSuggestionSelected"
                     required
                   />
                   <datalist id="checkout-street-list">
@@ -327,6 +329,13 @@ type CheckoutForm = {
   pickupPoint: string
   mapQuery: string
   comment: string
+}
+
+type GeoSuggestionEntry = {
+  value: string
+  city?: string
+  street?: string
+  postalCode?: string
 }
 
 const { locale } = useI18n()
@@ -744,8 +753,8 @@ const countryPhoneRules: Record<string, { min: number; max: number; groups: numb
   '+49': { min: 10, max: 11, groups: [3, 3, 2, 2], placeholder: '151 234 56 78' }
 }
 const defaultPhoneRule = countryPhoneRules['+373']!
-const remoteCitySuggestions = ref<string[]>([])
-const remoteStreetSuggestions = ref<string[]>([])
+const remoteCitySuggestions = ref<GeoSuggestionEntry[]>([])
+const remoteStreetSuggestions = ref<GeoSuggestionEntry[]>([])
 let citySuggestTimer: ReturnType<typeof setTimeout> | null = null
 let streetSuggestTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -834,15 +843,41 @@ const onPhoneInput = () => {
 const mergeUnique = (items: string[]) =>
   Array.from(new Set(items.map((item) => String(item || '').trim()).filter(Boolean))).slice(0, 10)
 
+const findEntryByValue = (entries: GeoSuggestionEntry[], value: string) => {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (!normalized) return null
+  return entries.find((entry) => String(entry.value || '').trim().toLowerCase() === normalized) || null
+}
+
+const applySuggestionData = (entry: GeoSuggestionEntry | null, kind: 'city' | 'street') => {
+  if (!entry) return
+
+  if (kind === 'city' && entry.city) {
+    form.city = entry.city
+  }
+
+  if (kind === 'street' && entry.street) {
+    form.street = entry.street
+  }
+
+  if (!form.city && entry.city) {
+    form.city = entry.city
+  }
+
+  if (!form.postalCode && entry.postalCode) {
+    form.postalCode = entry.postalCode
+  }
+}
+
 const citySuggestions = computed(() => {
   const local = countryCitySuggestions[form.phoneCode] || countryCitySuggestions['+373']
-  return mergeUnique([...remoteCitySuggestions.value, ...local])
+  return mergeUnique([...remoteCitySuggestions.value.map((item) => item.value), ...local])
 })
 
 const streetSuggestions = computed(() => {
   const city = String(form.city || '').trim().toLowerCase()
   const local = !city ? defaultStreetSuggestions : (cityStreetSuggestions[city] || defaultStreetSuggestions)
-  return mergeUnique([...remoteStreetSuggestions.value, ...local])
+  return mergeUnique([...remoteStreetSuggestions.value.map((item) => item.value), ...local])
 })
 
 const pickupPointSuggestions = computed(() => pickupPointBase[form.phoneCode] || pickupPointBase['+373'])
@@ -953,6 +988,16 @@ const openMapSearch = () => {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
+const onCitySuggestionSelected = () => {
+  const entry = findEntryByValue(remoteCitySuggestions.value, form.city)
+  applySuggestionData(entry, 'city')
+}
+
+const onStreetSuggestionSelected = () => {
+  const entry = findEntryByValue(remoteStreetSuggestions.value, form.street)
+  applySuggestionData(entry, 'street')
+}
+
 const fetchGeoSuggestions = async (kind: 'city' | 'street', query: string) => {
   const q = String(query || '').trim()
   if (q.length < 2) {
@@ -962,7 +1007,7 @@ const fetchGeoSuggestions = async (kind: 'city' | 'street', query: string) => {
   }
 
   try {
-    const response = await $fetch<{ success: boolean; items?: string[] }>('/api/geo/suggest', {
+    const response = await $fetch<{ success: boolean; entries?: GeoSuggestionEntry[]; items?: string[] }>('/api/geo/suggest', {
       method: 'GET',
       query: {
         kind,
@@ -971,12 +1016,21 @@ const fetchGeoSuggestions = async (kind: 'city' | 'street', query: string) => {
         phoneCode: form.phoneCode
       }
     })
-    const items = Array.isArray(response?.items) ? response.items : []
+    const entries = Array.isArray(response?.entries)
+      ? response.entries
+          .filter((item): item is GeoSuggestionEntry => !!item && typeof item.value === 'string')
+          .map((item) => ({
+            value: String(item.value || '').trim(),
+            city: item.city ? String(item.city).trim() : undefined,
+            street: item.street ? String(item.street).trim() : undefined,
+            postalCode: item.postalCode ? String(item.postalCode).trim() : undefined
+          }))
+      : []
     if (kind === 'city') {
-      remoteCitySuggestions.value = mergeUnique(items)
+      remoteCitySuggestions.value = entries
       return
     }
-    remoteStreetSuggestions.value = mergeUnique(items)
+    remoteStreetSuggestions.value = entries
   } catch {
     if (kind === 'city') remoteCitySuggestions.value = []
     if (kind === 'street') remoteStreetSuggestions.value = []
