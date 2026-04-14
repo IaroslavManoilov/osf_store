@@ -1512,7 +1512,9 @@ const buyNow = async () => {
 }
 
 const quickAddFromList = (item: LocalizedProduct) => {
-  const fallbackSize = Array.isArray(item.sizes) ? String(item.sizes[0] || '').trim() : ''
+  const fallbackSize = Array.isArray(item.sizes)
+    ? item.sizes.find((size): size is ProductSize => size === 'S' || size === 'M' || size === 'L')
+    : undefined
   if (!fallbackSize) {
     uiStore.showToast(ui.value.selectSizeError, 'error')
     return
