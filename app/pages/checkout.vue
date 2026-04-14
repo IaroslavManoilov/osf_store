@@ -40,7 +40,7 @@
               <div class="form-grid">
                 <label class="field" :class="{ invalid: !!fieldErrors.name }">
                   <span>{{ ui.name }}</span>
-                  <input v-model.trim="form.name" type="text" autocomplete="name" required />
+                  <input id="checkout-name" v-model.trim="form.name" type="text" autocomplete="name" required />
                   <small v-if="fieldErrors.name" class="field-error">{{ fieldErrors.name }}</small>
                 </label>
 
@@ -51,6 +51,7 @@
                       <option v-for="code in phoneCodes" :key="code.value" :value="code.value">{{ code.label }}</option>
                     </select>
                     <input
+                      id="checkout-phone-local"
                       v-model.trim="form.phoneLocal"
                       type="tel"
                       autocomplete="tel-national"
@@ -75,6 +76,7 @@
                   <span>{{ ui.city }}</span>
                   <div ref="citySuggestRef" class="suggest-wrap">
                     <input
+                      id="checkout-city"
                       v-model.trim="form.city"
                       type="text"
                       autocomplete="address-level2"
@@ -107,6 +109,7 @@
                   <span>{{ ui.street }}</span>
                   <div ref="streetSuggestRef" class="suggest-wrap">
                     <input
+                      id="checkout-street"
                       v-model.trim="form.street"
                       type="text"
                       autocomplete="street-address"
@@ -139,7 +142,7 @@
 
                 <label v-if="form.deliveryType === 'courier'" class="field" :class="{ invalid: !!fieldErrors.house }">
                   <span>{{ ui.house }}</span>
-                  <input v-model.trim="form.house" type="text" autocomplete="address-line1" required />
+                  <input id="checkout-house" v-model.trim="form.house" type="text" autocomplete="address-line1" required />
                   <small v-if="fieldErrors.house" class="field-error">{{ fieldErrors.house }}</small>
                 </label>
 
@@ -155,7 +158,7 @@
 
                 <label v-if="form.deliveryType !== 'courier'" class="field field-full" :class="{ invalid: !!fieldErrors.pickupPoint }">
                   <span>{{ ui.pickupPoint }}</span>
-                  <input v-model.trim="form.pickupPoint" type="text" :placeholder="ui.pickupPoint" list="checkout-pickup-list" required />
+                  <input id="checkout-pickup-point" v-model.trim="form.pickupPoint" type="text" :placeholder="ui.pickupPoint" list="checkout-pickup-list" required />
                   <datalist id="checkout-pickup-list">
                     <option v-for="point in pickupPointSuggestions" :key="`pickup-${point}`" :value="point" />
                   </datalist>
@@ -261,7 +264,7 @@
               <button
                 type="submit"
                 class="btn-main submit-btn cta-pulse"
-                :disabled="isSubmitting"
+                :disabled="!isCheckoutReady"
               >
                 {{ isSubmitting ? ui.submitting : ui.submit }}
               </button>
@@ -347,7 +350,7 @@
         <strong>{{ shopStore.cartTotal }} MDL</strong>
       </div>
 
-      <button form="checkoutForm" type="submit" class="btn-main sticky-submit cta-pulse" :disabled="isSubmitting">
+      <button form="checkoutForm" type="submit" class="btn-main sticky-submit cta-pulse" :disabled="!isCheckoutReady">
         {{ isSubmitting ? ui.submitting : ui.submit }}
       </button>
     </div>
@@ -1503,6 +1506,85 @@ const clearFieldErrors = () => {
   fieldErrors.pickupPoint = ''
 }
 
+type CheckoutFieldKey = keyof typeof fieldErrors
+
+const buildCheckoutErrors = () => {
+  const name = String(form.name || '').trim()
+  const phone = digitsOnly(form.phoneLocal)
+  const rule = phoneRule.value
+
+  const errors: Record<CheckoutFieldKey, string> = {
+    name: '',
+    phone: '',
+    city: '',
+    street: '',
+    house: '',
+    pickupPoint: ''
+  }
+
+  if (name.length < 2) {
+    errors.name = locale.value === 'en'
+      ? 'Enter your name'
+      : locale.value === 'ro'
+        ? 'Introdu numele tău'
+        : 'Введи имя'
+  }
+
+  if (phone.length < rule.min || phone.length > rule.max) {
+    errors.phone = locale.value === 'en'
+      ? `Enter valid phone (${rule.min}-${rule.max} digits)`
+      : locale.value === 'ro'
+        ? `Introdu telefon valid (${rule.min}-${rule.max} cifre)`
+        : `Введи корректный номер (${rule.min}-${rule.max} цифр)`
+  }
+
+  if (form.deliveryType === 'courier') {
+    if (!form.city) errors.city = locale.value === 'en' ? 'Enter city' : locale.value === 'ro' ? 'Completează orașul' : 'Заполни город'
+    if (!form.street) errors.street = locale.value === 'en' ? 'Enter street' : locale.value === 'ro' ? 'Completează strada' : 'Заполни улицу'
+    if (!form.house) errors.house = locale.value === 'en' ? 'Enter house/building' : locale.value === 'ro' ? 'Completează casa/blocul' : 'Заполни дом/блок'
+  } else {
+    if (!form.city) errors.city = locale.value === 'en' ? 'Enter city' : locale.value === 'ro' ? 'Completează orașul' : 'Заполни город'
+    if (!form.pickupPoint) {
+      errors.pickupPoint = locale.value === 'en'
+        ? 'Select pickup point'
+        : locale.value === 'ro'
+          ? 'Alege punctul de ridicare'
+          : 'Выбери пункт выдачи'
+    }
+  }
+
+  return errors
+}
+
+const checkoutFirstErrorKey = (errors: Record<CheckoutFieldKey, string>) => {
+  const order: CheckoutFieldKey[] = ['name', 'phone', 'city', 'street', 'house', 'pickupPoint']
+  return order.find((key) => !!errors[key]) || null
+}
+
+const focusFieldByError = (field: CheckoutFieldKey | null) => {
+  if (!import.meta.client || !field) return
+  const selectorByField: Record<CheckoutFieldKey, string> = {
+    name: '#checkout-name',
+    phone: '#checkout-phone-local',
+    city: '#checkout-city',
+    street: '#checkout-street',
+    house: '#checkout-house',
+    pickupPoint: '#checkout-pickup-point'
+  }
+
+  const target = document.querySelector<HTMLInputElement>(selectorByField[field])
+  target?.focus()
+}
+
+const isCheckoutContactReady = computed(() => {
+  const errors = buildCheckoutErrors()
+  return !checkoutFirstErrorKey(errors)
+})
+
+const isCheckoutReady = computed(() => {
+  return !!shopStore.cart.length && !isSubmitting.value && isCheckoutContactReady.value
+})
+
 const validateLiveFields = () => {
   const name = String(form.name || '').trim()
   const phone = digitsOnly(form.phoneLocal)
@@ -1530,44 +1612,15 @@ const validateLiveFields = () => {
 }
 
 const validateCheckoutContact = () => {
-  clearFieldErrors()
-  const name = String(form.name || '').trim()
-  const phone = digitsOnly(form.phoneLocal)
-  const rule = phoneRule.value
-
-  if (name.length < 2) {
-    fieldErrors.name = locale.value === 'en'
-      ? 'Enter your name'
-      : locale.value === 'ro'
-        ? 'Introdu numele tău'
-        : 'Введи имя'
+  const errors = buildCheckoutErrors()
+  for (const key of Object.keys(errors) as CheckoutFieldKey[]) {
+    fieldErrors[key] = errors[key]
   }
 
-  if (phone.length < rule.min || phone.length > rule.max) {
-    fieldErrors.phone = locale.value === 'en'
-      ? `Enter valid phone (${rule.min}-${rule.max} digits)`
-      : locale.value === 'ro'
-        ? `Introdu telefon valid (${rule.min}-${rule.max} cifre)`
-        : `Введи корректный номер (${rule.min}-${rule.max} цифр)`
-  }
-
-  if (form.deliveryType === 'courier') {
-    if (!form.city) fieldErrors.city = locale.value === 'en' ? 'Enter city' : locale.value === 'ro' ? 'Completează orașul' : 'Заполни город'
-    if (!form.street) fieldErrors.street = locale.value === 'en' ? 'Enter street' : locale.value === 'ro' ? 'Completează strada' : 'Заполни улицу'
-    if (!form.house) fieldErrors.house = locale.value === 'en' ? 'Enter house/building' : locale.value === 'ro' ? 'Completează casa/blocul' : 'Заполни дом/блок'
-  } else {
-    if (!form.city) fieldErrors.city = locale.value === 'en' ? 'Enter city' : locale.value === 'ro' ? 'Completează orașul' : 'Заполни город'
-    if (!form.pickupPoint) {
-      fieldErrors.pickupPoint = locale.value === 'en'
-        ? 'Select pickup point'
-        : locale.value === 'ro'
-          ? 'Alege punctul de ridicare'
-          : 'Выбери пункт выдачи'
-    }
-  }
-
-  const firstError = fieldErrors.name || fieldErrors.phone || fieldErrors.city || fieldErrors.street || fieldErrors.house || fieldErrors.pickupPoint
-  return firstError || ''
+  const firstKey = checkoutFirstErrorKey(errors)
+  if (!firstKey) return ''
+  focusFieldByError(firstKey)
+  return errors[firstKey] || ''
 }
 
 const openMapSearch = () => {
