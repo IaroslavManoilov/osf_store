@@ -165,7 +165,38 @@
                 <label class="field field-full">
                   <span>{{ ui.mapQuery }}</span>
                   <div class="map-row">
-                    <input v-model.trim="form.mapQuery" type="text" :placeholder="ui.mapQuery" />
+                    <div ref="mapSuggestRef" class="suggest-wrap">
+                      <input
+                        v-model.trim="form.mapQuery"
+                        type="text"
+                        :placeholder="ui.mapQuery"
+                        @focus="openSuggest('map')"
+                        @input="openSuggest('map')"
+                        @keydown.esc.prevent="closeSuggest"
+                        @keydown="onMapKeydown"
+                      />
+                      <div v-if="showMapSuggest" class="suggest-menu">
+                        <div v-if="mapSuggestLoading" class="suggest-state">{{ ui.suggestLoading }}</div>
+                        <div v-else-if="!mapSuggestEntries.length" class="suggest-state">{{ ui.suggestEmpty }}</div>
+                        <button
+                          v-for="entry in mapSuggestEntries"
+                          :key="`map-${entry.value}`"
+                          type="button"
+                          class="suggest-item"
+                          :class="{ active: mapSuggestEntries[mapSuggestIndex]?.value === entry.value }"
+                          @mousedown.prevent="selectMapSuggestion(entry)"
+                        >
+                          <span class="suggest-main" v-html="highlightSuggestion(entry.value, form.mapQuery)"></span>
+                          <small v-if="entry.city || entry.street || entry.postalCode">
+                            {{ entry.city || '' }}
+                            <template v-if="entry.city && entry.street"> · </template>
+                            {{ entry.street || '' }}
+                            <template v-if="(entry.city || entry.street) && entry.postalCode"> · </template>
+                            {{ entry.postalCode || '' }}
+                          </small>
+                        </button>
+                      </div>
+                    </div>
                     <button type="button" class="btn-alt map-btn" @click="openMapSearch">
                       {{ ui.mapOpen }}
                     </button>
@@ -396,6 +427,7 @@ type GeoSuggestionEntry = {
   value: string
   city?: string
   street?: string
+  house?: string
   postalCode?: string
 }
 
@@ -953,15 +985,20 @@ const countryPhoneRules: Record<string, { min: number; max: number; groups: numb
 const defaultPhoneRule = countryPhoneRules['+373']!
 const remoteCitySuggestions = ref<GeoSuggestionEntry[]>([])
 const remoteStreetSuggestions = ref<GeoSuggestionEntry[]>([])
+const remoteMapSuggestions = ref<GeoSuggestionEntry[]>([])
 const citySuggestRef = ref<HTMLElement | null>(null)
 const streetSuggestRef = ref<HTMLElement | null>(null)
-const activeSuggest = ref<'city' | 'street' | null>(null)
+const mapSuggestRef = ref<HTMLElement | null>(null)
+const activeSuggest = ref<'city' | 'street' | 'map' | null>(null)
 const citySuggestIndex = ref(-1)
 const streetSuggestIndex = ref(-1)
+const mapSuggestIndex = ref(-1)
 const citySuggestLoading = ref(false)
 const streetSuggestLoading = ref(false)
+const mapSuggestLoading = ref(false)
 let citySuggestTimer: ReturnType<typeof setTimeout> | null = null
 let streetSuggestTimer: ReturnType<typeof setTimeout> | null = null
+let mapSuggestTimer: ReturnType<typeof setTimeout> | null = null
 
 const countryCitySuggestions: Record<string, string[]> = {
   '+373': ['Chișinău', 'Bălți', 'Tiraspol', 'Bender', 'Cahul', 'Comrat', 'Orhei', 'Ungheni'],
@@ -1057,6 +1094,7 @@ const mergeUniqueEntries = (items: GeoSuggestionEntry[]) => {
       value,
       city: item.city,
       street: item.street,
+      house: item.house,
       postalCode: item.postalCode
     })
   }
@@ -1109,6 +1147,10 @@ const applySuggestionData = (entry: GeoSuggestionEntry | null, kind: 'city' | 's
   if (!form.postalCode && entry.postalCode) {
     form.postalCode = entry.postalCode
   }
+
+  if (!form.house && entry.house) {
+    form.house = entry.house
+  }
 }
 
 const citySuggestions = computed(() => {
@@ -1136,6 +1178,12 @@ const streetSuggestEntries = computed(() =>
   ]).filter((item) => String(item.value || '').toLowerCase().includes(String(form.street || '').trim().toLowerCase()))
 )
 
+const mapSuggestEntries = computed(() =>
+  mergeUniqueEntries(remoteMapSuggestions.value).filter((item) =>
+    String(item.value || '').toLowerCase().includes(String(form.mapQuery || '').trim().toLowerCase())
+  )
+)
+
 const showCitySuggest = computed(() =>
   activeSuggest.value === 'city' &&
   String(form.city || '').trim().length >= 1 &&
@@ -1148,16 +1196,24 @@ const showStreetSuggest = computed(() =>
   (streetSuggestEntries.value.length > 0 || streetSuggestLoading.value)
 )
 
+const showMapSuggest = computed(() =>
+  activeSuggest.value === 'map' &&
+  String(form.mapQuery || '').trim().length >= 1 &&
+  (mapSuggestEntries.value.length > 0 || mapSuggestLoading.value)
+)
+
 const closeSuggest = () => {
   activeSuggest.value = null
   citySuggestIndex.value = -1
   streetSuggestIndex.value = -1
+  mapSuggestIndex.value = -1
 }
 
-const openSuggest = (kind: 'city' | 'street') => {
+const openSuggest = (kind: 'city' | 'street' | 'map') => {
   activeSuggest.value = kind
   if (kind === 'city') citySuggestIndex.value = citySuggestEntries.value.length ? 0 : -1
   if (kind === 'street') streetSuggestIndex.value = streetSuggestEntries.value.length ? 0 : -1
+  if (kind === 'map') mapSuggestIndex.value = mapSuggestEntries.value.length ? 0 : -1
 }
 
 const selectCitySuggestion = (entry: GeoSuggestionEntry) => {
@@ -1169,6 +1225,15 @@ const selectCitySuggestion = (entry: GeoSuggestionEntry) => {
 const selectStreetSuggestion = (entry: GeoSuggestionEntry) => {
   form.street = entry.street || entry.value
   applySuggestionData(entry, 'street')
+  closeSuggest()
+}
+
+const selectMapSuggestion = (entry: GeoSuggestionEntry) => {
+  form.mapQuery = entry.value
+  if (entry.city) form.city = entry.city
+  if (entry.street) form.street = entry.street
+  if (entry.house) form.house = entry.house
+  if (entry.postalCode && !form.postalCode) form.postalCode = entry.postalCode
   closeSuggest()
 }
 
@@ -1215,6 +1280,29 @@ const onStreetKeydown = (event: KeyboardEvent) => {
     event.preventDefault()
     const target = streetSuggestEntries.value[streetSuggestIndex.value]
     if (target) selectStreetSuggestion(target)
+  }
+}
+
+const onMapKeydown = (event: KeyboardEvent) => {
+  if (!showMapSuggest.value) return
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    const size = mapSuggestEntries.value.length
+    if (!size) return
+    mapSuggestIndex.value = mapSuggestIndex.value < size - 1 ? mapSuggestIndex.value + 1 : 0
+    return
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    const size = mapSuggestEntries.value.length
+    if (!size) return
+    mapSuggestIndex.value = mapSuggestIndex.value > 0 ? mapSuggestIndex.value - 1 : size - 1
+    return
+  }
+  if (event.key === 'Enter' && mapSuggestIndex.value >= 0) {
+    event.preventDefault()
+    const target = mapSuggestEntries.value[mapSuggestIndex.value]
+    if (target) selectMapSuggestion(target)
   }
 }
 
@@ -1332,16 +1420,18 @@ const openMapSearch = () => {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
-const fetchGeoSuggestions = async (kind: 'city' | 'street', query: string) => {
+const fetchGeoSuggestions = async (kind: 'city' | 'street' | 'address', query: string) => {
   const q = String(query || '').trim()
   if (q.length < 2) {
     if (kind === 'city') remoteCitySuggestions.value = []
     if (kind === 'street') remoteStreetSuggestions.value = []
+    if (kind === 'address') remoteMapSuggestions.value = []
     return
   }
 
   if (kind === 'city') citySuggestLoading.value = true
   if (kind === 'street') streetSuggestLoading.value = true
+  if (kind === 'address') mapSuggestLoading.value = true
 
   try {
     const response = await $fetch<{ success: boolean; entries?: GeoSuggestionEntry[]; items?: string[] }>('/api/geo/suggest', {
@@ -1360,6 +1450,7 @@ const fetchGeoSuggestions = async (kind: 'city' | 'street', query: string) => {
             value: String(item.value || '').trim(),
             city: item.city ? String(item.city).trim() : undefined,
             street: item.street ? String(item.street).trim() : undefined,
+            house: item.house ? String(item.house).trim() : undefined,
             postalCode: item.postalCode ? String(item.postalCode).trim() : undefined
           }))
       : []
@@ -1367,13 +1458,19 @@ const fetchGeoSuggestions = async (kind: 'city' | 'street', query: string) => {
       remoteCitySuggestions.value = entries
       return
     }
-    remoteStreetSuggestions.value = entries
+    if (kind === 'street') {
+      remoteStreetSuggestions.value = entries
+      return
+    }
+    remoteMapSuggestions.value = entries
   } catch {
     if (kind === 'city') remoteCitySuggestions.value = []
     if (kind === 'street') remoteStreetSuggestions.value = []
+    if (kind === 'address') remoteMapSuggestions.value = []
   } finally {
     if (kind === 'city') citySuggestLoading.value = false
     if (kind === 'street') streetSuggestLoading.value = false
+    if (kind === 'address') mapSuggestLoading.value = false
   }
 }
 
@@ -1507,6 +1604,7 @@ const handleDocumentPointerDown = (event: Event) => {
   const target = event.target as Node | null
   const cityRoot = citySuggestRef.value
   const streetRoot = streetSuggestRef.value
+  const mapRoot = mapSuggestRef.value
 
   if (activeSuggest.value === 'city' && cityRoot && target && !cityRoot.contains(target)) {
     closeSuggest()
@@ -1514,6 +1612,11 @@ const handleDocumentPointerDown = (event: Event) => {
   }
 
   if (activeSuggest.value === 'street' && streetRoot && target && !streetRoot.contains(target)) {
+    closeSuggest()
+    return
+  }
+
+  if (activeSuggest.value === 'map' && mapRoot && target && !mapRoot.contains(target)) {
     closeSuggest()
   }
 }
@@ -1568,6 +1671,7 @@ watch(() => form.phoneCode, () => {
   fieldErrors.phone = ''
   remoteCitySuggestions.value = []
   remoteStreetSuggestions.value = []
+  remoteMapSuggestions.value = []
 
   if (citySuggestTimer) clearTimeout(citySuggestTimer)
   citySuggestTimer = setTimeout(() => {
@@ -1601,6 +1705,13 @@ watch(() => form.street, () => {
   }, 260)
 })
 
+watch(() => form.mapQuery, () => {
+  if (mapSuggestTimer) clearTimeout(mapSuggestTimer)
+  mapSuggestTimer = setTimeout(() => {
+    fetchGeoSuggestions('address', form.mapQuery)
+  }, 260)
+})
+
 watch(() => form.house, () => {
   fieldErrors.house = ''
 })
@@ -1621,6 +1732,10 @@ onBeforeUnmount(() => {
   if (streetSuggestTimer) {
     clearTimeout(streetSuggestTimer)
     streetSuggestTimer = null
+  }
+  if (mapSuggestTimer) {
+    clearTimeout(mapSuggestTimer)
+    mapSuggestTimer = null
   }
   if (import.meta.client) {
     window.removeEventListener('pointerdown', handleDocumentPointerDown)

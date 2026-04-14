@@ -1,12 +1,13 @@
 import { createError, getQuery } from 'h3'
 import { assertRateLimit } from '../../utils/rate-limit'
 
-type GeoSuggestKind = 'city' | 'street'
+type GeoSuggestKind = 'city' | 'street' | 'address'
 
 type GeoSuggestEntry = {
   value: string
   city?: string
   street?: string
+  house?: string
   postalCode?: string
 }
 
@@ -21,6 +22,7 @@ type NominatimItem = {
     state?: string
     road?: string
     pedestrian?: string
+    house_number?: string
     postcode?: string
   }
 }
@@ -50,6 +52,7 @@ const normalizeEntry = (entry: GeoSuggestEntry): GeoSuggestEntry | null => {
     value,
     city: city || undefined,
     street: street || undefined,
+    house: String(entry.house || '').trim() || undefined,
     postalCode: postalCode || undefined
   }
 }
@@ -79,7 +82,7 @@ export default defineEventHandler(async (event) => {
   const phoneCode = String(query.phoneCode || '+373').trim()
   const city = String(query.city || '').trim()
 
-  if (kind !== 'city' && kind !== 'street') {
+  if (kind !== 'city' && kind !== 'street' && kind !== 'address') {
     throw createError({
       statusCode: 400,
       statusMessage: 'Invalid kind'
@@ -95,7 +98,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const countrycodes = countryCodesByPhoneCode[phoneCode] || 'md'
-  const composedQuery = kind === 'street' && city ? `${q}, ${city}` : q
+  const composedQuery = (kind === 'street' || kind === 'address') && city ? `${q}, ${city}` : q
   const endpoint = `${providerUrl}?format=jsonv2&addressdetails=1&limit=8&q=${encodeURIComponent(composedQuery)}&countrycodes=${encodeURIComponent(countrycodes)}`
 
   try {
@@ -118,12 +121,25 @@ export default defineEventHandler(async (event) => {
         item.address?.road ||
         item.address?.pedestrian ||
         ''
+      const houseNumber = item.address?.house_number || ''
       const postalCode = item.address?.postcode || ''
 
       if (kind === 'city') {
         return {
           value: cityValue || item.name || item.display_name || '',
           city: cityValue,
+          postalCode
+        } satisfies GeoSuggestEntry
+      }
+
+      if (kind === 'address') {
+        const addressLine = [streetValue, houseNumber].filter(Boolean).join(' ')
+        const addressDisplay = [addressLine, cityValue].filter(Boolean).join(', ')
+        return {
+          value: addressDisplay || item.display_name || item.name || '',
+          city: cityValue,
+          street: streetValue || undefined,
+          house: houseNumber || undefined,
           postalCode
         } satisfies GeoSuggestEntry
       }
