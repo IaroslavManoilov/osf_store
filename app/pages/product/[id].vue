@@ -1599,6 +1599,13 @@ const primaryImagePath = computed(() => {
 })
 const primaryImageAvif = computed(() => String(primaryImagePath.value).replace(/\.(png|jpg|jpeg)$/i, '.avif'))
 const primaryImageWebp = computed(() => String(primaryImagePath.value).replace(/\.(png|jpg|jpeg)$/i, '.webp'))
+const ogAvailability = computed(() => {
+  if (!product.value) return 'in stock'
+  const stockMap = liveStockBySize.value[product.value.id]
+  if (!stockMap) return 'in stock'
+  const hasStock = product.value.sizes.some((size) => Number(stockMap[size as ProductSize] || 0) > 0)
+  return hasStock ? 'in stock' : 'out of stock'
+})
 
 const schemaOfferAvailability = (size: ProductSize) => {
   if (!product.value) return 'https://schema.org/InStock'
@@ -1739,6 +1746,40 @@ useHead(
         {
           rel: 'canonical',
           href: productUrl.value
+        }
+      ],
+      meta: [
+        {
+          property: 'og:image:alt',
+          content: currentProduct.title
+        },
+        {
+          property: 'product:price:amount',
+          content: String(currentProduct.price)
+        },
+        {
+          property: 'product:price:currency',
+          content: 'MDL'
+        },
+        {
+          property: 'product:availability',
+          content: ogAvailability.value
+        },
+        {
+          name: 'twitter:label1',
+          content: 'Price'
+        },
+        {
+          name: 'twitter:data1',
+          content: `${currentProduct.price} MDL`
+        },
+        {
+          name: 'twitter:label2',
+          content: 'Availability'
+        },
+        {
+          name: 'twitter:data2',
+          content: ogAvailability.value
         }
       ]
     }

@@ -1359,6 +1359,12 @@ const breadcrumbLabels = computed(() => {
   if (locale.value === 'en') return { home: 'Home', catalog: 'Catalog' }
   return { home: 'Главная', catalog: 'Каталог' }
 })
+const firstCatalogImagePath = computed(() => {
+  const first = filteredProducts.value[0]?.image
+  return first || '/logo-preview.png'
+})
+const firstCatalogImageAvif = computed(() => String(firstCatalogImagePath.value).replace(/\.(png|jpg|jpeg)$/i, '.avif'))
+const firstCatalogImageWebp = computed(() => String(firstCatalogImagePath.value).replace(/\.(png|jpg|jpeg)$/i, '.webp'))
 
 useSeoMeta({
   title: () => `ONE STYLE FOREVER | ${ui.value.title}`,
@@ -1377,6 +1383,20 @@ useSeoMeta({
 useHead(
   computed(() => ({
     link: [
+      {
+        rel: 'preload',
+        as: 'image',
+        href: firstCatalogImageAvif.value,
+        type: 'image/avif',
+        fetchpriority: 'high'
+      },
+      {
+        rel: 'preload',
+        as: 'image',
+        href: firstCatalogImageWebp.value,
+        type: 'image/webp',
+        fetchpriority: 'high'
+      },
       {
         rel: 'canonical',
         href: catalogUrl.value
