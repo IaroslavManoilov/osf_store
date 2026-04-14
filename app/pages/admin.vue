@@ -126,6 +126,9 @@
               <button type="button" class="btn-alt" :disabled="csvImportBusy" @click="downloadCsvTemplate">
                 {{ ui.csvTemplate }}
               </button>
+              <button type="button" class="btn-alt" :disabled="csvImportBusy || !editableProducts.length" @click="exportCurrentProductsCsv">
+                {{ ui.csvExportCurrent }}
+              </button>
               <button type="button" class="btn-alt" :disabled="savingProducts" @click="saveProductsBulk">
                 {{ savingProducts ? ui.saving : ui.saveProducts }}
               </button>
@@ -555,6 +558,7 @@ const ui = computed(() => {
       productsTitle: 'Editare produse în masă',
       saveProducts: 'Salvează produse',
       csvTemplate: 'Template CSV',
+      csvExportCurrent: 'Export curent CSV',
       csvImportTitle: 'Import CSV (prețuri + stocuri)',
       csvImportHint: 'Coloane: product_id, price, badge, is_active, stock_s, stock_m, stock_l (+ titluri/opisuri pe limbi).',
       csvChoose: 'Alege fișier',
@@ -622,6 +626,7 @@ const ui = computed(() => {
       productsTitle: 'Bulk product editor',
       saveProducts: 'Save products',
       csvTemplate: 'CSV template',
+      csvExportCurrent: 'Export current CSV',
       csvImportTitle: 'CSV import (prices + inventory)',
       csvImportHint: 'Columns: product_id, price, badge, is_active, stock_s, stock_m, stock_l (+ titles/short text per language).',
       csvChoose: 'Choose file',
@@ -688,6 +693,7 @@ const ui = computed(() => {
     productsTitle: 'Массовое редактирование товаров',
     saveProducts: 'Сохранить товары',
     csvTemplate: 'Шаблон CSV',
+    csvExportCurrent: 'Экспорт текущего CSV',
     csvImportTitle: 'Импорт CSV (цены + остатки)',
     csvImportHint: 'Колонки: product_id, price, badge, is_active, stock_s, stock_m, stock_l (+ названия/короткие тексты по языкам).',
     csvChoose: 'Выбрать файл',
@@ -1056,6 +1062,63 @@ const downloadCsvTemplate = () => {
   const a = document.createElement('a')
   a.href = url
   a.download = 'osf-products-template.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+const csvEscape = (value: unknown) => {
+  const raw = String(value ?? '')
+  if (!raw.includes(',') && !raw.includes('"') && !raw.includes('\n')) return raw
+  return `"${raw.replaceAll('"', '""')}"`
+}
+
+const exportCurrentProductsCsv = () => {
+  if (!import.meta.client || !editableProducts.value.length) return
+
+  const header = [
+    'product_id',
+    'price',
+    'badge',
+    'is_active',
+    'stock_s',
+    'stock_m',
+    'stock_l',
+    'title_ru',
+    'title_ro',
+    'title_en',
+    'short_ru',
+    'short_ro',
+    'short_en'
+  ]
+
+  const lines = [header.join(',')]
+  for (const product of editableProducts.value) {
+    const stock = inventoryDraft[product.id] || { S: 0, M: 0, L: 0 }
+    const row = [
+      product.id,
+      Number(product.price || 0),
+      product.badge || '',
+      product.isActive ? 1 : 0,
+      Number(stock.S || 0),
+      Number(stock.M || 0),
+      Number(stock.L || 0),
+      product.titleRu || '',
+      product.titleRo || '',
+      product.titleEn || '',
+      product.shortRu || '',
+      product.shortRo || '',
+      product.shortEn || ''
+    ].map(csvEscape)
+
+    lines.push(row.join(','))
+  }
+
+  const csv = lines.join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `osf-products-current-${new Date().toISOString().slice(0, 10)}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
