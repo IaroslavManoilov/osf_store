@@ -176,6 +176,20 @@
                         @keydown="onMapKeydown"
                       />
                       <div v-if="showMapSuggest" class="suggest-menu">
+                        <div v-if="mapRecentEntries.length" class="suggest-group-title">
+                          {{ ui.quickAddressFromHistory }}
+                        </div>
+                        <button
+                          v-for="item in mapRecentEntries"
+                          :key="`map-recent-${item.id}`"
+                          type="button"
+                          class="suggest-item suggest-item-recent"
+                          @mousedown.prevent="selectRecentMapAddress(item)"
+                        >
+                          <span class="suggest-main">{{ mapRecentLabel(item) }}</span>
+                          <small>{{ quickAddressDateLabel(item.createdAt) }}</small>
+                        </button>
+                        <div v-if="mapRecentEntries.length && (mapSuggestLoading || mapSuggestEntries.length)" class="suggest-divider" />
                         <div v-if="mapSuggestLoading" class="suggest-state">{{ ui.suggestLoading }}</div>
                         <div v-else-if="!mapSuggestEntries.length" class="suggest-state">{{ ui.suggestEmpty }}</div>
                         <button
@@ -1184,6 +1198,12 @@ const mapSuggestEntries = computed(() =>
   )
 )
 
+const mapRecentEntries = computed(() =>
+  quickAddressEntries.value
+    .filter((item) => !!item.city)
+    .slice(0, 4)
+)
+
 const showCitySuggest = computed(() =>
   activeSuggest.value === 'city' &&
   String(form.city || '').trim().length >= 1 &&
@@ -1198,8 +1218,13 @@ const showStreetSuggest = computed(() =>
 
 const showMapSuggest = computed(() =>
   activeSuggest.value === 'map' &&
-  String(form.mapQuery || '').trim().length >= 1 &&
-  (mapSuggestEntries.value.length > 0 || mapSuggestLoading.value)
+  (
+    mapRecentEntries.value.length > 0 ||
+    (
+      String(form.mapQuery || '').trim().length >= 1 &&
+      (mapSuggestEntries.value.length > 0 || mapSuggestLoading.value)
+    )
+  )
 )
 
 const closeSuggest = () => {
@@ -1234,6 +1259,19 @@ const selectMapSuggestion = (entry: GeoSuggestionEntry) => {
   if (entry.street) form.street = entry.street
   if (entry.house) form.house = entry.house
   if (entry.postalCode && !form.postalCode) form.postalCode = entry.postalCode
+  closeSuggest()
+}
+
+const mapRecentLabel = (item: QuickAddress) => {
+  if (item.deliveryType === 'courier') {
+    return [item.city, item.street, item.house].filter(Boolean).join(', ')
+  }
+  return [item.pickupPoint, item.city].filter(Boolean).join(' · ')
+}
+
+const selectRecentMapAddress = (item: QuickAddress) => {
+  applyQuickAddress(item)
+  form.mapQuery = mapRecentLabel(item)
   closeSuggest()
 }
 
@@ -1961,6 +1999,30 @@ useSeoMeta({
 
 .suggest-item.active {
   background: #edf6f0;
+}
+
+.suggest-item-recent {
+  border: 1px solid #e1eade;
+  background: #fbfdfb;
+}
+
+.suggest-item-recent:hover {
+  background: #f3f8f4;
+}
+
+.suggest-group-title {
+  padding: 4px 10px 2px;
+  color: #5b6f86;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.suggest-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 2px 4px;
 }
 
 .suggest-main {
