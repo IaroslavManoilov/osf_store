@@ -667,7 +667,9 @@ const setupDesktopStickyObserver = () => {
   }
 
   actionsObserver = new IntersectionObserver(
-    ([entry]) => {
+    (entries) => {
+      const entry = entries[0]
+      if (!entry) return
       showDesktopStickyBar.value = !entry.isIntersecting
     },
     {
