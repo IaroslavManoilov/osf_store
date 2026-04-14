@@ -22,10 +22,26 @@
                 {{ noticeModeLabel }}
               </button>
             </div>
+            <p v-if="notificationsMode === 'all'" class="orders-help notice-permission">
+              {{ notificationPermissionLabel }}
+            </p>
+
+            <div class="orders-filters" v-if="trackedOrders.length">
+              <button
+                v-for="filter in statusFilters"
+                :key="filter.value"
+                type="button"
+                class="filter-chip"
+                :class="{ active: statusFilter === filter.value }"
+                @click="statusFilter = filter.value"
+              >
+                {{ filter.label }}
+              </button>
+            </div>
 
             <div v-if="trackedLoading" class="orders-loading">{{ ui.loading }}</div>
-            <div v-else-if="trackedOrders.length" class="orders-list">
-              <article v-for="order in trackedOrders" :key="order.id" class="order-card">
+            <div v-else-if="displayedTrackedOrders.length" class="orders-list">
+              <article v-for="order in displayedTrackedOrders" :key="order.id" class="order-card">
                 <div class="order-top">
                   <div>
                     <strong>{{ order.id }}</strong>
@@ -39,6 +55,9 @@
 
                 <div class="order-timeline">
                   <strong>{{ ui.timelineTitle }}</strong>
+                  <div class="timeline-progress" role="progressbar" :aria-valuenow="timelineProgress(order)" aria-valuemin="0" aria-valuemax="100">
+                    <span :style="{ width: `${timelineProgress(order)}%` }"></span>
+                  </div>
                   <ul>
                     <li
                       v-for="step in timelineSteps"
@@ -55,6 +74,9 @@
                     </li>
                   </ul>
                 </div>
+                <p v-if="latestTimelineNote(order)" class="latest-note">
+                  {{ ui.timelineCurrentNote }}: {{ latestTimelineNote(order) }}
+                </p>
 
                 <ul class="items">
                   <li v-for="(item, idx) in order.items" :key="`${order.id}-${idx}`">
@@ -167,6 +189,9 @@
 
               <div class="order-timeline">
                 <strong>{{ ui.timelineTitle }}</strong>
+                <div class="timeline-progress" role="progressbar" :aria-valuenow="timelineProgress(lookupResult)" aria-valuemin="0" aria-valuemax="100">
+                  <span :style="{ width: `${timelineProgress(lookupResult)}%` }"></span>
+                </div>
                 <ul>
                   <li
                     v-for="step in timelineSteps"
@@ -183,6 +208,9 @@
                   </li>
                 </ul>
               </div>
+              <p v-if="latestTimelineNote(lookupResult)" class="latest-note">
+                {{ ui.timelineCurrentNote }}: {{ latestTimelineNote(lookupResult) }}
+              </p>
               <div class="order-total">{{ ui.total }}: {{ lookupResult.total }} MDL</div>
               <div class="order-actions">
                 <button type="button" class="btn-alt order-btn" @click="repeatOrder(lookupResult)">
@@ -328,6 +356,14 @@ type Ui = {
   noticesOn: string
   noticesCenterOnly: string
   noticesOff: string
+  permissionGranted: string
+  permissionDenied: string
+  permissionDefault: string
+  filterAll: string
+  filterActive: string
+  filterCompleted: string
+  filterCancelled: string
+  timelineCurrentNote: string
 }
 
 const { locale } = useI18n()
@@ -365,6 +401,8 @@ const knownStatusByOrderId = ref<Record<string, PublicOrder['status']>>({})
 const knownHistoryByOrderId = ref<Record<string, number>>({})
 const orderNotices = ref<OrderNotice[]>([])
 const notificationsMode = ref<'all' | 'history' | 'off'>('all')
+const notificationPermission = ref<'default' | 'granted' | 'denied'>('default')
+const statusFilter = ref<'all' | 'active' | 'completed' | 'cancelled'>('all')
 
 const lookup = reactive({
   orderId: '',
@@ -438,7 +476,15 @@ const ui = computed<Ui>(() => {
       noticeCenterEmpty: 'Nu există notificări încă.',
       noticesOn: 'Notificări: ON',
       noticesCenterOnly: 'Notificări: doar centru',
-      noticesOff: 'Notificări: OFF'
+      noticesOff: 'Notificări: OFF',
+      permissionGranted: 'Notificări browser: permise',
+      permissionDenied: 'Notificări browser: blocate în browser',
+      permissionDefault: 'Notificări browser: apasă și permite pentru alerte live',
+      filterAll: 'Toate',
+      filterActive: 'Active',
+      filterCompleted: 'Finalizate',
+      filterCancelled: 'Anulate/retur',
+      timelineCurrentNote: 'Notă curentă'
     }
   }
 
@@ -507,7 +553,15 @@ const ui = computed<Ui>(() => {
       noticeCenterEmpty: 'No notifications yet.',
       noticesOn: 'Notifications: ON',
       noticesCenterOnly: 'Notifications: center only',
-      noticesOff: 'Notifications: OFF'
+      noticesOff: 'Notifications: OFF',
+      permissionGranted: 'Browser notifications: allowed',
+      permissionDenied: 'Browser notifications: blocked in your browser',
+      permissionDefault: 'Browser notifications: tap allow for live updates',
+      filterAll: 'All',
+      filterActive: 'Active',
+      filterCompleted: 'Completed',
+      filterCancelled: 'Cancelled/returned',
+      timelineCurrentNote: 'Current note'
     }
   }
 
@@ -575,7 +629,15 @@ const ui = computed<Ui>(() => {
     noticeCenterEmpty: 'Пока нет уведомлений.',
     noticesOn: 'Уведомления: ВКЛ',
     noticesCenterOnly: 'Уведомления: только центр',
-    noticesOff: 'Уведомления: ВЫКЛ'
+    noticesOff: 'Уведомления: ВЫКЛ',
+    permissionGranted: 'Браузер-уведомления: разрешены',
+    permissionDenied: 'Браузер-уведомления: заблокированы в браузере',
+    permissionDefault: 'Браузер-уведомления: нажми и разреши для live-обновлений',
+    filterAll: 'Все',
+    filterActive: 'Активные',
+    filterCompleted: 'Завершенные',
+    filterCancelled: 'Отмена/возврат',
+    timelineCurrentNote: 'Текущая заметка'
   }
 })
 
@@ -594,6 +656,19 @@ const noticeModeLabel = computed(() => {
   if (notificationsMode.value === 'off') return ui.value.noticesOff
   return ui.value.noticesOn
 })
+
+const notificationPermissionLabel = computed(() => {
+  if (notificationPermission.value === 'granted') return ui.value.permissionGranted
+  if (notificationPermission.value === 'denied') return ui.value.permissionDenied
+  return ui.value.permissionDefault
+})
+
+const statusFilters = computed(() => [
+  { value: 'all' as const, label: ui.value.filterAll },
+  { value: 'active' as const, label: ui.value.filterActive },
+  { value: 'completed' as const, label: ui.value.filterCompleted },
+  { value: 'cancelled' as const, label: ui.value.filterCancelled }
+])
 
 const etaLabel = (status: PublicOrder['status']) => {
   if (status === 'confirmed') return ui.value.etaConfirmed
@@ -709,6 +784,26 @@ const loadNoticesMode = () => {
   notificationsMode.value = legacy === '0' ? 'off' : 'all'
 }
 
+const syncBrowserPermission = () => {
+  if (!import.meta.client || !('Notification' in window)) {
+    notificationPermission.value = 'denied'
+    return
+  }
+  notificationPermission.value = Notification.permission
+}
+
+const maybeRequestBrowserPermission = async () => {
+  if (!import.meta.client || !('Notification' in window)) {
+    notificationPermission.value = 'denied'
+    return
+  }
+  if (Notification.permission === 'default') {
+    notificationPermission.value = await Notification.requestPermission()
+    return
+  }
+  notificationPermission.value = Notification.permission
+}
+
 const loadNotices = () => {
   if (!import.meta.client) return
   try {
@@ -752,6 +847,14 @@ const pushOrderNotice = (order: PublicOrder) => {
   saveNotices()
   if (notificationsMode.value === 'all') {
     uiStore.showToast(text, 'info')
+    if (import.meta.client && 'Notification' in window && Notification.permission === 'granted') {
+      const notification = new Notification('ONE STYLE FOREVER', {
+        body: text,
+        tag: `order-${order.id}-${order.status}`,
+        renotify: true
+      })
+      notification.onclick = () => window.focus()
+    }
   }
 }
 
@@ -762,6 +865,9 @@ const toggleNotices = () => {
     notificationsMode.value = 'off'
   } else {
     notificationsMode.value = 'all'
+    maybeRequestBrowserPermission().catch(() => {
+      notificationPermission.value = 'denied'
+    })
   }
   saveNoticesMode()
 }
@@ -795,6 +901,21 @@ const timelineNote = (order: PublicOrder, step: PublicOrder['status']) => {
   return entry?.note || ui.value.timelineNotYet
 }
 
+const latestTimelineNote = (order: PublicOrder | null) => {
+  if (!order) return ''
+  const history = Array.isArray(order.statusHistory) ? order.statusHistory : []
+  const currentEntry = [...history].reverse().find((item) => item.status === order.status)
+  return String(currentEntry?.note || '').trim()
+}
+
+const timelineProgress = (order: PublicOrder | null) => {
+  if (!order) return 0
+  if (order.status === 'cancelled' || order.status === 'returned') return 100
+  const currentIndex = timelineStepIndex.get(order.status) ?? 0
+  const total = Math.max(1, timelineSteps.length - 1)
+  return Math.round((currentIndex / total) * 100)
+}
+
 const getApiMessage = (error: unknown, fallback: string) => {
   if (typeof error === 'object' && error !== null) {
     const maybeError = error as {
@@ -821,6 +942,19 @@ const rememberTrackedState = (orders: PublicOrder[]) => {
 
 const canCancelOrder = (status: PublicOrder['status']) =>
   status === 'new' || status === 'confirmed' || status === 'assembled'
+
+const displayedTrackedOrders = computed(() => {
+  if (statusFilter.value === 'all') return trackedOrders.value
+  if (statusFilter.value === 'active') {
+    return trackedOrders.value.filter((order) =>
+      order.status === 'new' || order.status === 'confirmed' || order.status === 'assembled' || order.status === 'shipped'
+    )
+  }
+  if (statusFilter.value === 'completed') {
+    return trackedOrders.value.filter((order) => order.status === 'delivered')
+  }
+  return trackedOrders.value.filter((order) => order.status === 'cancelled' || order.status === 'returned')
+})
 
 const productsById = computed(() => {
   return new Map(getProducts(locale.value).map((product) => [product.id, product]))
@@ -853,6 +987,7 @@ const repeatOrder = (order: PublicOrder) => {
 
   if (added > 0) {
     uiStore.showToast(ui.value.repeatSuccess, 'success')
+    navigateTo(localePath('/cart'))
     return
   }
 
@@ -1154,6 +1289,7 @@ const ensureRealtimeSubscription = () => {
 }
 
 onMounted(() => {
+  syncBrowserPermission()
   loadNoticesMode()
   loadNotices()
   loadTrackedOrders()
@@ -1258,6 +1394,37 @@ useSeoMeta({
   font-size: 13px;
 }
 
+.notice-permission {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.orders-filters {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-chip {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  color: #4e6279;
+  cursor: pointer;
+}
+
+.filter-chip.active {
+  color: #1f5e3b;
+  border-color: #b8d6c1;
+  background: #ecf7ef;
+}
+
 .orders-list {
   margin-top: 18px;
   display: grid;
@@ -1350,6 +1517,20 @@ useSeoMeta({
 
 .order-timeline strong {
   font-size: 13px;
+}
+
+.timeline-progress {
+  height: 7px;
+  border-radius: 999px;
+  background: #e6efe9;
+  overflow: hidden;
+}
+
+.timeline-progress span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #1f7345 0%, #2f8d59 100%);
 }
 
 .order-timeline ul {
@@ -1451,6 +1632,13 @@ useSeoMeta({
 
 .step-note {
   color: #556a80;
+}
+
+.latest-note {
+  margin: 0;
+  font-size: 13px;
+  color: #314d68;
+  font-weight: 700;
 }
 
 .eta {
