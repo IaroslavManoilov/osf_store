@@ -1168,7 +1168,7 @@ const applySuggestionData = (entry: GeoSuggestionEntry | null, kind: 'city' | 's
 }
 
 const citySuggestions = computed(() => {
-  const local = countryCitySuggestions[form.phoneCode] || countryCitySuggestions['+373']
+  const local = countryCitySuggestions[form.phoneCode] ?? countryCitySuggestions['+373'] ?? []
   return mergeUnique([...remoteCitySuggestions.value.map((item) => item.value), ...local])
 })
 

@@ -106,7 +106,7 @@
                 </div>
               </div>
 
-              <div class="actions-row">
+              <div ref="actionsAnchorRef" class="actions-row">
                 <div class="price-box">
                   <span>{{ ui.price }}</span>
                   <strong>{{ product.price }} MDL</strong>
@@ -345,6 +345,82 @@
       </div>
     </section>
 
+    <section v-if="product && togetherProducts.length" class="section-space">
+      <div class="site-container">
+        <div class="surface-card related-box">
+          <div class="section-head">
+            <span class="section-label">{{ ui.togetherLabel }}</span>
+            <h2 class="block-title">{{ ui.togetherTitle }}</h2>
+          </div>
+
+          <div class="related-grid">
+            <article
+              v-for="item in togetherProducts"
+              :key="`together-${item.id}`"
+              class="related-card"
+            >
+              <NuxtLink :to="localePath(`/product/${item.id}`)" class="related-link">
+                <div class="related-image">
+                  <OptimizedImage
+                    :src="item.image"
+                    :alt="item.title"
+                    loading="lazy"
+                    width="700"
+                    height="700"
+                    sizes="(max-width: 900px) 42vw, 220px"
+                  />
+                </div>
+
+                <div class="related-body">
+                  <h3>{{ item.title }}</h3>
+                  <p>{{ item.shortDescription }}</p>
+                  <strong>{{ item.price }} MDL</strong>
+                </div>
+              </NuxtLink>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="product && recentlyViewedProducts.length" class="section-space">
+      <div class="site-container">
+        <div class="surface-card related-box">
+          <div class="section-head">
+            <span class="section-label">{{ ui.recentlyViewedLabel }}</span>
+            <h2 class="block-title">{{ ui.recentlyViewedTitle }}</h2>
+          </div>
+
+          <div class="related-grid">
+            <article
+              v-for="item in recentlyViewedProducts"
+              :key="`recent-${item.id}`"
+              class="related-card"
+            >
+              <NuxtLink :to="localePath(`/product/${item.id}`)" class="related-link">
+                <div class="related-image">
+                  <OptimizedImage
+                    :src="item.image"
+                    :alt="item.title"
+                    loading="lazy"
+                    width="700"
+                    height="700"
+                    sizes="(max-width: 900px) 42vw, 220px"
+                  />
+                </div>
+
+                <div class="related-body">
+                  <h3>{{ item.title }}</h3>
+                  <p>{{ item.shortDescription }}</p>
+                  <strong>{{ item.price }} MDL</strong>
+                </div>
+              </NuxtLink>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section v-else-if="!product" class="section-space">
       <div class="site-container">
         <div class="surface-card not-found-box">
@@ -361,6 +437,17 @@
         <strong>{{ product.price }} MDL</strong>
       </div>
       <button type="button" class="btn-main mobile-buy cta-pulse" :disabled="!canBuySelectedSize" @click="buyNow">{{ ui.buyNow }}</button>
+    </div>
+
+    <div v-if="product" class="desktop-sticky-bar" :class="{ visible: showDesktopStickyBar }">
+      <div class="desktop-sticky-meta">
+        <strong>{{ product.title }}</strong>
+        <span>{{ ui.price }}: {{ product.price }} MDL · {{ ui.size }}: {{ selectedSize || ui.stickyPickSize }}</span>
+      </div>
+      <div class="desktop-sticky-actions">
+        <button type="button" class="btn-alt" @click="addToCart" :disabled="!canBuySelectedSize">{{ ui.addToCart }}</button>
+        <button type="button" class="btn-main cta-pulse" @click="buyNow" :disabled="!canBuySelectedSize">{{ ui.buyNow }}</button>
+      </div>
     </div>
 
     <div v-if="product && isLightboxOpen" class="lightbox" role="dialog" aria-modal="true" @click.self="closeLightbox">
@@ -415,8 +502,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { addRecentlyViewed } from '~/composables/useRecentlyViewed'
+import { addRecentlyViewed, getRecentlyViewedIds } from '~/composables/useRecentlyViewed'
 import { getProductById, getProducts } from '~/data/products'
+import type { LocalizedProduct } from '~/data/products'
 import type { ProductSize } from '~/stores/shop'
 type ProductReview = {
   rating: number
@@ -456,11 +544,20 @@ definePageMeta({
 const productId = computed(() => String(route.params.id || ''))
 
 const product = computed(() => getProductById(productId.value, locale.value))
+const allProducts = computed(() => getProducts(locale.value))
+
+const productsById = computed(() => {
+  const map = new Map<string, LocalizedProduct>()
+  for (const item of allProducts.value) {
+    map.set(item.id, item)
+  }
+  return map
+})
 
 const relatedProducts = computed(() => {
   if (!product.value) return []
 
-  return getProducts(locale.value)
+  return allProducts.value
     .filter((item) => item.id !== product.value!.id && item.category === product.value!.category)
     .slice(0, 3)
 })
@@ -486,10 +583,89 @@ const reviewLightboxImage = ref('')
 const weeklyBuyerCount = ref<number | null>(null)
 const weeklyOrdersCount = ref<number | null>(null)
 const socialProofLoading = ref(false)
+const recentlyViewedIds = ref<string[]>([])
+const togetherProductIds = ref<string[]>([])
+const showDesktopStickyBar = ref(false)
+const actionsAnchorRef = ref<HTMLElement | null>(null)
+let actionsObserver: IntersectionObserver | null = null
+let resizeListenerAttached = false
 const reviewDraft = ref({
   rating: 5,
   text: ''
 })
+
+const recentlyViewedProducts = computed(() =>
+  recentlyViewedIds.value
+    .filter((id) => id !== product.value?.id)
+    .map((id) => productsById.value.get(id))
+    .filter((item): item is LocalizedProduct => !!item)
+    .slice(0, 4)
+)
+
+const togetherProducts = computed(() =>
+  togetherProductIds.value
+    .filter((id) => id !== product.value?.id)
+    .map((id) => productsById.value.get(id))
+    .filter((item): item is LocalizedProduct => !!item)
+    .slice(0, 4)
+)
+
+const refreshRecentlyViewed = () => {
+  recentlyViewedIds.value = getRecentlyViewedIds()
+}
+
+const loadTogetherProducts = async () => {
+  if (!product.value) return
+
+  try {
+    const response = await $fetch<{
+      success: boolean
+      togetherIds?: string[]
+      recommendIds?: string[]
+    }>('/api/recommendations/catalog', {
+      method: 'POST',
+      body: {
+        cartIds: [product.value.id],
+        viewedIds: recentlyViewedIds.value.slice(0, 8)
+      }
+    })
+
+    const together = Array.isArray(response?.togetherIds)
+      ? response.togetherIds.map((id) => String(id || '').trim()).filter(Boolean)
+      : []
+    const recommend = Array.isArray(response?.recommendIds)
+      ? response.recommendIds.map((id) => String(id || '').trim()).filter(Boolean)
+      : []
+
+    togetherProductIds.value = Array.from(new Set([...together, ...recommend])).filter((id) => id !== product.value?.id).slice(0, 4)
+  } catch {
+    togetherProductIds.value = []
+  }
+}
+
+const setupDesktopStickyObserver = () => {
+  if (!import.meta.client) return
+  if (actionsObserver) {
+    actionsObserver.disconnect()
+    actionsObserver = null
+  }
+
+  const target = actionsAnchorRef.value
+  if (!target || window.innerWidth <= 980) {
+    showDesktopStickyBar.value = false
+    return
+  }
+
+  actionsObserver = new IntersectionObserver(
+    ([entry]) => {
+      showDesktopStickyBar.value = !entry.isIntersecting
+    },
+    {
+      threshold: 0.12
+    }
+  )
+  actionsObserver.observe(target)
+}
 
 watch(
   product,
@@ -507,6 +683,13 @@ watch(
     loadLiveInventory()
     if (nextProduct?.id) {
       addRecentlyViewed(nextProduct.id)
+      refreshRecentlyViewed()
+      void loadTogetherProducts()
+    }
+    if (import.meta.client) {
+      requestAnimationFrame(() => {
+        setupDesktopStickyObserver()
+      })
     }
   },
   { immediate: true }
@@ -514,6 +697,13 @@ watch(
 
 onMounted(() => {
   reduceMotion.value = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  refreshRecentlyViewed()
+  void loadTogetherProducts()
+  setupDesktopStickyObserver()
+  if (!resizeListenerAttached) {
+    window.addEventListener('resize', setupDesktopStickyObserver)
+    resizeListenerAttached = true
+  }
   window.addEventListener('keydown', onLightboxKeydown)
   void loadReviewState()
   void loadSocialProof()
@@ -521,6 +711,14 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (!import.meta.client) return
+  if (actionsObserver) {
+    actionsObserver.disconnect()
+    actionsObserver = null
+  }
+  if (resizeListenerAttached) {
+    window.removeEventListener('resize', setupDesktopStickyObserver)
+    resizeListenerAttached = false
+  }
   window.removeEventListener('keydown', onLightboxKeydown)
 })
 
@@ -956,6 +1154,10 @@ const ui = computed(() => {
       removeWishlist: 'Elimină din favorite',
       relatedLabel: 'Selecție',
       relatedTitle: 'Produse similare',
+      togetherLabel: 'Se cumpără împreună',
+      togetherTitle: 'Cu acest produs mai cumpără',
+      recentlyViewedLabel: 'Istoricul tău',
+      recentlyViewedTitle: 'Produse vizualizate recent',
       faqTitle: 'Întrebări despre produs',
       stockLeftPrefix: 'Au rămas:',
       stockLeftSuffix: 'buc.',
@@ -1021,6 +1223,7 @@ const ui = computed(() => {
       quickCheckout: 'Produs adăugat. Te mutăm la checkout.',
       addedWishlist: 'Produs adăugat la favorite.',
       removedWishlist: 'Produs eliminat din favorite.',
+      stickyPickSize: 'alege mărimea',
       notFoundTitle: 'Produsul nu a fost găsit',
       notFoundText: 'Se pare că acest produs nu mai este disponibil.',
       toCatalog: 'Înapoi la catalog'
@@ -1041,6 +1244,10 @@ const ui = computed(() => {
       removeWishlist: 'Remove from wishlist',
       relatedLabel: 'Selection',
       relatedTitle: 'Related products',
+      togetherLabel: 'Bought together',
+      togetherTitle: 'Customers also buy with this',
+      recentlyViewedLabel: 'Your history',
+      recentlyViewedTitle: 'Recently viewed products',
       faqTitle: 'Product questions',
       stockLeftPrefix: 'Only',
       stockLeftSuffix: 'left',
@@ -1106,6 +1313,7 @@ const ui = computed(() => {
       quickCheckout: 'Added to cart. Redirecting to checkout.',
       addedWishlist: 'Product added to wishlist.',
       removedWishlist: 'Product removed from wishlist.',
+      stickyPickSize: 'pick size',
       notFoundTitle: 'Product not found',
       notFoundText: 'Looks like this product is no longer available.',
       toCatalog: 'Back to catalog'
@@ -1125,6 +1333,10 @@ const ui = computed(() => {
     removeWishlist: 'Убрать из избранного',
     relatedLabel: 'Подборка',
     relatedTitle: 'Похожие товары',
+    togetherLabel: 'Берут вместе',
+    togetherTitle: 'С этим товаром покупают',
+    recentlyViewedLabel: 'История просмотров',
+    recentlyViewedTitle: 'Недавно смотрели',
     faqTitle: 'Вопросы по товару',
     stockLeftPrefix: 'Осталось:',
     stockLeftSuffix: 'шт.',
@@ -1190,6 +1402,7 @@ const ui = computed(() => {
     quickCheckout: 'Товар добавлен. Переходим к оформлению.',
     addedWishlist: 'Товар добавлен в избранное.',
     removedWishlist: 'Товар убран из избранного.',
+    stickyPickSize: 'выбери размер',
     notFoundTitle: 'Товар не найден',
     notFoundText: 'Похоже, этот товар больше не доступен.',
     toCatalog: 'Вернуться в каталог'
@@ -2166,6 +2379,62 @@ useHead(
   display: none;
 }
 
+.desktop-sticky-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%) translateY(120%);
+  z-index: 95;
+  width: min(980px, calc(100vw - 28px));
+  min-height: 72px;
+  border-radius: 18px;
+  border: 1px solid #c6dccb;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 34px rgba(17, 31, 23, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  backdrop-filter: blur(6px);
+  transition: transform 0.24s ease;
+}
+
+.desktop-sticky-bar.visible {
+  transform: translateX(-50%) translateY(0);
+}
+
+.desktop-sticky-meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.desktop-sticky-meta strong {
+  font-size: 16px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desktop-sticky-meta span {
+  font-size: 13px;
+  color: #4d6178;
+}
+
+.desktop-sticky-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.desktop-sticky-actions .btn-alt,
+.desktop-sticky-actions .btn-main {
+  min-height: 42px;
+  min-width: 164px;
+}
+
 .lightbox {
   position: fixed;
   inset: 0;
@@ -2437,6 +2706,10 @@ useHead(
     gap: 10px;
   }
 
+  .desktop-sticky-bar {
+    display: none;
+  }
+
   .mobile-price {
     display: grid;
     gap: 2px;
@@ -2477,6 +2750,12 @@ useHead(
 
   .lightbox-nav.next {
     right: 8px;
+  }
+}
+
+@media (max-width: 980px) {
+  .desktop-sticky-bar {
+    display: none;
   }
 }
 </style>
