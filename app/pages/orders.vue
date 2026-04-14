@@ -54,13 +54,22 @@
                 {{ filter.label }}
               </button>
             </div>
+            <label v-if="trackedOrders.length" class="field orders-search-field">
+              <span>{{ ui.searchLabel }}</span>
+              <input v-model.trim="orderSearch" type="text" :placeholder="ui.searchPlaceholder" />
+            </label>
 
             <div v-if="trackedLoading" class="orders-loading">{{ ui.loading }}</div>
             <div v-else-if="displayedTrackedOrders.length" class="orders-list">
               <article v-for="order in displayedTrackedOrders" :key="order.id" class="order-card">
                 <div class="order-top">
                   <div>
-                    <strong>{{ order.id }}</strong>
+                    <div class="order-id-row">
+                      <strong>{{ order.id }}</strong>
+                      <button type="button" class="btn-alt order-copy-btn" @click="copyOrderId(order.id)">
+                        {{ ui.copyId }}
+                      </button>
+                    </div>
                     <span>{{ formatDate(order.createdAt) }}</span>
                   </div>
                   <div class="order-status" :class="`status-${order.status}`">{{ statusLabel(order.status) }}</div>
@@ -194,7 +203,12 @@
             <article v-if="lookupResult" class="order-card lookup-result">
               <div class="order-top">
                 <div>
-                  <strong>{{ lookupResult.id }}</strong>
+                  <div class="order-id-row">
+                    <strong>{{ lookupResult.id }}</strong>
+                    <button type="button" class="btn-alt order-copy-btn" @click="copyOrderId(lookupResult.id)">
+                      {{ ui.copyId }}
+                    </button>
+                  </div>
                   <span>{{ formatDate(lookupResult.createdAt) }}</span>
                 </div>
                 <div class="order-status" :class="`status-${lookupResult.status}`">{{ statusLabel(lookupResult.status) }}</div>
@@ -379,6 +393,10 @@ type Ui = {
   filterActive: string
   filterCompleted: string
   filterCancelled: string
+  searchLabel: string
+  searchPlaceholder: string
+  copyId: string
+  copiedId: string
   timelineCurrentNote: string
   pendingReviewTitle: string
   pendingReviewSubtitle: string
@@ -422,6 +440,7 @@ const orderNotices = ref<OrderNotice[]>([])
 const notificationsMode = ref<'all' | 'history' | 'off'>('all')
 const notificationPermission = ref<'default' | 'granted' | 'denied'>('default')
 const statusFilter = ref<'all' | 'active' | 'completed' | 'cancelled'>('all')
+const orderSearch = ref('')
 const pendingReviewItems = ref<Array<{ orderId: string; productId: string; createdAt: string }>>([])
 
 const lookup = reactive({
@@ -504,6 +523,10 @@ const ui = computed<Ui>(() => {
       filterActive: 'Active',
       filterCompleted: 'Finalizate',
       filterCancelled: 'Anulate/retur',
+      searchLabel: 'Căutare în comenzi',
+      searchPlaceholder: 'ID comandă sau produs',
+      copyId: 'Copiază ID',
+      copiedId: 'ID copiat',
       timelineCurrentNote: 'Notă curentă',
       pendingReviewTitle: 'Recenzii după livrare',
       pendingReviewSubtitle: 'Aceste produse sunt livrate. Lasă un review scurt și ajută alți clienți.',
@@ -584,6 +607,10 @@ const ui = computed<Ui>(() => {
       filterActive: 'Active',
       filterCompleted: 'Completed',
       filterCancelled: 'Cancelled/returned',
+      searchLabel: 'Search orders',
+      searchPlaceholder: 'Order ID or product',
+      copyId: 'Copy ID',
+      copiedId: 'Order ID copied',
       timelineCurrentNote: 'Current note',
       pendingReviewTitle: 'Review requests',
       pendingReviewSubtitle: 'These items are delivered. Leave a short review to help other buyers.',
@@ -663,6 +690,10 @@ const ui = computed<Ui>(() => {
     filterActive: 'Активные',
     filterCompleted: 'Завершенные',
     filterCancelled: 'Отмена/возврат',
+    searchLabel: 'Поиск по заказам',
+    searchPlaceholder: 'ID заказа или товар',
+    copyId: 'Копировать ID',
+    copiedId: 'ID заказа скопирован',
     timelineCurrentNote: 'Текущая заметка',
     pendingReviewTitle: 'Запросы на отзыв',
     pendingReviewSubtitle: 'Эти товары уже доставлены. Оставь короткий отзыв и помоги другим покупателям.',
@@ -988,16 +1019,25 @@ const pendingReviewCards = computed(() =>
 )
 
 const displayedTrackedOrders = computed(() => {
-  if (statusFilter.value === 'all') return trackedOrders.value
+  let base = trackedOrders.value
+
   if (statusFilter.value === 'active') {
-    return trackedOrders.value.filter((order) =>
+    base = trackedOrders.value.filter((order) =>
       order.status === 'new' || order.status === 'confirmed' || order.status === 'assembled' || order.status === 'shipped'
     )
+  } else if (statusFilter.value === 'completed') {
+    base = trackedOrders.value.filter((order) => order.status === 'delivered')
+  } else if (statusFilter.value === 'cancelled') {
+    base = trackedOrders.value.filter((order) => order.status === 'cancelled' || order.status === 'returned')
   }
-  if (statusFilter.value === 'completed') {
-    return trackedOrders.value.filter((order) => order.status === 'delivered')
-  }
-  return trackedOrders.value.filter((order) => order.status === 'cancelled' || order.status === 'returned')
+
+  const search = String(orderSearch.value || '').trim().toLowerCase()
+  if (!search) return base
+
+  return base.filter((order) => {
+    if (String(order.id || '').toLowerCase().includes(search)) return true
+    return order.items.some((item) => String(item.title || '').toLowerCase().includes(search))
+  })
 })
 
 const productsById = computed(() => {
@@ -1036,6 +1076,16 @@ const repeatOrder = (order: PublicOrder) => {
   }
 
   uiStore.showToast(ui.value.repeatEmpty, 'error')
+}
+
+const copyOrderId = async (orderId: string) => {
+  if (!import.meta.client || !orderId) return
+  try {
+    await navigator.clipboard.writeText(orderId)
+    uiStore.showToast(ui.value.copiedId, 'success')
+  } catch {
+    uiStore.showToast(orderId, 'info')
+  }
 }
 
 const cancelOrder = async (order: PublicOrder) => {
@@ -1550,6 +1600,11 @@ useSeoMeta({
   background: #ecf7ef;
 }
 
+.orders-search-field {
+  margin-top: 10px;
+  max-width: 420px;
+}
+
 .orders-list {
   margin-top: 18px;
   display: grid;
@@ -1591,6 +1646,19 @@ useSeoMeta({
 .order-top span {
   color: var(--muted);
   font-size: 13px;
+}
+
+.order-id-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.order-copy-btn {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .order-status {
