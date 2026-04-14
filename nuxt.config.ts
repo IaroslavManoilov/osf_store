@@ -28,10 +28,13 @@ export default defineNuxtConfig({
     orderOtpTelegramChatId: process.env.NUXT_ORDER_OTP_TELEGRAM_CHAT_ID || '',
     cleanupSecret: process.env.NUXT_CLEANUP_SECRET || '',
     adminKey: process.env.NUXT_ADMIN_KEY || '',
+    stripeSecretKey: process.env.NUXT_STRIPE_SECRET_KEY || '',
+    stripeWebhookSecret: process.env.NUXT_STRIPE_WEBHOOK_SECRET || '',
     supabaseUrl: process.env.NUXT_SUPABASE_URL || '',
     supabaseServiceRoleKey: process.env.NUXT_SUPABASE_SERVICE_ROLE_KEY || '',
     public: {
       siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://onestyleforever.com',
+      stripePublishableKey: process.env.NUXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
       supabaseUrl: process.env.NUXT_PUBLIC_SUPABASE_URL || process.env.NUXT_SUPABASE_URL || '',
       supabaseAnonKey: process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY || ''
     }

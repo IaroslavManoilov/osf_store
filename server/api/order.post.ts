@@ -8,6 +8,7 @@ import { reserveInventory, restoreInventory } from '../utils/inventory'
 import { createOrderTrackToken } from '../utils/order-track-token'
 import { requireCheckoutCsrf } from '../utils/checkout-csrf'
 import { readProductOverridesSafe } from '../utils/product-overrides'
+import { getSiteUrl, getStripeClient } from '../utils/stripe'
 import { getProducts } from '~/data/products'
 
 type OrderItem = {
@@ -180,6 +181,11 @@ export default defineEventHandler(async (event) => {
   const orderNumber = Number(nextOrderNumber)
   const orderId = `OSF-${String(orderNumber).padStart(6, '0')}`
   const nowIso = new Date().toISOString()
+  const trackToken = createOrderTrackToken(
+    config.orderTrackSecret || config.adminKey || 'osf-order-track-secret',
+    orderId,
+    customerPhone
+  )
 
   const inventoryItems = normalizedItems.map((item) => ({
     productId: item.id,
@@ -238,6 +244,39 @@ export default defineEventHandler(async (event) => {
   let telegramSent = false
   let emailSent = false
   const warnings: string[] = []
+  let stripeCheckoutUrl = ''
+
+  if (paymentMethod === 'card_online') {
+    const siteUrl = getSiteUrl(event)
+    const stripe = getStripeClient(event)
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      client_reference_id: orderId,
+      metadata: {
+        order_id: orderId
+      },
+      success_url: `${siteUrl}/checkout/success?orderId=${encodeURIComponent(orderId)}&trackToken=${encodeURIComponent(trackToken)}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${siteUrl}/checkout?paymentCanceled=1&orderId=${encodeURIComponent(orderId)}`,
+      line_items: normalizedItems.map((item) => ({
+        quantity: item.quantity,
+        price_data: {
+          currency: 'mdl',
+          product_data: {
+            name: `${item.title} [${String(item.selectedSize || '-')}]`
+          },
+          unit_amount: Math.max(1, Math.round(item.price * 100))
+        }
+      }))
+    })
+
+    stripeCheckoutUrl = String(session.url || '').trim()
+    if (!stripeCheckoutUrl) {
+      throw createError({
+        statusCode: 500,
+        statusMessage: 'Stripe checkout URL is empty'
+      })
+    }
+  }
 
   if (config.telegramBotToken && config.telegramChatId) {
     const telegramMessage = `
@@ -355,15 +394,12 @@ Total: ${serverTotal} MDL
   return {
     success: true,
     orderId,
-    trackToken: createOrderTrackToken(
-      config.orderTrackSecret || config.adminKey || 'osf-order-track-secret',
-      orderId,
-      customerPhone
-    ),
+    trackToken,
     total: serverTotal,
     payment: {
       method: paymentMethod,
-      status: paymentStatus
+      status: paymentStatus,
+      checkoutUrl: stripeCheckoutUrl || undefined
     },
     receipt: {
       orderId,

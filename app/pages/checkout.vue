@@ -394,6 +394,7 @@ type OrderResponse = {
   payment?: {
     method: 'card_online' | 'phone_transfer' | 'cash_on_delivery'
     status: 'pending' | 'paid' | 'cash_on_delivery'
+    checkoutUrl?: string
   }
   receipt?: ReceiptData
   message?: string
@@ -524,6 +525,7 @@ type CheckoutDraftPayload = Partial<CheckoutForm> & { savedAt?: string }
 
 const { locale } = useI18n()
 const localePath = useLocalePath()
+const route = useRoute()
 const shopStore = useShopStore()
 
 const form = reactive<CheckoutForm>({
@@ -1906,7 +1908,7 @@ const submitOrder = async () => {
       lastTrackToken.value = response.trackToken
       saveOrderTrack(response.orderId, response.trackToken)
     }
-    receiptData.value = response.receipt || {
+    const builtReceipt = response.receipt || {
       orderId: response.orderId,
       createdAt: new Date().toISOString(),
       customerName: form.name,
@@ -1923,6 +1925,21 @@ const submitOrder = async () => {
       })),
       total: Number(response.total || shopStore.cartTotal)
     }
+    receiptData.value = builtReceipt
+
+    const checkoutUrl = String(response.payment?.checkoutUrl || '').trim()
+    if (checkoutUrl) {
+      if (import.meta.client) {
+        try {
+          window.localStorage.setItem(`osf_receipt_${response.orderId}`, JSON.stringify(builtReceipt))
+        } catch {
+          // Ignore localStorage write failures.
+        }
+      }
+      window.location.href = checkoutUrl
+      return
+    }
+
     rememberQuickAddress()
     markPurchasedProducts(purchasedIds)
     saveCheckoutProfile()
@@ -2036,6 +2053,15 @@ onMounted(() => {
     .catch(() => {
       checkoutCsrfToken.value = ''
     })
+
+  if (String(route.query.paymentCanceled || '') === '1') {
+    errorMessage.value =
+      locale.value === 'en'
+        ? 'Card payment was canceled. You can try again or choose another payment method.'
+        : locale.value === 'ro'
+          ? 'Plata cu cardul a fost anulată. Poți încerca din nou sau alege altă metodă.'
+          : 'Оплата картой была отменена. Можешь попробовать снова или выбрать другой способ.'
+  }
 })
 
 let draftTimer: ReturnType<typeof setTimeout> | null = null

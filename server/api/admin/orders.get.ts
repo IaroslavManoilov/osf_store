@@ -30,6 +30,10 @@ type AdminOrder = {
     selectedSize?: string
   }>
   total: number
+  payment: {
+    method: 'card_online' | 'phone_transfer' | 'cash_on_delivery'
+    status: 'pending' | 'paid' | 'cash_on_delivery'
+  }
   status: OrderStatus
   statusHistory: Array<{
     status: OrderStatus
@@ -154,6 +158,10 @@ export default defineEventHandler(async (event) => {
         selectedSize: item.selected_size || ''
       })),
       total: Number(row.total || 0),
+      payment: {
+        method: String(row.payment_method || 'cash_on_delivery') as 'card_online' | 'phone_transfer' | 'cash_on_delivery',
+        status: String(row.payment_status || 'cash_on_delivery') as 'pending' | 'paid' | 'cash_on_delivery'
+      },
       status: row.status as OrderStatus,
       statusHistory: (historyByOrder.get(orderId) || []).map((entry: any) => ({
         status: entry.status as OrderStatus,
