@@ -67,7 +67,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  if (order.status !== 'new' && order.status !== 'confirmed' && order.status !== 'assembled') {
+  if (order.status !== 'new' && order.status !== 'confirmed') {
     throw createError({
       statusCode: 409,
       statusMessage: 'Order can no longer be cancelled'

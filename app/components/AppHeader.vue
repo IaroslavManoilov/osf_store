@@ -228,6 +228,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { getProducts } from '~/data/products'
 
 type LocaleCode = 'ru' | 'ro' | 'en'
 
@@ -240,6 +241,11 @@ const mobileMenuOpen = ref(false)
 const headerRootRef = ref<HTMLElement | null>(null)
 const notificationsEnabled = ref(false)
 const notificationsStorageKey = 'osf_stock_notifications_v1'
+const marketingSnapshotKey = 'osf_marketing_snapshot_v1'
+const marketingSeenKey = 'osf_marketing_alerts_seen_v1'
+const cartLastActivityKey = 'osf_cart_last_activity_v1'
+const cartReminderAtKey = 'osf_cart_reminder_at_v1'
+let marketingTimer: ReturnType<typeof setInterval> | null = null
 
 const { locale } = useI18n()
 
@@ -310,6 +316,119 @@ const toggleNotifications = async () => {
   else uiStore.showToast('Уведомления включены.', 'success')
 }
 
+const readJsonObject = <T extends Record<string, any>>(key: string): T => {
+  if (!import.meta.client) return {} as T
+  try {
+    const raw = window.localStorage.getItem(key)
+    const parsed = raw ? JSON.parse(raw) : {}
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {} as T
+    return parsed as T
+  } catch {
+    return {} as T
+  }
+}
+
+const writeJsonObject = (key: string, value: Record<string, any>) => {
+  if (!import.meta.client) return
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // Ignore localStorage write failures.
+  }
+}
+
+const marketingMessage = (kind: 'price-drop' | 'back-in-stock', title: string, price = 0) => {
+  if (kind === 'price-drop') {
+    if (locale.value === 'ro') return `Preț redus: ${title} · ${price} MDL`
+    if (locale.value === 'en') return `Price drop: ${title} · ${price} MDL`
+    return `Цена снижена: ${title} · ${price} MDL`
+  }
+  if (locale.value === 'ro') return `Din nou în stoc: ${title}`
+  if (locale.value === 'en') return `Back in stock: ${title}`
+  return `Снова в наличии: ${title}`
+}
+
+const remindAbandonedCart = () => {
+  if (!import.meta.client || !notificationsEnabled.value) return
+  if (!shopStore.cartCount) return
+
+  const now = Date.now()
+  const lastActivity = Number(window.localStorage.getItem(cartLastActivityKey) || now)
+  const lastReminder = Number(window.localStorage.getItem(cartReminderAtKey) || 0)
+  const idleMs = now - lastActivity
+  const canRemind = now - lastReminder > 12 * 60 * 60 * 1000
+
+  if (idleMs < 45 * 60 * 1000 || !canRemind) return
+
+  if (locale.value === 'ro') uiStore.showToast('Ai produse în coș. Finalizează comanda cât timp mărimea e în stoc.', 'info')
+  else if (locale.value === 'en') uiStore.showToast('You still have items in cart. Complete the order while your size is in stock.', 'info')
+  else uiStore.showToast('У тебя есть товары в корзине. Оформи заказ, пока размер в наличии.', 'info')
+
+  window.localStorage.setItem(cartReminderAtKey, String(now))
+}
+
+const runMarketingSignals = async () => {
+  if (!import.meta.client || !notificationsEnabled.value) return
+  const trackedIds = Array.from(new Set([
+    ...shopStore.wishlist.map((item) => item.id),
+    ...shopStore.cart.map((item) => item.id)
+  ])).filter(Boolean)
+
+  if (!trackedIds.length) return
+
+  try {
+    const [overridesResp, inventoryResp] = await Promise.all([
+      $fetch<{ success: boolean; overrides?: Record<string, { price?: number | null }> }>('/api/catalog-overrides'),
+      $fetch<{ success: boolean; totals?: Record<string, number> }>('/api/inventory')
+    ])
+
+    const base = getProducts(locale.value)
+    const baseById = new Map(base.map((item) => [item.id, item]))
+    const overrides = overridesResp?.overrides || {}
+    const totals = inventoryResp?.totals || {}
+
+    const previous = readJsonObject<Record<string, { price: number; stock: number }>>(marketingSnapshotKey)
+    const seen = readJsonObject<Record<string, number>>(marketingSeenKey)
+    const nextSnapshot: Record<string, { price: number; stock: number }> = { ...previous }
+
+    for (const id of trackedIds) {
+      const product = baseById.get(id)
+      if (!product) continue
+      const overridePrice = Number(overrides?.[id]?.price)
+      const currentPrice = Number.isFinite(overridePrice) && overridePrice > 0 ? Math.round(overridePrice) : product.price
+      const currentStock = Math.max(0, Number(totals[id] || 0))
+      const prev = previous[id]
+
+      if (prev && currentPrice < prev.price) {
+        const key = `${id}:price:${currentPrice}`
+        if (!seen[key]) {
+          uiStore.showToast(marketingMessage('price-drop', product.title, currentPrice), 'success')
+          seen[key] = Date.now()
+        }
+      }
+
+      if (prev && prev.stock <= 0 && currentStock > 0) {
+        const key = `${id}:restock:${currentStock}`
+        if (!seen[key]) {
+          uiStore.showToast(marketingMessage('back-in-stock', product.title), 'success')
+          seen[key] = Date.now()
+        }
+      }
+
+      nextSnapshot[id] = {
+        price: currentPrice,
+        stock: currentStock
+      }
+    }
+
+    const trimmedSeen = Object.fromEntries(Object.entries(seen).slice(-220))
+    writeJsonObject(marketingSnapshotKey, nextSnapshot)
+    writeJsonObject(marketingSeenKey, trimmedSeen)
+  } catch {
+    // Ignore background signal errors.
+  }
+}
+
 watch(
   () => route.fullPath,
   () => {
@@ -326,13 +445,49 @@ onMounted(() => {
     notificationsEnabled.value = false
   }
 
+  try {
+    window.localStorage.setItem(cartLastActivityKey, String(Date.now()))
+  } catch {
+    // Ignore localStorage write failures.
+  }
+
   window.addEventListener('pointerdown', handleOutsideTap)
+  void runMarketingSignals()
+  remindAbandonedCart()
+  marketingTimer = setInterval(() => {
+    void runMarketingSignals()
+    remindAbandonedCart()
+  }, 90_000)
 })
 
 onBeforeUnmount(() => {
   if (!import.meta.client) return
   window.removeEventListener('pointerdown', handleOutsideTap)
+  if (marketingTimer) {
+    clearInterval(marketingTimer)
+    marketingTimer = null
+  }
 })
+
+watch(
+  () => `${shopStore.cartCount}:${shopStore.cartTotal}`,
+  () => {
+    if (!import.meta.client) return
+    try {
+      window.localStorage.setItem(cartLastActivityKey, String(Date.now()))
+    } catch {
+      // Ignore localStorage write failures.
+    }
+    remindAbandonedCart()
+  }
+)
+
+watch(
+  () => `${shopStore.wishlist.map((item) => item.id).sort().join('|')}|${shopStore.cart.map((item) => item.id).sort().join('|')}`,
+  () => {
+    void runMarketingSignals()
+  }
+)
 </script>
 
 <style scoped>

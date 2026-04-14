@@ -458,6 +458,8 @@ type QuickAddress = {
   createdAt: string
 }
 
+type CheckoutDraftPayload = Partial<CheckoutForm> & { savedAt?: string }
+
 const { locale } = useI18n()
 const localePath = useLocalePath()
 const shopStore = useShopStore()
@@ -491,6 +493,10 @@ const checkoutCsrfToken = ref('')
 const lastOrderId = ref('')
 const lastTrackToken = ref('')
 const quickAddresses = ref<QuickAddress[]>([])
+const isHydratingFromDraft = ref(false)
+const lastServerDraftLoadedPhone = ref('')
+let draftServerSyncTimer: ReturnType<typeof setTimeout> | null = null
+let phoneDraftSyncTimer: ReturnType<typeof setTimeout> | null = null
 const fieldErrors = reactive<Record<'name' | 'phone' | 'city' | 'street' | 'house' | 'pickupPoint', string>>({
   name: '',
   phone: '',
@@ -752,13 +758,9 @@ const saveCheckoutProfile = () => {
   }
 }
 
-const loadCheckoutDraft = () => {
-  if (!import.meta.client) return
+const applyCheckoutDraftPayload = (draft: CheckoutDraftPayload) => {
+  isHydratingFromDraft.value = true
   try {
-    const raw = window.localStorage.getItem(draftStorageKey)
-    const parsed = raw ? JSON.parse(raw) : null
-    if (!parsed || typeof parsed !== 'object') return
-    const draft = parsed as Partial<CheckoutForm> & { savedAt?: string }
     if (typeof draft.name === 'string') form.name = draft.name
     if (typeof draft.phoneCode === 'string') form.phoneCode = draft.phoneCode
     if (typeof draft.phoneLocal === 'string') form.phoneLocal = draft.phoneLocal
@@ -775,33 +777,124 @@ const loadCheckoutDraft = () => {
     if (typeof draft.mapQuery === 'string') form.mapQuery = draft.mapQuery
     if (typeof draft.comment === 'string') form.comment = draft.comment
     if (typeof draft.savedAt === 'string') draftSavedAt.value = draft.savedAt
+  } finally {
+    setTimeout(() => {
+      isHydratingFromDraft.value = false
+    }, 0)
+  }
+}
+
+const extractCheckoutDraftPayload = (savedAt = new Date().toISOString()): CheckoutDraftPayload => ({
+  name: form.name,
+  phoneCode: form.phoneCode,
+  phoneLocal: form.phoneLocal,
+  email: form.email,
+  deliveryType: form.deliveryType,
+  city: form.city,
+  street: form.street,
+  house: form.house,
+  apartment: form.apartment,
+  postalCode: form.postalCode,
+  pickupPoint: form.pickupPoint,
+  mapQuery: form.mapQuery,
+  comment: form.comment,
+  savedAt
+})
+
+const normalizeDraftPhone = () => `${String(form.phoneCode || '').trim()}${digitsOnly(form.phoneLocal)}`
+
+const loadCheckoutDraft = () => {
+  if (!import.meta.client) return
+  try {
+    const raw = window.localStorage.getItem(draftStorageKey)
+    const parsed = raw ? JSON.parse(raw) : null
+    if (!parsed || typeof parsed !== 'object') return
+    applyCheckoutDraftPayload(parsed as CheckoutDraftPayload)
   } catch {
     // Ignore malformed draft payload.
   }
 }
 
+const loadCheckoutDraftFromServer = async (phoneNorm = '') => {
+  try {
+    const response = await $fetch<{
+      success: boolean
+      draft?: CheckoutDraftPayload | null
+      savedAt?: string | null
+    }>('/api/checkout/draft', {
+      method: 'GET',
+      query: phoneNorm ? { phoneNorm } : undefined
+    })
+
+    if (!response?.draft || typeof response.draft !== 'object') return
+    const serverSavedAt = String(response.savedAt || response.draft.savedAt || '')
+    const localSavedAt = String(draftSavedAt.value || '')
+    const serverTs = Number.isFinite(new Date(serverSavedAt).getTime()) ? new Date(serverSavedAt).getTime() : 0
+    const localTs = Number.isFinite(new Date(localSavedAt).getTime()) ? new Date(localSavedAt).getTime() : 0
+
+    if (serverTs >= localTs) {
+      applyCheckoutDraftPayload({
+        ...response.draft,
+        savedAt: serverSavedAt || response.draft.savedAt
+      })
+      if (import.meta.client) {
+        try {
+          window.localStorage.setItem(draftStorageKey, JSON.stringify({
+            ...response.draft,
+            savedAt: serverSavedAt || response.draft.savedAt || new Date().toISOString()
+          }))
+        } catch {
+          // Ignore localStorage sync errors.
+        }
+      }
+    }
+  } catch {
+    // Ignore server draft read errors.
+  }
+}
+
+const queueCheckoutDraftServerSync = (payload: CheckoutDraftPayload) => {
+  if (draftServerSyncTimer) clearTimeout(draftServerSyncTimer)
+  draftServerSyncTimer = setTimeout(() => {
+    void $fetch('/api/checkout/draft', {
+      method: 'POST',
+      body: {
+        draft: payload,
+        savedAt: payload.savedAt,
+        phoneNorm: normalizeDraftPhone()
+      }
+    }).catch(() => undefined)
+  }, 900)
+}
+
 const saveCheckoutDraft = () => {
   if (!import.meta.client) return
   const savedAt = new Date().toISOString()
+  const payload = extractCheckoutDraftPayload(savedAt)
   try {
-    window.localStorage.setItem(draftStorageKey, JSON.stringify({
-      ...form,
-      savedAt
-    }))
+    window.localStorage.setItem(draftStorageKey, JSON.stringify(payload))
     draftSavedAt.value = savedAt
   } catch {
     // Ignore localStorage write errors.
   }
+  queueCheckoutDraftServerSync(payload)
 }
 
 const clearCheckoutDraft = () => {
   if (!import.meta.client) return
+  if (draftServerSyncTimer) {
+    clearTimeout(draftServerSyncTimer)
+    draftServerSyncTimer = null
+  }
   try {
     window.localStorage.removeItem(draftStorageKey)
   } catch {
     // Ignore remove errors.
   }
   draftSavedAt.value = ''
+  void $fetch('/api/checkout/draft', {
+    method: 'DELETE'
+  }).catch(() => undefined)
 }
 
 const loadQuickAddresses = () => {
@@ -1410,6 +1503,32 @@ const clearFieldErrors = () => {
   fieldErrors.pickupPoint = ''
 }
 
+const validateLiveFields = () => {
+  const name = String(form.name || '').trim()
+  const phone = digitsOnly(form.phoneLocal)
+  const rule = phoneRule.value
+
+  if (name && name.length < 2) {
+    fieldErrors.name = locale.value === 'en'
+      ? 'Enter at least 2 characters'
+      : locale.value === 'ro'
+        ? 'Introdu cel puțin 2 caractere'
+        : 'Введите минимум 2 символа'
+  } else if (fieldErrors.name) {
+    fieldErrors.name = ''
+  }
+
+  if (phone && (phone.length < rule.min || phone.length > rule.max)) {
+    fieldErrors.phone = locale.value === 'en'
+      ? `Enter valid phone (${rule.min}-${rule.max} digits)`
+      : locale.value === 'ro'
+        ? `Introdu telefon valid (${rule.min}-${rule.max} cifre)`
+        : `Введи корректный номер (${rule.min}-${rule.max} цифр)`
+  } else if (fieldErrors.phone) {
+    fieldErrors.phone = ''
+  }
+}
+
 const validateCheckoutContact = () => {
   clearFieldErrors()
   const name = String(form.name || '').trim()
@@ -1663,6 +1782,7 @@ onMounted(() => {
   shopStore.sanitizeCart()
   loadCheckoutProfile()
   loadCheckoutDraft()
+  void loadCheckoutDraftFromServer()
   loadQuickAddresses()
   onPhoneInput()
   if (import.meta.client) {
@@ -1696,6 +1816,7 @@ watch(
     comment: form.comment
   }),
   () => {
+    if (isHydratingFromDraft.value) return
     if (draftTimer) clearTimeout(draftTimer)
     draftTimer = setTimeout(() => {
       saveCheckoutDraft()
@@ -1715,14 +1836,30 @@ watch(() => form.phoneCode, () => {
   citySuggestTimer = setTimeout(() => {
     fetchGeoSuggestions('city', form.city)
   }, 260)
+
+  if (phoneDraftSyncTimer) clearTimeout(phoneDraftSyncTimer)
+  phoneDraftSyncTimer = setTimeout(() => {
+    const phoneNorm = normalizeDraftPhone()
+    if (phoneNorm.length < 8 || phoneNorm === lastServerDraftLoadedPhone.value) return
+    lastServerDraftLoadedPhone.value = phoneNorm
+    void loadCheckoutDraftFromServer(phoneNorm)
+  }, 700)
 })
 
 watch(() => form.phoneLocal, () => {
-  fieldErrors.phone = ''
+  validateLiveFields()
+
+  if (phoneDraftSyncTimer) clearTimeout(phoneDraftSyncTimer)
+  phoneDraftSyncTimer = setTimeout(() => {
+    const phoneNorm = normalizeDraftPhone()
+    if (phoneNorm.length < 8 || phoneNorm === lastServerDraftLoadedPhone.value) return
+    lastServerDraftLoadedPhone.value = phoneNorm
+    void loadCheckoutDraftFromServer(phoneNorm)
+  }, 700)
 })
 
 watch(() => form.name, () => {
-  fieldErrors.name = ''
+  validateLiveFields()
 })
 
 watch(() => form.city, () => {
@@ -1770,6 +1907,14 @@ onBeforeUnmount(() => {
   if (streetSuggestTimer) {
     clearTimeout(streetSuggestTimer)
     streetSuggestTimer = null
+  }
+  if (draftServerSyncTimer) {
+    clearTimeout(draftServerSyncTimer)
+    draftServerSyncTimer = null
+  }
+  if (phoneDraftSyncTimer) {
+    clearTimeout(phoneDraftSyncTimer)
+    phoneDraftSyncTimer = null
   }
   if (mapSuggestTimer) {
     clearTimeout(mapSuggestTimer)

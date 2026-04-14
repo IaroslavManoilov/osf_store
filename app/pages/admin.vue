@@ -122,9 +122,37 @@
         <div class="surface-card products-card">
           <div class="products-head">
             <h2>{{ ui.productsTitle }}</h2>
-            <button type="button" class="btn-alt" :disabled="savingProducts" @click="saveProductsBulk">
-              {{ savingProducts ? ui.saving : ui.saveProducts }}
-            </button>
+            <div class="products-head-actions">
+              <button type="button" class="btn-alt" :disabled="csvImportBusy" @click="downloadCsvTemplate">
+                {{ ui.csvTemplate }}
+              </button>
+              <button type="button" class="btn-alt" :disabled="savingProducts" @click="saveProductsBulk">
+                {{ savingProducts ? ui.saving : ui.saveProducts }}
+              </button>
+            </div>
+          </div>
+
+          <div class="csv-import-box">
+            <div>
+              <strong>{{ ui.csvImportTitle }}</strong>
+              <p>{{ ui.csvImportHint }}</p>
+              <p class="csv-file-name" v-if="csvFileName">{{ csvFileName }}</p>
+            </div>
+            <div class="csv-import-actions">
+              <input
+                ref="csvInputEl"
+                class="csv-file-input"
+                type="file"
+                accept=".csv,text/csv"
+                @change="onCsvFilePicked"
+              />
+              <button type="button" class="btn-alt" :disabled="csvImportBusy" @click="triggerCsvPick">
+                {{ ui.csvChoose }}
+              </button>
+              <button type="button" class="btn-main" :disabled="csvImportBusy || !csvContent" @click="importProductsCsv">
+                {{ csvImportBusy ? ui.loading : ui.csvImport }}
+              </button>
+            </div>
           </div>
 
           <div class="products-grid">
@@ -455,6 +483,10 @@ const savingProducts = ref(false)
 const exportingCsv = ref(false)
 const loadingAudit = ref(false)
 const auditEntries = ref<AuditEntry[]>([])
+const csvInputEl = ref<HTMLInputElement | null>(null)
+const csvContent = ref('')
+const csvFileName = ref('')
+const csvImportBusy = ref(false)
 
 const selectedCount = computed(() => selectedOrderIds.value.length)
 const allVisibleSelected = computed(() => !!orders.value.length && orders.value.every((order) => selectedOrderIds.value.includes(order.id)))
@@ -522,6 +554,11 @@ const ui = computed(() => {
       reason: 'Motiv',
       productsTitle: 'Editare produse în masă',
       saveProducts: 'Salvează produse',
+      csvTemplate: 'Template CSV',
+      csvImportTitle: 'Import CSV (prețuri + stocuri)',
+      csvImportHint: 'Coloane: product_id, price, badge, is_active, stock_s, stock_m, stock_l (+ titluri/opisuri pe limbi).',
+      csvChoose: 'Alege fișier',
+      csvImport: 'Importă CSV',
       productActive: 'Activ',
       productPrice: 'Preț',
       productBadge: 'Badge',
@@ -584,6 +621,11 @@ const ui = computed(() => {
       reason: 'Reason',
       productsTitle: 'Bulk product editor',
       saveProducts: 'Save products',
+      csvTemplate: 'CSV template',
+      csvImportTitle: 'CSV import (prices + inventory)',
+      csvImportHint: 'Columns: product_id, price, badge, is_active, stock_s, stock_m, stock_l (+ titles/short text per language).',
+      csvChoose: 'Choose file',
+      csvImport: 'Import CSV',
       productActive: 'Active',
       productPrice: 'Price',
       productBadge: 'Badge',
@@ -645,6 +687,11 @@ const ui = computed(() => {
     reason: 'Причина',
     productsTitle: 'Массовое редактирование товаров',
     saveProducts: 'Сохранить товары',
+    csvTemplate: 'Шаблон CSV',
+    csvImportTitle: 'Импорт CSV (цены + остатки)',
+    csvImportHint: 'Колонки: product_id, price, badge, is_active, stock_s, stock_m, stock_l (+ названия/короткие тексты по языкам).',
+    csvChoose: 'Выбрать файл',
+    csvImport: 'Импорт CSV',
     productActive: 'Активен',
     productPrice: 'Цена',
     productBadge: 'Бейдж',
@@ -940,6 +987,77 @@ const saveProductsBulk = async () => {
   } finally {
     savingProducts.value = false
   }
+}
+
+const triggerCsvPick = () => {
+  csvInputEl.value?.click()
+}
+
+const onCsvFilePicked = async (event: Event) => {
+  const input = event.target as HTMLInputElement | null
+  const file = input?.files?.[0]
+  if (!file) return
+
+  try {
+    csvContent.value = await file.text()
+    csvFileName.value = file.name
+  } catch (error) {
+    uiStore.showToast(resolveErrorMessage(error), 'error')
+    csvContent.value = ''
+    csvFileName.value = ''
+  }
+}
+
+const importProductsCsv = async () => {
+  if (!csrfToken.value || !csvContent.value.trim()) return
+
+  csvImportBusy.value = true
+  try {
+    const response = await $fetch<{
+      success: boolean
+      importedRows: number
+      updatedProducts: number
+      updatedInventory: number
+    }>('/api/admin/products/import-csv', {
+      method: 'POST',
+      headers: {
+        'x-csrf-token': csrfToken.value
+      },
+      body: {
+        csv: csvContent.value
+      }
+    })
+
+    await Promise.all([loadInventory(), loadProductOverrides(), loadAudit()])
+
+    const msg = locale.value === 'en'
+      ? `Imported: ${response.importedRows}, products: ${response.updatedProducts}, inventory: ${response.updatedInventory}`
+      : locale.value === 'ro'
+        ? `Importat: ${response.importedRows}, produse: ${response.updatedProducts}, stocuri: ${response.updatedInventory}`
+        : `Импорт: ${response.importedRows}, товары: ${response.updatedProducts}, остатки: ${response.updatedInventory}`
+    uiStore.showToast(msg, 'success')
+  } catch (error) {
+    uiStore.showToast(resolveErrorMessage(error), 'error')
+  } finally {
+    csvImportBusy.value = false
+  }
+}
+
+const downloadCsvTemplate = () => {
+  if (!import.meta.client) return
+  const csv = [
+    'product_id,price,badge,is_active,stock_s,stock_m,stock_l,title_ru,title_ro,title_en,short_ru,short_ro,short_en',
+    'white-halfzip-osf,699,NEW,1,6,8,5,Свитер полузамок белый OSF,Pulover halfzip alb OSF,White halfzip sweater OSF,Светлая модель,Model luminos,Light model',
+    'black-halfzip-osf,699,HOT,1,0,3,7,Свитер полузамок черный OSF,Pulover halfzip negru OSF,Black halfzip sweater OSF,Темный вариант,Variant închis,Dark variant'
+  ].join('\n')
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'osf-products-template.csv'
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 const exportOrdersCsv = async () => {
@@ -1518,6 +1636,12 @@ useSeoMeta({
   gap: 10px;
 }
 
+.products-head-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .products-head h2 {
   margin: 0;
   font-size: 22px;
@@ -1527,6 +1651,40 @@ useSeoMeta({
   margin-top: 12px;
   display: grid;
   gap: 10px;
+}
+
+.csv-import-box {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  background: #fff;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.csv-import-box p {
+  margin: 6px 0 0;
+  color: #5c6f86;
+  font-size: 13px;
+}
+
+.csv-file-name {
+  font-weight: 700;
+  color: #1a2a3f !important;
+}
+
+.csv-import-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.csv-file-input {
+  display: none;
 }
 
 .products-item {
@@ -1823,10 +1981,17 @@ useSeoMeta({
     grid-template-columns: 1fr;
   }
 
+  .csv-import-box {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .status-note-input,
   .status-select,
   .update-row .btn-alt,
-  .bulk-row .btn-main {
+  .bulk-row .btn-main,
+  .csv-import-actions .btn-alt,
+  .csv-import-actions .btn-main {
     width: 100%;
   }
 }

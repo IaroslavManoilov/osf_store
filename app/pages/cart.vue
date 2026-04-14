@@ -132,6 +132,27 @@
                 </div>
               </div>
             </article>
+
+            <article v-if="upsellProducts.length" class="surface-card upsell-card">
+              <div class="bundle-head">
+                <span class="section-label">{{ ui.upsellLabel }}</span>
+                <h3>{{ ui.upsellTitle }}</h3>
+                <p>{{ ui.upsellSubtitle }}</p>
+              </div>
+
+              <div class="upsell-list">
+                <article v-for="item in upsellProducts" :key="`upsell-${item.id}`" class="upsell-item">
+                  <NuxtLink :to="localePath(`/product/${item.id}`)" class="upsell-image">
+                    <OptimizedImage :src="item.image" :alt="item.title" loading="lazy" width="360" height="360" sizes="88px" />
+                  </NuxtLink>
+                  <div class="upsell-info">
+                    <strong>{{ item.title }}</strong>
+                    <span>{{ item.price }} MDL</span>
+                  </div>
+                  <button type="button" class="btn-alt upsell-btn" @click="addUpsell(item)">{{ ui.upsellAdd }}</button>
+                </article>
+              </div>
+            </article>
           </div>
 
           <aside class="surface-card summary-box">
@@ -151,13 +172,48 @@
 
               <div class="summary-row muted-row">
                 <span>{{ ui.delivery }}</span>
-                <strong>{{ ui.deliveryValue }}</strong>
+                <strong>{{ deliveryPriceLabel }}</strong>
+              </div>
+
+              <div class="summary-row promo-row">
+                <span>{{ ui.promoLabel }}</span>
+                <div class="promo-inline">
+                  <input
+                    v-model.trim="promoInput"
+                    class="promo-input"
+                    type="text"
+                    :placeholder="ui.promoPlaceholder"
+                    @keydown.enter.prevent="applyPromoCode"
+                  />
+                  <button type="button" class="btn-alt promo-btn" @click="applyPromoCode">
+                    {{ ui.promoApply }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="appliedPromoCode" class="summary-row promo-discount-row">
+                <span>{{ ui.promoDiscount }} ({{ appliedPromoCode }})</span>
+                <strong>-{{ promoDiscount }} MDL</strong>
+              </div>
+
+              <div v-if="promoMessage" class="promo-note" :class="{ error: promoMessageType === 'error' }">
+                {{ promoMessage }}
+              </div>
+
+              <div class="summary-row city-row">
+                <span>{{ ui.deliveryCityLabel }}</span>
+                <input v-model.trim="deliveryCity" class="city-input" type="text" :placeholder="ui.deliveryCityPlaceholder" />
+              </div>
+
+              <div class="summary-row muted-row">
+                <span>{{ ui.deliveryEstimateLabel }}</span>
+                <strong>{{ deliveryEstimateLabel }}</strong>
               </div>
             </div>
 
             <div class="summary-total">
               <span>{{ ui.total }}</span>
-              <strong>{{ shopStore.cartTotal }} MDL</strong>
+              <strong>{{ checkoutTotal }} MDL</strong>
             </div>
 
             <div class="summary-actions">
@@ -199,7 +255,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CartItem } from '~/stores/shop'
 import { getProducts, type LocalizedProduct } from '~/data/products'
@@ -229,6 +285,9 @@ type CartPageUi = {
   subtotal: string
   delivery: string
   deliveryValue: string
+  deliveryCityLabel: string
+  deliveryCityPlaceholder: string
+  deliveryEstimateLabel: string
   total: string
   checkout: string
   continueShopping: string
@@ -238,6 +297,17 @@ type CartPageUi = {
   bundleSubtitle: string
   bundleSave: string
   bundleAdd: string
+  upsellLabel: string
+  upsellTitle: string
+  upsellSubtitle: string
+  upsellAdd: string
+  promoLabel: string
+  promoPlaceholder: string
+  promoApply: string
+  promoDiscount: string
+  promoAppliedMessage: string
+  promoInvalidMessage: string
+  promoRemovedMessage: string
   emptyTitle: string
   emptyText: string
   toCatalog: string
@@ -246,6 +316,7 @@ type CartPageUi = {
 const { locale } = useI18n()
 const localePath = useLocalePath()
 const shopStore = useShopStore()
+const uiStore = useUiStore()
 
 const cartItems = computed(() => shopStore.cart)
 const catalogProducts = computed(() => getProducts(locale.value))
@@ -255,6 +326,71 @@ const cartCategorySet = computed(() => new Set(
     .filter((product) => cartProductIds.value.has(product.id))
     .map((product) => product.category)
 ))
+
+type PromoRule = {
+  type: 'percent' | 'fixed'
+  value: number
+  minSubtotal?: number
+}
+
+const promoRules: Record<string, PromoRule> = {
+  OSF10: { type: 'percent', value: 10, minSubtotal: 500 },
+  STYLE15: { type: 'percent', value: 15, minSubtotal: 1200 },
+  WELCOME50: { type: 'fixed', value: 50, minSubtotal: 600 }
+}
+
+const promoStorageKey = 'osf_cart_promo_v1'
+const deliveryCityStorageKey = 'osf_cart_delivery_city_v1'
+const promoInput = ref('')
+const appliedPromoCode = ref('')
+const promoMessage = ref('')
+const promoMessageType = ref<'success' | 'error'>('success')
+const deliveryCity = ref('')
+
+const cityNormalized = computed(() => String(deliveryCity.value || '').trim().toLowerCase())
+const subtotal = computed(() => shopStore.cartTotal)
+
+const deliveryFee = computed(() => {
+  if (!shopStore.cartCount) return 0
+  if (subtotal.value >= 1200) return 0
+  if (!cityNormalized.value) return 65
+  if (cityNormalized.value.includes('chi') || cityNormalized.value.includes('кишин')) return 49
+  if (cityNormalized.value.includes('tiras') || cityNormalized.value.includes('тирасп')) return 59
+  return 69
+})
+
+const deliveryPriceLabel = computed(() => (deliveryFee.value === 0 ? ui.value.deliveryValue : `${deliveryFee.value} MDL`))
+
+const promoDiscount = computed(() => {
+  const code = String(appliedPromoCode.value || '').toUpperCase()
+  const rule = promoRules[code]
+  if (!rule) return 0
+  if (rule.minSubtotal && subtotal.value < rule.minSubtotal) return 0
+  if (rule.type === 'percent') {
+    return Math.max(0, Math.round((subtotal.value * rule.value) / 100))
+  }
+  return Math.max(0, Math.round(rule.value))
+})
+
+const checkoutTotal = computed(() => Math.max(0, subtotal.value + deliveryFee.value - promoDiscount.value))
+
+const deliveryEstimateLabel = computed(() => {
+  if (!shopStore.cartCount) return ui.value.deliveryValue
+
+  const date = new Date()
+  const offset = !cityNormalized.value
+    ? 3
+    : (cityNormalized.value.includes('chi') || cityNormalized.value.includes('кишин') ? 2 : 3)
+  date.setDate(date.getDate() + offset)
+  const localeCode = locale.value === 'ro' ? 'ro-RO' : locale.value === 'en' ? 'en-US' : 'ru-RU'
+  return date.toLocaleDateString(localeCode, { day: 'numeric', month: 'long' })
+})
+
+const upsellProducts = computed(() =>
+  catalogProducts.value
+    .filter((item) => !cartProductIds.value.has(item.id))
+    .slice(0, 3)
+)
 
 const bundleOffers = computed<BundleOffer[]>(() => {
   const categoryPriority = ['hoodies', 'polo', 'sweaters'] as const
@@ -306,7 +442,10 @@ const ui = computed<CartPageUi>(() => {
       summaryTitle: 'Comanda ta',
       subtotal: 'Subtotal',
       delivery: 'Livrare',
-      deliveryValue: 'Calculată la checkout',
+      deliveryValue: 'Gratuit',
+      deliveryCityLabel: 'Oraș livrare',
+      deliveryCityPlaceholder: 'Ex: Chișinău',
+      deliveryEstimateLabel: 'Data estimată',
       total: 'Total',
       checkout: 'Continuă spre checkout',
       continueShopping: 'Înapoi la catalog',
@@ -316,6 +455,17 @@ const ui = computed<CartPageUi>(() => {
       bundleSubtitle: 'Produse care se potrivesc perfect în comandă',
       bundleSave: 'Economisești',
       bundleAdd: 'Adaugă bundle',
+      upsellLabel: 'Completează comanda',
+      upsellTitle: 'Adaugă și aceste modele',
+      upsellSubtitle: 'Produse populare care se potrivesc cu selecția ta',
+      upsellAdd: 'Adaugă',
+      promoLabel: 'Cod promo',
+      promoPlaceholder: 'Ex: OSF10',
+      promoApply: 'Aplică',
+      promoDiscount: 'Reducere',
+      promoAppliedMessage: 'Cod promo aplicat cu succes.',
+      promoInvalidMessage: 'Cod invalid sau subtotal insuficient.',
+      promoRemovedMessage: 'Cod promo eliminat automat (subtotal prea mic).',
       emptyTitle: 'Coșul este gol',
       emptyText:
         'Adaugă produse din catalog și construiește selecția ta ONE STYLE FOREVER.',
@@ -339,7 +489,10 @@ const ui = computed<CartPageUi>(() => {
       summaryTitle: 'Your order',
       subtotal: 'Subtotal',
       delivery: 'Delivery',
-      deliveryValue: 'Calculated at checkout',
+      deliveryValue: 'Free',
+      deliveryCityLabel: 'Delivery city',
+      deliveryCityPlaceholder: 'e.g. Chisinau',
+      deliveryEstimateLabel: 'Estimated date',
       total: 'Total',
       checkout: 'Continue to checkout',
       continueShopping: 'Back to catalog',
@@ -349,6 +502,17 @@ const ui = computed<CartPageUi>(() => {
       bundleSubtitle: 'Products that match your current order',
       bundleSave: 'You save',
       bundleAdd: 'Add bundle',
+      upsellLabel: 'Complete your order',
+      upsellTitle: 'Add these picks too',
+      upsellSubtitle: 'Popular products that match your cart',
+      upsellAdd: 'Add',
+      promoLabel: 'Promo code',
+      promoPlaceholder: 'e.g. OSF10',
+      promoApply: 'Apply',
+      promoDiscount: 'Discount',
+      promoAppliedMessage: 'Promo code applied successfully.',
+      promoInvalidMessage: 'Invalid code or subtotal is too low.',
+      promoRemovedMessage: 'Promo code removed automatically (subtotal too low).',
       emptyTitle: 'Your cart is empty',
       emptyText:
         'Add products from the catalog and build your ONE STYLE FOREVER selection.',
@@ -371,7 +535,10 @@ const ui = computed<CartPageUi>(() => {
     summaryTitle: 'Твой заказ',
     subtotal: 'Промежуточный итог',
     delivery: 'Доставка',
-    deliveryValue: 'Рассчитается при оформлении',
+    deliveryValue: 'Бесплатно',
+    deliveryCityLabel: 'Город доставки',
+    deliveryCityPlaceholder: 'Например: Кишинёв',
+    deliveryEstimateLabel: 'Ожидаемая дата',
     total: 'Итого',
     checkout: 'Перейти к оформлению',
     continueShopping: 'Вернуться в каталог',
@@ -381,6 +548,17 @@ const ui = computed<CartPageUi>(() => {
     bundleSubtitle: 'Товары, которые чаще берут вместе',
     bundleSave: 'Экономия',
     bundleAdd: 'Добавить комплект',
+    upsellLabel: 'Дополни заказ',
+    upsellTitle: 'Добавь к заказу',
+    upsellSubtitle: 'Популярные модели к твоей подборке',
+    upsellAdd: 'Добавить',
+    promoLabel: 'Промокод',
+    promoPlaceholder: 'Например: OSF10',
+    promoApply: 'Применить',
+    promoDiscount: 'Скидка',
+    promoAppliedMessage: 'Промокод успешно применён.',
+    promoInvalidMessage: 'Промокод не подходит или сумма слишком маленькая.',
+    promoRemovedMessage: 'Промокод снят автоматически (сумма стала ниже порога).',
     emptyTitle: 'Корзина пуста',
     emptyText:
       'Добавь товары из каталога и собери свою подборку ONE STYLE FOREVER.',
@@ -389,6 +567,39 @@ const ui = computed<CartPageUi>(() => {
 })
 
 const cartItemKey = (item: CartItem) => `${item.id}-${item.selectedSize}`
+
+const addUpsell = (product: LocalizedProduct) => {
+  const selectedSize = product.sizes[0]
+  if (!selectedSize) return
+
+  shopStore.addToCart({
+    id: product.id,
+    title: product.title,
+    price: product.price,
+    image: product.image,
+    description: product.description,
+    selectedSize
+  })
+
+  uiStore.showToast(`${product.title} — ${ui.value.upsellAdd.toLowerCase()}`, 'success')
+}
+
+const applyPromoCode = () => {
+  const code = String(promoInput.value || '').trim().toUpperCase()
+  const rule = promoRules[code]
+
+  if (!code || !rule || (rule.minSubtotal && subtotal.value < rule.minSubtotal)) {
+    promoMessage.value = ui.value.promoInvalidMessage
+    promoMessageType.value = 'error'
+    appliedPromoCode.value = ''
+    return
+  }
+
+  appliedPromoCode.value = code
+  promoInput.value = code
+  promoMessage.value = ui.value.promoAppliedMessage
+  promoMessageType.value = 'success'
+}
 
 const addBundleOffer = (offer: BundleOffer) => {
   for (const product of offer.items) {
@@ -408,6 +619,51 @@ const addBundleOffer = (offer: BundleOffer) => {
 
 onMounted(() => {
   shopStore.sanitizeCart()
+  if (!import.meta.client) return
+
+  try {
+    promoInput.value = String(window.localStorage.getItem(promoStorageKey) || '')
+    appliedPromoCode.value = String(window.localStorage.getItem(promoStorageKey) || '').trim().toUpperCase()
+  } catch {
+    promoInput.value = ''
+    appliedPromoCode.value = ''
+  }
+
+  try {
+    deliveryCity.value = String(window.localStorage.getItem(deliveryCityStorageKey) || '')
+  } catch {
+    deliveryCity.value = ''
+  }
+})
+
+watch(appliedPromoCode, (value) => {
+  const code = String(value || '').trim().toUpperCase()
+  const rule = promoRules[code]
+  if (code && (!rule || (rule.minSubtotal && subtotal.value < rule.minSubtotal))) {
+    appliedPromoCode.value = ''
+    promoMessage.value = ui.value.promoRemovedMessage
+    promoMessageType.value = 'error'
+  }
+
+  if (!import.meta.client) return
+  try {
+    if (appliedPromoCode.value) {
+      window.localStorage.setItem(promoStorageKey, appliedPromoCode.value)
+    } else {
+      window.localStorage.removeItem(promoStorageKey)
+    }
+  } catch {
+    // Ignore storage errors.
+  }
+})
+
+watch(deliveryCity, (value) => {
+  if (!import.meta.client) return
+  try {
+    window.localStorage.setItem(deliveryCityStorageKey, String(value || ''))
+  } catch {
+    // Ignore storage errors.
+  }
 })
 </script>
 
@@ -734,6 +990,65 @@ onMounted(() => {
   min-width: 180px;
 }
 
+.upsell-card {
+  padding: 22px;
+  display: grid;
+  gap: 14px;
+}
+
+.upsell-list {
+  display: grid;
+  gap: 10px;
+}
+
+.upsell-item {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #fff;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.upsell-image {
+  width: 88px;
+  height: 88px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #fff;
+  display: grid;
+  place-items: center;
+  padding: 6px;
+}
+
+.upsell-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.upsell-info {
+  display: grid;
+  gap: 3px;
+}
+
+.upsell-info strong {
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.upsell-info span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.upsell-btn {
+  min-height: 38px;
+  min-width: 116px;
+}
+
 .summary-title {
   margin: 8px 0 0;
   font-size: 34px;
@@ -767,6 +1082,58 @@ onMounted(() => {
   font-size: 16px;
   color: var(--muted);
   font-weight: 700;
+}
+
+.promo-row,
+.city-row {
+  display: grid;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.promo-inline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.promo-input,
+.city-input {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 0 12px;
+  font: inherit;
+  color: var(--text);
+}
+
+.promo-btn {
+  min-height: 42px;
+  min-width: 100px;
+}
+
+.promo-discount-row strong {
+  color: #1f6b43;
+  font-size: 18px;
+}
+
+.promo-note {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid #c9dfcc;
+  background: #f3faf4;
+  color: #2f6b47;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.promo-note.error {
+  border-color: #e3cccc;
+  background: #fff5f5;
+  color: #9e3232;
 }
 
 .summary-total {
@@ -876,6 +1243,15 @@ onMounted(() => {
     width: 100%;
     min-width: 0;
   }
+
+  .upsell-item {
+    grid-template-columns: 74px minmax(0, 1fr);
+  }
+
+  .upsell-btn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
 }
 
 @media (max-width: 640px) {
@@ -962,8 +1338,20 @@ onMounted(() => {
     font-size: 24px;
   }
 
+  .upsell-card {
+    padding: 14px;
+  }
+
   .summary-total strong {
     font-size: 24px;
+  }
+
+  .promo-inline {
+    grid-template-columns: 1fr;
+  }
+
+  .promo-btn {
+    width: 100%;
   }
 }
 </style>

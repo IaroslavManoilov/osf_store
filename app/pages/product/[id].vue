@@ -78,6 +78,14 @@
                 <span>{{ reviewsMetaLabel }}</span>
               </div>
 
+              <div v-if="sizeRatingCards.length" class="size-rating-strip">
+                <article v-for="item in sizeRatingCards" :key="`size-rating-${item.size}`" class="size-rating-card">
+                  <span>{{ ui.size }} {{ item.size }}</span>
+                  <strong>{{ item.average }}/5</strong>
+                  <small>{{ item.count }} {{ ui.reviewsCountSuffix }}</small>
+                </article>
+              </div>
+
               <div class="meta-grid">
                 <div class="meta-card">
                   <span>{{ ui.color }}</span>
@@ -513,6 +521,7 @@ type ProductReview = {
   photos?: string[]
   verified?: boolean
   orderId?: string
+  selectedSize?: string
 }
 
 type SavedTrack = {
@@ -523,7 +532,7 @@ type SavedTrack = {
 
 type TrackedOrder = {
   id: string
-  status: 'new' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
+  status: 'new' | 'confirmed' | 'assembled' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
   items: Array<{
     id: string
   }>
@@ -576,6 +585,7 @@ const reviews = ref<ProductReview[]>([])
 const canLeaveReview = ref(false)
 const reviewEligibilityLoading = ref(false)
 const eligibleOrderIdsForReview = ref<string[]>([])
+const savedTracks = ref<SavedTrack[]>([])
 const reviewFilter = ref<'all' | '5' | '4plus' | 'photo'>('all')
 const reviewPhotoInputRef = ref<HTMLInputElement | null>(null)
 const reviewPhotoDraft = ref<string[]>([])
@@ -801,29 +811,7 @@ const onLightboxKeydown = (event: KeyboardEvent) => {
   }
 }
 
-function readReviewsMap() {
-  if (!import.meta.client) return {} as Record<string, ProductReview[]>
-
-  try {
-    const raw = window.localStorage.getItem('osf_reviews_v1')
-    const parsed = raw ? JSON.parse(raw) : {}
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-    return parsed as Record<string, ProductReview[]>
-  } catch {
-    return {}
-  }
-}
-
-function writeReviewsMap(value: Record<string, ProductReview[]>) {
-  if (!import.meta.client) return
-  try {
-    window.localStorage.setItem('osf_reviews_v1', JSON.stringify(value))
-  } catch {
-    // Ignore storage write failures to avoid runtime crashes.
-  }
-}
-
-function loadReviewState() {
+async function loadReviewState() {
   if (!import.meta.client || !product.value) return
 
   let purchasedIds: string[] = []
@@ -839,23 +827,42 @@ function loadReviewState() {
   const productId = product.value.id
   reviewEligibilityLoading.value = true
   eligibleOrderIdsForReview.value = []
+  savedTracks.value = parseSavedTracks()
 
-  const map = readReviewsMap()
-  const rawReviews = map[productId] || []
-  reviews.value = rawReviews.map((item) => ({
-    ...item,
-    verified: !!item.verified,
-    photos: Array.isArray(item.photos) ? item.photos.filter((photo): photo is string => typeof photo === 'string') : []
-  }))
+  try {
+    const serverReviews = await $fetch<{
+      success: boolean
+      reviews?: Array<{
+        rating: number
+        text: string
+        createdAt: string
+        photos?: string[]
+        verified?: boolean
+        selectedSize?: string
+      }>
+    }>(`/api/reviews/${productId}`)
 
-  const tracks = parseSavedTracks()
-  if (!tracks.length) {
+    reviews.value = Array.isArray(serverReviews?.reviews)
+      ? serverReviews.reviews.map((item) => ({
+          rating: Number(item.rating || 0) || 5,
+          text: String(item.text || ''),
+          createdAt: String(item.createdAt || new Date().toISOString()),
+          photos: Array.isArray(item.photos) ? item.photos.filter((photo): photo is string => typeof photo === 'string') : [],
+          verified: item.verified !== false,
+          selectedSize: String(item.selectedSize || '').trim().toUpperCase() || undefined
+        }))
+      : []
+  } catch {
+    reviews.value = []
+  }
+
+  if (!savedTracks.value.length) {
     canLeaveReview.value = purchasedIds.includes(productId)
     reviewEligibilityLoading.value = false
     return
   }
 
-  checkVerifiedPurchase(productId, tracks)
+  checkVerifiedPurchase(productId, savedTracks.value)
     .then((result) => {
       eligibleOrderIdsForReview.value = result.orderIds
       canLeaveReview.value = result.canLeave || purchasedIds.includes(productId)
@@ -898,7 +905,7 @@ async function checkVerifiedPurchase(productId: string, tracks: SavedTrack[]) {
   })
 
   const orders = Array.isArray(response.orders) ? response.orders : []
-  const allowedStatuses = new Set<TrackedOrder['status']>(['confirmed', 'shipped', 'delivered'])
+  const allowedStatuses = new Set<TrackedOrder['status']>(['delivered'])
   const matched = orders.filter((order) =>
     allowedStatuses.has(order.status) &&
     Array.isArray(order.items) &&
@@ -936,6 +943,24 @@ const filteredReviews = computed(() => {
 const roundedAverageRating = computed(() => Math.round(averageRating.value))
 const averageRatingLabel = computed(() => (reviews.value.length ? `${averageRating.value}/5` : ui.value.noRatingLabel))
 const reviewsMetaLabel = computed(() => (reviews.value.length ? `${reviews.value.length} ${ui.value.reviewsCountSuffix}` : ui.value.noReviewsYet))
+const sizeRatingCards = computed(() => {
+  const bySize = new Map<string, { sum: number; count: number }>()
+  for (const item of reviews.value) {
+    const size = String(item.selectedSize || '').trim().toUpperCase()
+    if (!size) continue
+    const current = bySize.get(size) || { sum: 0, count: 0 }
+    current.sum += Number(item.rating || 0)
+    current.count += 1
+    bySize.set(size, current)
+  }
+  return Array.from(bySize.entries())
+    .map(([size, stat]) => ({
+      size,
+      count: stat.count,
+      average: Number((stat.sum / stat.count).toFixed(1))
+    }))
+    .sort((a, b) => a.size.localeCompare(b.size))
+})
 const socialProofLabel = computed(() => {
   const buyers = Math.max(0, Number(weeklyBuyerCount.value || 0))
   const orders = Math.max(0, Number(weeklyOrdersCount.value || 0))
@@ -966,7 +991,7 @@ const loadSocialProof = async () => {
   }
 }
 
-const submitReview = () => {
+const submitReview = async () => {
   if (!product.value) return
 
   if (!canLeaveReview.value) {
@@ -984,27 +1009,30 @@ const submitReview = () => {
     return
   }
 
-  const map = readReviewsMap()
-  const productReviews = map[product.value.id] || []
+  const tracks = savedTracks.value.length ? savedTracks.value : parseSavedTracks()
 
-  productReviews.unshift({
-    rating: reviewDraft.value.rating,
-    text: reviewDraft.value.text,
-    createdAt: new Date().toISOString(),
-    photos: [...reviewPhotoDraft.value],
-    verified: eligibleOrderIdsForReview.value.length > 0,
-    orderId: eligibleOrderIdsForReview.value[0]
-  })
-
-  map[product.value.id] = productReviews
-  writeReviewsMap(map)
-  reviews.value = productReviews
+  try {
+    await $fetch('/api/reviews/submit', {
+      method: 'POST',
+      body: {
+        productId: product.value.id,
+        rating: reviewDraft.value.rating,
+        text: reviewDraft.value.text,
+        photos: [...reviewPhotoDraft.value],
+        tracks
+      }
+    })
+  } catch {
+    uiStore.showToast(ui.value.reviewOnlyAfterPurchase, 'error')
+    return
+  }
 
   reviewDraft.value = { rating: 5, text: '' }
   reviewPhotoDraft.value = []
   if (reviewPhotoInputRef.value) {
     reviewPhotoInputRef.value.value = ''
   }
+  await loadReviewState()
   uiStore.showToast(ui.value.reviewSuccess, 'success')
 }
 
@@ -1203,7 +1231,7 @@ const ui = computed(() => {
       reviewPhotoSizeError: 'Fiecare imagine trebuie să fie sub 2MB.',
       reviewSubmit: 'Trimite recenzia',
       reviewOnlyAfterPurchase: 'Poți lăsa recenzie doar după cumpărarea acestui produs.',
-      reviewEligibilityChecking: 'Verificăm dacă ai o comandă confirmată pentru acest produs...',
+      reviewEligibilityChecking: 'Verificăm dacă ai o comandă livrată pentru acest produs...',
       reviewGoOrders: 'Comenzile mele',
       reviewVerified: 'Achiziție verificată',
       reviewFilterAll: 'Toate',
@@ -1293,7 +1321,7 @@ const ui = computed(() => {
       reviewPhotoSizeError: 'Each image must be under 2MB.',
       reviewSubmit: 'Submit review',
       reviewOnlyAfterPurchase: 'You can leave a review only after buying this product.',
-      reviewEligibilityChecking: 'Checking your confirmed orders for this product...',
+      reviewEligibilityChecking: 'Checking your delivered orders for this product...',
       reviewGoOrders: 'My orders',
       reviewVerified: 'Verified purchase',
       reviewFilterAll: 'All',
@@ -1382,7 +1410,7 @@ const ui = computed(() => {
     reviewPhotoSizeError: 'Каждое изображение должно быть меньше 2MB.',
     reviewSubmit: 'Отправить отзыв',
     reviewOnlyAfterPurchase: 'Оставить отзыв можно только после покупки этого товара.',
-    reviewEligibilityChecking: 'Проверяем подтвержденные заказы по этому товару...',
+    reviewEligibilityChecking: 'Проверяем доставленные заказы по этому товару...',
     reviewGoOrders: 'Мои заказы',
     reviewVerified: 'Проверенная покупка',
     reviewFilterAll: 'Все',
@@ -2168,6 +2196,39 @@ useHead(
 .rating-summary span {
   color: #5f6d82;
   font-size: 13px;
+}
+
+.size-rating-strip {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.size-rating-card {
+  min-width: 92px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  display: grid;
+  gap: 2px;
+}
+
+.size-rating-card span {
+  color: #5f7289;
+  font-size: 12px;
+}
+
+.size-rating-card strong {
+  color: #132541;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.size-rating-card small {
+  color: #6c7f96;
+  font-size: 11px;
 }
 
 .reviews-box {

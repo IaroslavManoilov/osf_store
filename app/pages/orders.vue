@@ -26,6 +26,22 @@
               {{ notificationPermissionLabel }}
             </p>
 
+            <div v-if="pendingReviewCards.length" class="pending-review-box">
+              <strong>{{ ui.pendingReviewTitle }}</strong>
+              <p>{{ ui.pendingReviewSubtitle }}</p>
+              <div class="pending-review-list">
+                <article v-for="item in pendingReviewCards" :key="`${item.orderId}-${item.productId}`" class="pending-review-item">
+                  <div>
+                    <strong>{{ item.title }}</strong>
+                    <span>{{ item.orderId }}</span>
+                  </div>
+                  <NuxtLink :to="localePath(`/product/${item.productId}`)" class="btn-alt order-btn">
+                    {{ ui.leaveReview }}
+                  </NuxtLink>
+                </article>
+              </div>
+            </div>
+
             <div class="orders-filters" v-if="trackedOrders.length">
               <button
                 v-for="filter in statusFilters"
@@ -364,6 +380,9 @@ type Ui = {
   filterCompleted: string
   filterCancelled: string
   timelineCurrentNote: string
+  pendingReviewTitle: string
+  pendingReviewSubtitle: string
+  leaveReview: string
 }
 
 const { locale } = useI18n()
@@ -403,6 +422,7 @@ const orderNotices = ref<OrderNotice[]>([])
 const notificationsMode = ref<'all' | 'history' | 'off'>('all')
 const notificationPermission = ref<'default' | 'granted' | 'denied'>('default')
 const statusFilter = ref<'all' | 'active' | 'completed' | 'cancelled'>('all')
+const pendingReviewItems = ref<Array<{ orderId: string; productId: string; createdAt: string }>>([])
 
 const lookup = reactive({
   orderId: '',
@@ -484,7 +504,10 @@ const ui = computed<Ui>(() => {
       filterActive: 'Active',
       filterCompleted: 'Finalizate',
       filterCancelled: 'Anulate/retur',
-      timelineCurrentNote: 'Notă curentă'
+      timelineCurrentNote: 'Notă curentă',
+      pendingReviewTitle: 'Recenzii după livrare',
+      pendingReviewSubtitle: 'Aceste produse sunt livrate. Lasă un review scurt și ajută alți clienți.',
+      leaveReview: 'Lasă review'
     }
   }
 
@@ -561,7 +584,10 @@ const ui = computed<Ui>(() => {
       filterActive: 'Active',
       filterCompleted: 'Completed',
       filterCancelled: 'Cancelled/returned',
-      timelineCurrentNote: 'Current note'
+      timelineCurrentNote: 'Current note',
+      pendingReviewTitle: 'Review requests',
+      pendingReviewSubtitle: 'These items are delivered. Leave a short review to help other buyers.',
+      leaveReview: 'Leave review'
     }
   }
 
@@ -637,7 +663,10 @@ const ui = computed<Ui>(() => {
     filterActive: 'Активные',
     filterCompleted: 'Завершенные',
     filterCancelled: 'Отмена/возврат',
-    timelineCurrentNote: 'Текущая заметка'
+    timelineCurrentNote: 'Текущая заметка',
+    pendingReviewTitle: 'Запросы на отзыв',
+    pendingReviewSubtitle: 'Эти товары уже доставлены. Оставь короткий отзыв и помоги другим покупателям.',
+    leaveReview: 'Оставить отзыв'
   }
 })
 
@@ -941,7 +970,22 @@ const rememberTrackedState = (orders: PublicOrder[]) => {
 }
 
 const canCancelOrder = (status: PublicOrder['status']) =>
-  status === 'new' || status === 'confirmed' || status === 'assembled'
+  status === 'new' || status === 'confirmed'
+
+const productTitleById = computed(() => {
+  const map = new Map<string, string>()
+  for (const item of getProducts(locale.value)) {
+    map.set(item.id, item.title)
+  }
+  return map
+})
+
+const pendingReviewCards = computed(() =>
+  pendingReviewItems.value.map((item) => ({
+    ...item,
+    title: productTitleById.value.get(item.productId) || item.productId
+  }))
+)
 
 const displayedTrackedOrders = computed(() => {
   if (statusFilter.value === 'all') return trackedOrders.value
@@ -1081,12 +1125,41 @@ const loadTrackedOrders = async (options?: { silent?: boolean; detectChanges?: b
 
     trackedOrders.value = nextOrders
     rememberTrackedState(nextOrders)
+    void loadPendingReviewItems()
   } catch {
     trackedOrders.value = []
+    pendingReviewItems.value = []
   } finally {
     if (!silent) {
       trackedLoading.value = false
     }
+  }
+}
+
+const loadPendingReviewItems = async () => {
+  if (!import.meta.client) return
+  const tracks = parseSavedTracks()
+  if (!tracks.length) {
+    pendingReviewItems.value = []
+    return
+  }
+
+  try {
+    const response = await $fetch<{
+      success: boolean
+      items?: Array<{ orderId: string; productId: string; createdAt: string }>
+    }>('/api/reviews/pending', {
+      method: 'POST',
+      body: {
+        orders: tracks
+      }
+    })
+
+    pendingReviewItems.value = Array.isArray(response?.items)
+      ? response.items.slice(0, 8)
+      : []
+  } catch {
+    pendingReviewItems.value = []
   }
 }
 
@@ -1396,6 +1469,58 @@ useSeoMeta({
 
 .notice-permission {
   margin-top: 6px;
+  font-size: 12px;
+}
+
+.pending-review-box {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid #d6e7dc;
+  background: #f4fbf6;
+  display: grid;
+  gap: 8px;
+}
+
+.pending-review-box strong {
+  font-size: 14px;
+  color: #1e5f3b;
+}
+
+.pending-review-box p {
+  margin: 0;
+  font-size: 13px;
+  color: #4c5f72;
+}
+
+.pending-review-list {
+  display: grid;
+  gap: 8px;
+}
+
+.pending-review-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid #d6e7dc;
+  background: #fff;
+}
+
+.pending-review-item div {
+  min-width: 0;
+  display: grid;
+}
+
+.pending-review-item div strong {
+  color: #0f1e36;
+  font-size: 14px;
+}
+
+.pending-review-item div span {
+  color: #6a7d92;
   font-size: 12px;
 }
 
