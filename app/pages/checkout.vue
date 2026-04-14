@@ -174,6 +174,27 @@
                     </a>
                   </div>
                 </label>
+
+                <div class="quick-addresses field-full">
+                  <div class="quick-addresses-head">
+                    <span class="quick-addresses-title">{{ ui.quickAddressTitle }}</span>
+                    <small v-if="quickAddressEntries.length">{{ ui.quickAddressFromHistory }}</small>
+                  </div>
+
+                  <div v-if="quickAddressEntries.length" class="quick-addresses-list">
+                    <article v-for="item in quickAddressEntries" :key="item.id" class="quick-address-card">
+                      <div class="quick-address-meta">
+                        <strong>{{ quickAddressLabel(item) }}</strong>
+                        <span>{{ quickAddressDateLabel(item.createdAt) }}</span>
+                      </div>
+                      <button type="button" class="btn-alt quick-address-use" @click="applyQuickAddress(item)">
+                        {{ ui.quickAddressApply }}
+                      </button>
+                    </article>
+                  </div>
+
+                  <p v-else class="quick-address-empty">{{ ui.quickAddressEmpty }}</p>
+                </div>
               </div>
 
               <details class="optional-fields">
@@ -338,6 +359,10 @@ type CheckoutUi = {
   successPrefix: string
   openMyOrders: string
   fallbackError: string
+  quickAddressTitle: string
+  quickAddressEmpty: string
+  quickAddressApply: string
+  quickAddressFromHistory: string
   summaryLabel: string
   summaryTitle: string
   total: string
@@ -374,6 +399,19 @@ type GeoSuggestionEntry = {
   postalCode?: string
 }
 
+type QuickAddress = {
+  id: string
+  phoneCode: string
+  deliveryType: CheckoutForm['deliveryType']
+  city: string
+  street: string
+  house: string
+  apartment: string
+  postalCode: string
+  pickupPoint: string
+  createdAt: string
+}
+
 const { locale } = useI18n()
 const localePath = useLocalePath()
 const shopStore = useShopStore()
@@ -397,6 +435,7 @@ const form = reactive<CheckoutForm>({
 const profileStorageKey = 'osf_checkout_profile_v1'
 const draftStorageKey = 'osf_checkout_draft_v1'
 const orderTracksStorageKey = 'osf_order_tracks_v1'
+const quickAddressesStorageKey = 'osf_checkout_quick_addresses_v1'
 
 const isSubmitting = ref(false)
 const successMessage = ref('')
@@ -405,6 +444,7 @@ const draftSavedAt = ref('')
 const checkoutCsrfToken = ref('')
 const lastOrderId = ref('')
 const lastTrackToken = ref('')
+const quickAddresses = ref<QuickAddress[]>([])
 const fieldErrors = reactive<Record<'name' | 'phone' | 'city' | 'street' | 'house' | 'pickupPoint', string>>({
   name: '',
   phone: '',
@@ -465,6 +505,10 @@ const ui = computed<CheckoutUi>(() => {
       successPrefix: 'Comanda a fost trimisă. Număr comandă:',
       openMyOrders: 'Deschide comenzile mele',
       fallbackError: 'A apărut o eroare la trimiterea comenzii.',
+      quickAddressTitle: 'Adrese recente',
+      quickAddressEmpty: 'După prima comandă, adresele vor apărea aici.',
+      quickAddressApply: 'Folosește',
+      quickAddressFromHistory: 'Istoric',
       summaryLabel: 'Sumar',
       summaryTitle: 'Produse în comandă',
       total: 'Total',
@@ -473,7 +517,7 @@ const ui = computed<CheckoutUi>(() => {
       emptyTitle: 'Nu există produse pentru checkout',
       emptyText: 'Adaugă produse în coș pentru a continua.',
       toCatalog: 'Mergi la catalog',
-      draftSaved: 'Ciornă salvată:'
+      draftSaved: 'Ciornă salvată:',
       suggestLoading: 'Se caută adrese...',
       suggestEmpty: 'Nu am găsit variante'
     }
@@ -518,6 +562,10 @@ const ui = computed<CheckoutUi>(() => {
       successPrefix: 'Order submitted successfully. Order ID:',
       openMyOrders: 'Open my orders',
       fallbackError: 'An error occurred while submitting the order.',
+      quickAddressTitle: 'Recent addresses',
+      quickAddressEmpty: 'After your first order, addresses will appear here.',
+      quickAddressApply: 'Use address',
+      quickAddressFromHistory: 'History',
       summaryLabel: 'Summary',
       summaryTitle: 'Products in order',
       total: 'Total',
@@ -526,7 +574,7 @@ const ui = computed<CheckoutUi>(() => {
       emptyTitle: 'No products for checkout',
       emptyText: 'Add products to your cart to continue.',
       toCatalog: 'Go to catalog',
-      draftSaved: 'Draft saved:'
+      draftSaved: 'Draft saved:',
       suggestLoading: 'Searching addresses...',
       suggestEmpty: 'No suggestions found'
     }
@@ -570,6 +618,10 @@ const ui = computed<CheckoutUi>(() => {
     successPrefix: 'Заказ успешно отправлен. Номер заказа:',
     openMyOrders: 'Открыть мои заказы',
     fallbackError: 'Произошла ошибка при отправке заказа.',
+    quickAddressTitle: 'Недавние адреса',
+    quickAddressEmpty: 'После первого заказа адреса появятся здесь.',
+    quickAddressApply: 'Использовать',
+    quickAddressFromHistory: 'История',
     summaryLabel: 'Сводка',
     summaryTitle: 'Товары в заказе',
     total: 'Итого',
@@ -578,7 +630,7 @@ const ui = computed<CheckoutUi>(() => {
     emptyTitle: 'Нет товаров для оформления',
     emptyText: 'Добавь товары в корзину, чтобы продолжить.',
     toCatalog: 'Перейти в каталог',
-    draftSaved: 'Черновик сохранён:'
+    draftSaved: 'Черновик сохранён:',
     suggestLoading: 'Ищем адрес...',
     suggestEmpty: 'Ничего не найдено'
   }
@@ -704,6 +756,110 @@ const clearCheckoutDraft = () => {
     // Ignore remove errors.
   }
   draftSavedAt.value = ''
+}
+
+const loadQuickAddresses = () => {
+  if (!import.meta.client) return
+  try {
+    const raw = window.localStorage.getItem(quickAddressesStorageKey)
+    const parsed = raw ? JSON.parse(raw) : []
+    quickAddresses.value = Array.isArray(parsed)
+      ? parsed
+          .filter((item): item is QuickAddress =>
+            !!item &&
+            typeof item === 'object' &&
+            typeof (item as QuickAddress).id === 'string' &&
+            typeof (item as QuickAddress).deliveryType === 'string'
+          )
+          .slice(0, 8)
+      : []
+  } catch {
+    quickAddresses.value = []
+  }
+}
+
+const saveQuickAddresses = () => {
+  if (!import.meta.client) return
+  try {
+    window.localStorage.setItem(
+      quickAddressesStorageKey,
+      JSON.stringify(quickAddresses.value.slice(0, 8))
+    )
+  } catch {
+    // Ignore localStorage write failures.
+  }
+}
+
+const quickAddressLabel = (item: QuickAddress) => {
+  if (item.deliveryType === 'courier') {
+    const main = [item.city, item.street, item.house].filter(Boolean).join(', ')
+    const apt = item.apartment ? `apt ${item.apartment}` : ''
+    return [main, apt].filter(Boolean).join(' · ')
+  }
+  return [item.pickupPoint, item.city].filter(Boolean).join(' · ')
+}
+
+const quickAddressDateLabel = (value: string) => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const localeCode = locale.value === 'ro' ? 'ro-RO' : locale.value === 'en' ? 'en-US' : 'ru-RU'
+  return date.toLocaleDateString(localeCode, {
+    day: '2-digit',
+    month: '2-digit'
+  })
+}
+
+const rememberQuickAddress = () => {
+  const payload: QuickAddress = {
+    id: `qa-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    phoneCode: form.phoneCode,
+    deliveryType: form.deliveryType,
+    city: String(form.city || '').trim(),
+    street: String(form.street || '').trim(),
+    house: String(form.house || '').trim(),
+    apartment: String(form.apartment || '').trim(),
+    postalCode: String(form.postalCode || '').trim(),
+    pickupPoint: String(form.pickupPoint || '').trim(),
+    createdAt: new Date().toISOString()
+  }
+
+  if (!payload.city) return
+  if (payload.deliveryType === 'courier' && (!payload.street || !payload.house)) return
+  if (payload.deliveryType !== 'courier' && !payload.pickupPoint) return
+
+  const dedupeKey =
+    payload.deliveryType === 'courier'
+      ? `${payload.phoneCode}|${payload.deliveryType}|${payload.city}|${payload.street}|${payload.house}|${payload.apartment}|${payload.postalCode}`
+      : `${payload.phoneCode}|${payload.deliveryType}|${payload.city}|${payload.pickupPoint}|${payload.postalCode}`
+
+  quickAddresses.value = [
+    payload,
+    ...quickAddresses.value.filter((item) => {
+      const existingKey =
+        item.deliveryType === 'courier'
+          ? `${item.phoneCode}|${item.deliveryType}|${item.city}|${item.street}|${item.house}|${item.apartment}|${item.postalCode}`
+          : `${item.phoneCode}|${item.deliveryType}|${item.city}|${item.pickupPoint}|${item.postalCode}`
+      return existingKey !== dedupeKey
+    })
+  ].slice(0, 8)
+
+  saveQuickAddresses()
+}
+
+const applyQuickAddress = (item: QuickAddress) => {
+  form.phoneCode = item.phoneCode || form.phoneCode
+  form.deliveryType = item.deliveryType
+  form.city = item.city || ''
+  form.street = item.street || ''
+  form.house = item.house || ''
+  form.apartment = item.apartment || ''
+  form.postalCode = item.postalCode || ''
+  form.pickupPoint = item.pickupPoint || ''
+  quickAddresses.value = [
+    item,
+    ...quickAddresses.value.filter((entry) => entry.id !== item.id)
+  ].slice(0, 8)
+  saveQuickAddresses()
 }
 
 const markPurchasedProducts = (ids: string[]) => {
@@ -1100,6 +1256,12 @@ const fullAddress = computed(() => {
     .join(', ')
 })
 
+const quickAddressEntries = computed(() =>
+  quickAddresses.value.filter((item) =>
+    item.phoneCode === form.phoneCode && item.deliveryType === form.deliveryType
+  )
+)
+
 const draftSavedAtLabel = computed(() => {
   if (!draftSavedAt.value) return ''
   const date = new Date(draftSavedAt.value)
@@ -1315,6 +1477,7 @@ const submitOrder = async () => {
       lastTrackToken.value = response.trackToken
       saveOrderTrack(response.orderId, response.trackToken)
     }
+    rememberQuickAddress()
     markPurchasedProducts(purchasedIds)
     saveCheckoutProfile()
     clearCheckoutDraft()
@@ -1359,6 +1522,7 @@ onMounted(() => {
   shopStore.sanitizeCart()
   loadCheckoutProfile()
   loadCheckoutDraft()
+  loadQuickAddresses()
   onPhoneInput()
   if (import.meta.client) {
     window.addEventListener('pointerdown', handleDocumentPointerDown)
@@ -1732,6 +1896,79 @@ useSeoMeta({
   white-space: nowrap;
 }
 
+.quick-addresses {
+  margin-top: 2px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #fbfdfb;
+}
+
+.quick-addresses-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.quick-addresses-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #20344a;
+}
+
+.quick-addresses-head small {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5d6f84;
+}
+
+.quick-addresses-list {
+  display: grid;
+  gap: 8px;
+}
+
+.quick-address-card {
+  border: 1px solid #dbe7dd;
+  border-radius: 14px;
+  background: #fff;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.quick-address-meta {
+  display: grid;
+  gap: 4px;
+}
+
+.quick-address-meta strong {
+  font-size: 13px;
+  color: #1d3147;
+}
+
+.quick-address-meta span {
+  font-size: 12px;
+  color: #62758b;
+}
+
+.quick-address-use {
+  min-height: 36px;
+  padding: 0 12px;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quick-address-empty {
+  margin: 0;
+  font-size: 13px;
+  color: #5f7187;
+}
+
 .field textarea {
   min-height: 140px;
   padding: 16px;
@@ -1953,6 +2190,15 @@ useSeoMeta({
   .phone-group,
   .map-row {
     grid-template-columns: 1fr;
+  }
+
+  .quick-address-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .quick-address-use {
+    width: 100%;
   }
 
   .summary-product {
