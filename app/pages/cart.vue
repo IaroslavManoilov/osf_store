@@ -175,6 +175,16 @@
                 <strong>{{ deliveryPriceLabel }}</strong>
               </div>
 
+              <div class="shipping-progress-box" v-if="shopStore.cartCount">
+                <div class="shipping-progress-head">
+                  <strong>{{ freeShippingHeadline }}</strong>
+                  <span>{{ Math.round(freeShippingProgress) }}%</span>
+                </div>
+                <div class="shipping-progress-track" role="progressbar" :aria-valuenow="Math.round(freeShippingProgress)" aria-valuemin="0" aria-valuemax="100">
+                  <span :style="{ width: `${freeShippingProgress}%` }"></span>
+                </div>
+              </div>
+
               <div class="summary-row promo-row">
                 <span>{{ ui.promoLabel }}</span>
                 <div class="promo-inline">
@@ -187,6 +197,21 @@
                   />
                   <button type="button" class="btn-alt promo-btn" @click="applyPromoCode">
                     {{ ui.promoApply }}
+                  </button>
+                </div>
+                <div class="promo-suggestions">
+                  <button
+                    v-for="rule in promoSuggestionChips"
+                    :key="rule.code"
+                    type="button"
+                    class="promo-chip"
+                    :class="{ active: appliedPromoCode === rule.code }"
+                    @click="applyPromoSuggestion(rule.code)"
+                  >
+                    {{ rule.label }}
+                  </button>
+                  <button v-if="appliedPromoCode" type="button" class="promo-chip remove" @click="removePromoCode">
+                    {{ ui.promoRemove }}
                   </button>
                 </div>
               </div>
@@ -305,9 +330,13 @@ type CartPageUi = {
   promoPlaceholder: string
   promoApply: string
   promoDiscount: string
+  promoRemove: string
   promoAppliedMessage: string
   promoInvalidMessage: string
   promoRemovedMessage: string
+  freeShippingUnlocked: string
+  freeShippingLeftPrefix: string
+  freeShippingLeftSuffix: string
   emptyTitle: string
   emptyText: string
   toCatalog: string
@@ -338,6 +367,7 @@ const promoRules: Record<string, PromoRule> = {
   STYLE15: { type: 'percent', value: 15, minSubtotal: 1200 },
   WELCOME50: { type: 'fixed', value: 50, minSubtotal: 600 }
 }
+const freeShippingThreshold = 1200
 
 const promoStorageKey = 'osf_cart_promo_v1'
 const deliveryCityStorageKey = 'osf_cart_delivery_city_v1'
@@ -349,6 +379,16 @@ const deliveryCity = ref('')
 
 const cityNormalized = computed(() => String(deliveryCity.value || '').trim().toLowerCase())
 const subtotal = computed(() => shopStore.cartTotal)
+const freeShippingLeft = computed(() => Math.max(0, freeShippingThreshold - subtotal.value))
+const freeShippingProgress = computed(() => {
+  if (!shopStore.cartCount) return 0
+  const ratio = (subtotal.value / freeShippingThreshold) * 100
+  return Math.max(0, Math.min(100, ratio))
+})
+const freeShippingHeadline = computed(() => {
+  if (freeShippingLeft.value <= 0) return ui.value.freeShippingUnlocked
+  return `${ui.value.freeShippingLeftPrefix} ${freeShippingLeft.value} MDL ${ui.value.freeShippingLeftSuffix}`
+})
 
 const deliveryFee = computed(() => {
   if (!shopStore.cartCount) return 0
@@ -370,6 +410,21 @@ const promoDiscount = computed(() => {
     return Math.max(0, Math.round((subtotal.value * rule.value) / 100))
   }
   return Math.max(0, Math.round(rule.value))
+})
+const promoSuggestionChips = computed(() => {
+  const rows = Object.entries(promoRules).map(([code, rule]) => {
+    const discountPreview = rule.type === 'percent'
+      ? `${rule.value}%`
+      : `${Math.round(rule.value)} MDL`
+    const minText = rule.minSubtotal
+      ? ` · ${rule.minSubtotal}+`
+      : ''
+    return {
+      code,
+      label: `${code} (${discountPreview}${minText})`
+    }
+  })
+  return rows.slice(0, 4)
 })
 
 const checkoutTotal = computed(() => Math.max(0, subtotal.value + deliveryFee.value - promoDiscount.value))
@@ -463,9 +518,13 @@ const ui = computed<CartPageUi>(() => {
       promoPlaceholder: 'Ex: OSF10',
       promoApply: 'Aplică',
       promoDiscount: 'Reducere',
+      promoRemove: 'Șterge codul',
       promoAppliedMessage: 'Cod promo aplicat cu succes.',
       promoInvalidMessage: 'Cod invalid sau subtotal insuficient.',
       promoRemovedMessage: 'Cod promo eliminat automat (subtotal prea mic).',
+      freeShippingUnlocked: 'Ai deblocat livrare gratuită',
+      freeShippingLeftPrefix: 'Mai adaugă',
+      freeShippingLeftSuffix: 'pentru livrare gratuită',
       emptyTitle: 'Coșul este gol',
       emptyText:
         'Adaugă produse din catalog și construiește selecția ta ONE STYLE FOREVER.',
@@ -510,9 +569,13 @@ const ui = computed<CartPageUi>(() => {
       promoPlaceholder: 'e.g. OSF10',
       promoApply: 'Apply',
       promoDiscount: 'Discount',
+      promoRemove: 'Remove code',
       promoAppliedMessage: 'Promo code applied successfully.',
       promoInvalidMessage: 'Invalid code or subtotal is too low.',
       promoRemovedMessage: 'Promo code removed automatically (subtotal too low).',
+      freeShippingUnlocked: 'Free delivery unlocked',
+      freeShippingLeftPrefix: 'Add',
+      freeShippingLeftSuffix: 'more for free delivery',
       emptyTitle: 'Your cart is empty',
       emptyText:
         'Add products from the catalog and build your ONE STYLE FOREVER selection.',
@@ -556,9 +619,13 @@ const ui = computed<CartPageUi>(() => {
     promoPlaceholder: 'Например: OSF10',
     promoApply: 'Применить',
     promoDiscount: 'Скидка',
+    promoRemove: 'Удалить код',
     promoAppliedMessage: 'Промокод успешно применён.',
     promoInvalidMessage: 'Промокод не подходит или сумма слишком маленькая.',
     promoRemovedMessage: 'Промокод снят автоматически (сумма стала ниже порога).',
+    freeShippingUnlocked: 'Бесплатная доставка уже доступна',
+    freeShippingLeftPrefix: 'Добавь ещё',
+    freeShippingLeftSuffix: 'для бесплатной доставки',
     emptyTitle: 'Корзина пуста',
     emptyText:
       'Добавь товары из каталога и собери свою подборку ONE STYLE FOREVER.',
@@ -599,6 +666,18 @@ const applyPromoCode = () => {
   promoInput.value = code
   promoMessage.value = ui.value.promoAppliedMessage
   promoMessageType.value = 'success'
+}
+
+const applyPromoSuggestion = (code: string) => {
+  promoInput.value = String(code || '').trim().toUpperCase()
+  applyPromoCode()
+}
+
+const removePromoCode = () => {
+  appliedPromoCode.value = ''
+  promoInput.value = ''
+  promoMessage.value = ui.value.promoRemovedMessage
+  promoMessageType.value = 'error'
 }
 
 const addBundleOffer = (offer: BundleOffer) => {
@@ -1119,6 +1198,79 @@ watch(deliveryCity, (value) => {
   font-size: 18px;
 }
 
+.shipping-progress-box {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid #cfe0d2;
+  border-radius: 12px;
+  background: #f7fbf8;
+  display: grid;
+  gap: 8px;
+}
+
+.shipping-progress-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.shipping-progress-head strong {
+  font-size: 13px;
+  color: #1f6b43;
+}
+
+.shipping-progress-head span {
+  font-size: 12px;
+  color: #58706a;
+  font-weight: 700;
+}
+
+.shipping-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #e8f1ea;
+  overflow: hidden;
+}
+
+.shipping-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2f8f58 0%, #4caf73 100%);
+}
+
+.promo-suggestions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.promo-chip {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: #49607a;
+  cursor: pointer;
+}
+
+.promo-chip.active {
+  border-color: #2f8f58;
+  color: #1f6b43;
+  background: #eef8f1;
+}
+
+.promo-chip.remove {
+  border-color: #dccaca;
+  color: #8a3d3d;
+  background: #fff7f7;
+}
+
 .promo-note {
   margin: 8px 0 0;
   padding: 8px 10px;
@@ -1352,6 +1504,11 @@ watch(deliveryCity, (value) => {
 
   .promo-btn {
     width: 100%;
+  }
+
+  .shipping-progress-head {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>
