@@ -18,6 +18,7 @@ const sanitizeDraft = (value: unknown) => {
     'phoneLocal',
     'email',
     'deliveryType',
+    'paymentMethod',
     'city',
     'street',
     'house',

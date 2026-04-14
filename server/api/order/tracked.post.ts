@@ -30,6 +30,10 @@ export default defineEventHandler(async (event) => {
     createdAt: string
     status: string
     total: number
+    payment: {
+      method: string
+      status: string
+    }
     items: Array<{
       id: string
       title: string
@@ -61,6 +65,7 @@ export default defineEventHandler(async (event) => {
       createdAt: order.createdAt,
       status: order.status,
       total: order.total,
+      payment: order.payment,
       items: order.items.map((item) => ({
         id: item.id,
         title: item.title,

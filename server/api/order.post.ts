@@ -26,6 +26,9 @@ type OrderPayload = {
     address: string
     comment?: string
   }
+  payment?: {
+    method?: string
+  }
   items: OrderItem[]
   total: number
 }
@@ -57,6 +60,18 @@ const buildCatalogById = async (event: H3Event) => {
 const safeText = (value: unknown, max = 255) => String(value || '').trim().slice(0, max)
 const isEmailValid = (value: string) => !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 const normalizePhone = (value: string) => value.replace(/[^\d+]/g, '')
+const normalizePaymentMethod = (value: unknown): 'card_online' | 'phone_transfer' | 'cash_on_delivery' => {
+  const method = String(value || '').trim()
+  if (method === 'card_online' || method === 'phone_transfer' || method === 'cash_on_delivery') {
+    return method
+  }
+  return 'cash_on_delivery'
+}
+const paymentMethodLabelRu = (method: 'card_online' | 'phone_transfer' | 'cash_on_delivery') => {
+  if (method === 'card_online') return 'Карта онлайн'
+  if (method === 'phone_transfer') return 'Оплата телефоном'
+  return 'Наличными при доставке'
+}
 
 export default defineEventHandler(async (event) => {
   requireCheckoutCsrf(event)
@@ -78,6 +93,8 @@ export default defineEventHandler(async (event) => {
   const customerAddress = safeText(customer?.address, 300)
   const customerEmail = safeText(customer?.email, 120)
   const customerComment = safeText(customer?.comment, 1200)
+  const paymentMethod = normalizePaymentMethod(body?.payment?.method)
+  const paymentStatus = paymentMethod === 'cash_on_delivery' ? 'cash_on_delivery' : 'pending'
 
   if (!customerName || !customerPhone || !customerAddress) {
     throw createError({
@@ -189,6 +206,10 @@ export default defineEventHandler(async (event) => {
       },
       items: normalizedItems,
       total: serverTotal,
+      payment: {
+        method: paymentMethod,
+        status: paymentStatus
+      },
       status: 'new',
       source: 'web',
       notifications: {
@@ -230,6 +251,7 @@ ID: ${orderId}
 Email: ${customerEmail || '-'}
 Адрес: ${customerAddress}
 Комментарий: ${customerComment || '-'}
+Оплата: ${paymentMethodLabelRu(paymentMethod)}
 
 📦 Товары:
 ${normalizedItems
@@ -272,6 +294,7 @@ ${normalizedItems
       <p><b>Email:</b> ${customerEmail || '-'}</p>
       <p><b>Address:</b> ${customerAddress}</p>
       <p><b>Comment:</b> ${customerComment || '-'}</p>
+      <p><b>Payment:</b> ${paymentMethodLabelRu(paymentMethod)}</p>
 
       <h3>Items:</h3>
       ${normalizedItems
@@ -291,6 +314,7 @@ Phone: ${customerPhone}
 Email: ${customerEmail || '-'}
 Address: ${customerAddress}
 Comment: ${customerComment || '-'}
+Payment: ${paymentMethodLabelRu(paymentMethod)}
 
 Items:
 ${normalizedItems
@@ -337,6 +361,27 @@ Total: ${serverTotal} MDL
       customerPhone
     ),
     total: serverTotal,
+    payment: {
+      method: paymentMethod,
+      status: paymentStatus
+    },
+    receipt: {
+      orderId,
+      createdAt: nowIso,
+      customerName,
+      customerPhone,
+      customerAddress,
+      paymentMethod,
+      paymentStatus,
+      items: normalizedItems.map((item) => ({
+        title: item.title,
+        quantity: item.quantity,
+        selectedSize: item.selectedSize,
+        price: item.price,
+        lineTotal: item.price * item.quantity
+      })),
+      total: serverTotal
+    },
     notifications: {
       telegramSent,
       emailSent

@@ -72,6 +72,16 @@
                   </select>
                 </label>
 
+                <label class="field field-full">
+                  <span>{{ ui.paymentMethod }}</span>
+                  <select v-model="form.paymentMethod">
+                    <option v-for="option in paymentMethodOptions" :key="option.value" :value="option.value">
+                      {{ option.label }}
+                    </option>
+                  </select>
+                  <small class="payment-hint">{{ paymentMethodHint }}</small>
+                </label>
+
                 <label class="field" :class="{ invalid: !!fieldErrors.city }">
                   <span>{{ ui.city }}</span>
                   <div ref="citySuggestRef" class="suggest-wrap">
@@ -281,6 +291,15 @@
               <p class="success-text">
                 {{ successMessage }}
               </p>
+              <div v-if="receiptData" class="receipt-box">
+                <strong>{{ ui.receiptTitle }}</strong>
+                <span>{{ receiptData.orderId }} · {{ receiptData.total }} MDL</span>
+                <span>{{ paymentMethodLabel(receiptData.paymentMethod) }}</span>
+              </div>
+              <div v-if="receiptData" class="receipt-actions">
+                <button type="button" class="btn-alt" @click="printReceipt">{{ ui.receiptPrint }}</button>
+                <button type="button" class="btn-alt" @click="downloadReceipt">{{ ui.receiptDownload }}</button>
+              </div>
               <NuxtLink v-if="ordersTrackLink" :to="ordersTrackLink" class="btn-alt success-orders-link">
                 {{ ui.openMyOrders }}
               </NuxtLink>
@@ -316,6 +335,11 @@
             <div class="summary-total">
               <span>{{ ui.total }}</span>
               <strong>{{ shopStore.cartTotal }} MDL</strong>
+            </div>
+
+            <div class="summary-payment">
+              <span>{{ ui.paymentMethod }}</span>
+              <strong>{{ paymentMethodLabel(form.paymentMethod) }}</strong>
             </div>
 
             <div class="checkout-guarantee">
@@ -366,7 +390,31 @@ type OrderResponse = {
   success: boolean
   orderId: string
   trackToken?: string
-  message: string
+  total?: number
+  payment?: {
+    method: 'card_online' | 'phone_transfer' | 'cash_on_delivery'
+    status: 'pending' | 'paid' | 'cash_on_delivery'
+  }
+  receipt?: ReceiptData
+  message?: string
+}
+
+type ReceiptData = {
+  orderId: string
+  createdAt: string
+  customerName: string
+  customerPhone: string
+  customerAddress: string
+  paymentMethod: 'card_online' | 'phone_transfer' | 'cash_on_delivery'
+  paymentStatus: 'pending' | 'paid' | 'cash_on_delivery'
+  items: Array<{
+    title: string
+    quantity: number
+    selectedSize?: string
+    price: number
+    lineTotal: number
+  }>
+  total: number
 }
 
 type CheckoutUi = {
@@ -380,6 +428,13 @@ type CheckoutUi = {
   phoneNumber: string
   email: string
   deliveryType: string
+  paymentMethod: string
+  paymentCard: string
+  paymentPhone: string
+  paymentCash: string
+  paymentHintCard: string
+  paymentHintPhone: string
+  paymentHintCash: string
   city: string
   street: string
   house: string
@@ -422,6 +477,9 @@ type CheckoutUi = {
   draftSaved: string
   suggestLoading: string
   suggestEmpty: string
+  receiptTitle: string
+  receiptPrint: string
+  receiptDownload: string
 }
 
 type CheckoutForm = {
@@ -430,6 +488,7 @@ type CheckoutForm = {
   phoneLocal: string
   email: string
   deliveryType: 'courier' | 'post_office' | 'postamat'
+  paymentMethod: 'card_online' | 'phone_transfer' | 'cash_on_delivery'
   city: string
   street: string
   house: string
@@ -473,6 +532,7 @@ const form = reactive<CheckoutForm>({
   phoneLocal: '',
   email: '',
   deliveryType: 'courier',
+  paymentMethod: 'cash_on_delivery',
   city: '',
   street: '',
   house: '',
@@ -495,6 +555,7 @@ const draftSavedAt = ref('')
 const checkoutCsrfToken = ref('')
 const lastOrderId = ref('')
 const lastTrackToken = ref('')
+const receiptData = ref<ReceiptData | null>(null)
 const quickAddresses = ref<QuickAddress[]>([])
 const isHydratingFromDraft = ref(false)
 const lastServerDraftLoadedPhone = ref('')
@@ -533,6 +594,13 @@ const ui = computed<CheckoutUi>(() => {
       phoneNumber: 'Număr local',
       email: 'Email',
       deliveryType: 'Tip livrare',
+      paymentMethod: 'Metodă de plată',
+      paymentCard: 'Card online',
+      paymentPhone: 'Transfer prin telefon',
+      paymentCash: 'Numerar la livrare',
+      paymentHintCard: 'Plătești cu cardul după confirmarea comenzii.',
+      paymentHintPhone: 'Primești detalii de transfer pe telefon.',
+      paymentHintCash: 'Plătești cash la primirea coletului.',
       city: 'Oraș',
       street: 'Stradă',
       house: 'Casă/Bloc',
@@ -574,7 +642,10 @@ const ui = computed<CheckoutUi>(() => {
       toCatalog: 'Mergi la catalog',
       draftSaved: 'Ciornă salvată:',
       suggestLoading: 'Se caută adrese...',
-      suggestEmpty: 'Nu am găsit variante'
+      suggestEmpty: 'Nu am găsit variante',
+      receiptTitle: 'Bon comandă',
+      receiptPrint: 'Printează bonul',
+      receiptDownload: 'Descarcă bonul'
     }
   }
 
@@ -590,6 +661,13 @@ const ui = computed<CheckoutUi>(() => {
       phoneNumber: 'Local number',
       email: 'Email',
       deliveryType: 'Delivery type',
+      paymentMethod: 'Payment method',
+      paymentCard: 'Card online',
+      paymentPhone: 'Phone transfer',
+      paymentCash: 'Cash on delivery',
+      paymentHintCard: 'Pay by card after order confirmation.',
+      paymentHintPhone: 'You will get transfer details to your phone.',
+      paymentHintCash: 'Pay in cash when courier delivers your order.',
       city: 'City',
       street: 'Street',
       house: 'House/Building',
@@ -631,7 +709,10 @@ const ui = computed<CheckoutUi>(() => {
       toCatalog: 'Go to catalog',
       draftSaved: 'Draft saved:',
       suggestLoading: 'Searching addresses...',
-      suggestEmpty: 'No suggestions found'
+      suggestEmpty: 'No suggestions found',
+      receiptTitle: 'Order receipt',
+      receiptPrint: 'Print receipt',
+      receiptDownload: 'Download receipt'
     }
   }
 
@@ -646,6 +727,13 @@ const ui = computed<CheckoutUi>(() => {
     phoneNumber: 'Локальный номер',
     email: 'Email',
     deliveryType: 'Тип доставки',
+    paymentMethod: 'Способ оплаты',
+    paymentCard: 'Картой онлайн',
+    paymentPhone: 'Перевод по телефону',
+    paymentCash: 'Наличными при доставке',
+    paymentHintCard: 'Оплата картой после подтверждения заказа.',
+    paymentHintPhone: 'Реквизиты для перевода придут на телефон.',
+    paymentHintCash: 'Оплата наличными при получении.',
     city: 'Город',
     street: 'Улица',
     house: 'Дом/Блок',
@@ -687,7 +775,10 @@ const ui = computed<CheckoutUi>(() => {
     toCatalog: 'Перейти в каталог',
     draftSaved: 'Черновик сохранён:',
     suggestLoading: 'Ищем адрес...',
-    suggestEmpty: 'Ничего не найдено'
+    suggestEmpty: 'Ничего не найдено',
+    receiptTitle: 'Чек заказа',
+    receiptPrint: 'Печать чека',
+    receiptDownload: 'Скачать чек'
   }
 })
 
@@ -697,6 +788,7 @@ const resetForm = () => {
   form.phoneLocal = ''
   form.email = ''
   form.deliveryType = 'courier'
+  form.paymentMethod = 'cash_on_delivery'
   form.city = ''
   form.street = ''
   form.house = ''
@@ -723,6 +815,9 @@ const loadCheckoutProfile = () => {
     if (profile.deliveryType === 'courier' || profile.deliveryType === 'post_office' || profile.deliveryType === 'postamat') {
       form.deliveryType = profile.deliveryType
     }
+    if (profile.paymentMethod === 'card_online' || profile.paymentMethod === 'phone_transfer' || profile.paymentMethod === 'cash_on_delivery') {
+      form.paymentMethod = profile.paymentMethod
+    }
     if (typeof profile.city === 'string') form.city = profile.city
     if (typeof profile.street === 'string') form.street = profile.street
     if (typeof profile.house === 'string') form.house = profile.house
@@ -748,6 +843,7 @@ const saveCheckoutProfile = () => {
       phoneLocal: form.phoneLocal,
       email: form.email,
       deliveryType: form.deliveryType,
+      paymentMethod: form.paymentMethod,
       city: form.city,
       street: form.street,
       house: form.house,
@@ -771,6 +867,9 @@ const applyCheckoutDraftPayload = (draft: CheckoutDraftPayload) => {
     if (draft.deliveryType === 'courier' || draft.deliveryType === 'post_office' || draft.deliveryType === 'postamat') {
       form.deliveryType = draft.deliveryType
     }
+    if (draft.paymentMethod === 'card_online' || draft.paymentMethod === 'phone_transfer' || draft.paymentMethod === 'cash_on_delivery') {
+      form.paymentMethod = draft.paymentMethod
+    }
     if (typeof draft.city === 'string') form.city = draft.city
     if (typeof draft.street === 'string') form.street = draft.street
     if (typeof draft.house === 'string') form.house = draft.house
@@ -793,6 +892,7 @@ const extractCheckoutDraftPayload = (savedAt = new Date().toISOString()): Checko
   phoneLocal: form.phoneLocal,
   email: form.email,
   deliveryType: form.deliveryType,
+  paymentMethod: form.paymentMethod,
   city: form.city,
   street: form.street,
   house: form.house,
@@ -1166,6 +1266,24 @@ const deliveryTypeOptions = computed(() => {
     { value: 'post_office', label: 'Самовывоз из отделения' },
     { value: 'postamat', label: 'Поштомат' }
   ]
+})
+
+const paymentMethodOptions = computed(() => ([
+  { value: 'card_online' as const, label: ui.value.paymentCard },
+  { value: 'phone_transfer' as const, label: ui.value.paymentPhone },
+  { value: 'cash_on_delivery' as const, label: ui.value.paymentCash }
+]))
+
+const paymentMethodLabel = (method: CheckoutForm['paymentMethod'] | ReceiptData['paymentMethod']) => {
+  if (method === 'card_online') return ui.value.paymentCard
+  if (method === 'phone_transfer') return ui.value.paymentPhone
+  return ui.value.paymentCash
+}
+
+const paymentMethodHint = computed(() => {
+  if (form.paymentMethod === 'card_online') return ui.value.paymentHintCard
+  if (form.paymentMethod === 'phone_transfer') return ui.value.paymentHintPhone
+  return ui.value.paymentHintCash
 })
 
 const digitsOnly = (value: string) => value.replace(/\D/g, '')
@@ -1724,6 +1842,7 @@ const getErrorMessage = (error: unknown) => {
 const submitOrder = async () => {
   successMessage.value = ''
   errorMessage.value = ''
+  receiptData.value = null
   clearFieldErrors()
   lastOrderId.value = ''
   lastTrackToken.value = ''
@@ -1773,6 +1892,9 @@ const submitOrder = async () => {
           address: fullAddress.value,
           comment: form.comment
         },
+        payment: {
+          method: form.paymentMethod
+        },
         items: normalizedItems,
         total: shopStore.cartTotal
       }
@@ -1783,6 +1905,23 @@ const submitOrder = async () => {
     if (response.trackToken) {
       lastTrackToken.value = response.trackToken
       saveOrderTrack(response.orderId, response.trackToken)
+    }
+    receiptData.value = response.receipt || {
+      orderId: response.orderId,
+      createdAt: new Date().toISOString(),
+      customerName: form.name,
+      customerPhone: fullPhone.value,
+      customerAddress: fullAddress.value,
+      paymentMethod: form.paymentMethod,
+      paymentStatus: response.payment?.status || (form.paymentMethod === 'cash_on_delivery' ? 'cash_on_delivery' : 'pending'),
+      items: normalizedItems.map((item) => ({
+        title: item.title,
+        quantity: item.quantity,
+        selectedSize: item.selectedSize,
+        price: item.price,
+        lineTotal: item.price * item.quantity
+      })),
+      total: Number(response.total || shopStore.cartTotal)
     }
     rememberQuickAddress()
     markPurchasedProducts(purchasedIds)
@@ -1805,6 +1944,55 @@ const submitOrder = async () => {
   } finally {
     isSubmitting.value = false
   }
+}
+
+const receiptText = computed(() => {
+  if (!receiptData.value) return ''
+  const r = receiptData.value
+  const localeCode = locale.value === 'ro' ? 'ro-RO' : locale.value === 'en' ? 'en-US' : 'ru-RU'
+  const created = new Date(r.createdAt).toLocaleString(localeCode)
+  const lines = [
+    'ONE STYLE FOREVER',
+    `Order: ${r.orderId}`,
+    `Date: ${created}`,
+    `Customer: ${r.customerName}`,
+    `Phone: ${r.customerPhone}`,
+    `Address: ${r.customerAddress}`,
+    `Payment: ${paymentMethodLabel(r.paymentMethod)}`,
+    '',
+    'Items:'
+  ]
+
+  for (const item of r.items) {
+    lines.push(`- ${item.title} [${item.selectedSize || '-'}] x${item.quantity} = ${item.lineTotal} MDL`)
+  }
+
+  lines.push('')
+  lines.push(`Total: ${r.total} MDL`)
+  return lines.join('\n')
+})
+
+const printReceipt = () => {
+  if (!import.meta.client || !receiptData.value) return
+  const popup = window.open('', '_blank', 'width=560,height=780')
+  if (!popup) return
+  popup.document.write(`<pre style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; padding: 20px; white-space: pre-wrap;">${receiptText.value.replace(/</g, '&lt;')}</pre>`)
+  popup.document.close()
+  popup.focus()
+  popup.print()
+}
+
+const downloadReceipt = () => {
+  if (!import.meta.client || !receiptData.value) return
+  const blob = new Blob([receiptText.value], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `receipt-${receiptData.value.orderId}.txt`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
 }
 
 const siteUrl = 'https://onestyleforever.com'
@@ -1859,6 +2047,7 @@ watch(
     phoneLocal: form.phoneLocal,
     email: form.email,
     deliveryType: form.deliveryType,
+    paymentMethod: form.paymentMethod,
     city: form.city,
     street: form.street,
     house: form.house,
@@ -2253,6 +2442,12 @@ useSeoMeta({
   font-weight: 700;
 }
 
+.payment-hint {
+  color: #5f7187;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .phone-group {
   display: grid;
   grid-template-columns: 210px minmax(0, 1fr);
@@ -2407,6 +2602,31 @@ useSeoMeta({
   margin: 0;
 }
 
+.receipt-box {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fbfdfb;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.receipt-box strong {
+  font-size: 14px;
+}
+
+.receipt-box span {
+  color: #45586e;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.receipt-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .success-orders-link {
   width: fit-content;
 }
@@ -2454,6 +2674,19 @@ useSeoMeta({
 
 .summary-total strong {
   font-size: 24px;
+}
+
+.summary-payment {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #4f6279;
+  font-weight: 700;
+}
+
+.summary-payment strong {
+  color: #0f1e36;
 }
 
 .summary-link {
@@ -2579,6 +2812,10 @@ useSeoMeta({
   .summary-product {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .summary-payment {
+    font-size: 14px;
   }
 
   .checkout-sticky-bar {

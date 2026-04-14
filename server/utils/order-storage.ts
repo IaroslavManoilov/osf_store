@@ -10,6 +10,9 @@ export type AdminOrderStatus =
   | 'cancelled'
   | 'returned'
 
+export type PaymentMethod = 'card_online' | 'phone_transfer' | 'cash_on_delivery'
+export type PaymentStatus = 'pending' | 'paid' | 'cash_on_delivery'
+
 export type AdminOrderHistoryEntry = {
   status: AdminOrderStatus
   changedAt: string
@@ -35,6 +38,10 @@ export type AdminOrder = {
     selectedSize?: string
   }>
   total: number
+  payment: {
+    method: PaymentMethod
+    status: PaymentStatus
+  }
   status: AdminOrderStatus
   source: 'web'
   notifications: {
@@ -53,6 +60,8 @@ type OrderRow = {
   customer_address: string
   customer_comment: string | null
   total: number | string
+  payment_method: string | null
+  payment_status: string | null
   status: string
   source: string | null
   telegram_sent: boolean | null
@@ -87,6 +96,10 @@ const VALID_STATUSES: AdminOrderStatus[] = [
 ]
 
 const VALID_STATUS_SET = new Set<AdminOrderStatus>(VALID_STATUSES)
+const VALID_PAYMENT_METHODS: PaymentMethod[] = ['card_online', 'phone_transfer', 'cash_on_delivery']
+const VALID_PAYMENT_METHODS_SET = new Set<PaymentMethod>(VALID_PAYMENT_METHODS)
+const VALID_PAYMENT_STATUSES: PaymentStatus[] = ['pending', 'paid', 'cash_on_delivery']
+const VALID_PAYMENT_STATUSES_SET = new Set<PaymentStatus>(VALID_PAYMENT_STATUSES)
 
 function normalizeStatus(value: unknown): AdminOrderStatus {
   if (typeof value === 'string' && VALID_STATUS_SET.has(value as AdminOrderStatus)) {
@@ -94,6 +107,20 @@ function normalizeStatus(value: unknown): AdminOrderStatus {
   }
 
   return 'new'
+}
+
+function normalizePaymentMethod(value: unknown): PaymentMethod {
+  if (typeof value === 'string' && VALID_PAYMENT_METHODS_SET.has(value as PaymentMethod)) {
+    return value as PaymentMethod
+  }
+  return 'cash_on_delivery'
+}
+
+function normalizePaymentStatus(value: unknown, method: PaymentMethod): PaymentStatus {
+  if (typeof value === 'string' && VALID_PAYMENT_STATUSES_SET.has(value as PaymentStatus)) {
+    return value as PaymentStatus
+  }
+  return method === 'cash_on_delivery' ? 'cash_on_delivery' : 'pending'
 }
 
 function toAdminOrder(row: OrderRow): AdminOrder {
@@ -118,6 +145,10 @@ function toAdminOrder(row: OrderRow): AdminOrder {
       selectedSize: item.selected_size || undefined
     })),
     total: Number(row.total) || 0,
+    payment: {
+      method: normalizePaymentMethod(row.payment_method),
+      status: normalizePaymentStatus(row.payment_status, normalizePaymentMethod(row.payment_method))
+    },
     status: normalizeStatus(row.status),
     source: 'web',
     notifications: {
@@ -150,6 +181,8 @@ async function fetchOrders(event: H3Event, options?: { status?: string; id?: str
       customer_address,
       customer_comment,
       total,
+      payment_method,
+      payment_status,
       status,
       source,
       telegram_sent,
@@ -244,6 +277,8 @@ export async function saveOrder(event: H3Event, order: AdminOrder) {
     customer_address: order.customer.address,
     customer_comment: order.customer.comment || null,
     total: order.total,
+    payment_method: normalizePaymentMethod(order.payment?.method),
+    payment_status: normalizePaymentStatus(order.payment?.status, normalizePaymentMethod(order.payment?.method)),
     status: normalizeStatus(order.status),
     source: order.source || 'web',
     telegram_sent: !!order.notifications.telegramSent,

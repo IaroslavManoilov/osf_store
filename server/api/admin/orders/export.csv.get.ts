@@ -32,6 +32,8 @@ export default defineEventHandler(async (event) => {
     'customer_email',
     'customer_address',
     'customer_comment',
+    'payment_method',
+    'payment_status',
     'total',
     'items_count',
     'items'
@@ -51,6 +53,8 @@ export default defineEventHandler(async (event) => {
       order.customer.email || '',
       order.customer.address,
       order.customer.comment || '',
+      order.payment.method,
+      order.payment.status,
       order.total,
       order.items.length,
       itemsSummary

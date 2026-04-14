@@ -14,6 +14,7 @@ const toPublicOrder = (order: NonNullable<Awaited<ReturnType<typeof readOrderByI
   createdAt: order.createdAt,
   status: order.status,
   total: order.total,
+  payment: order.payment,
   customer: {
     name: order.customer.name
   },
