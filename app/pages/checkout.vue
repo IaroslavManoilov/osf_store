@@ -81,14 +81,18 @@
                       @focus="openSuggest('city')"
                       @input="openSuggest('city')"
                       @keydown.esc.prevent="closeSuggest"
+                      @keydown="onCityKeydown"
                       required
                     />
                     <div v-if="showCitySuggest" class="suggest-menu">
+                      <div v-if="citySuggestLoading" class="suggest-state">{{ ui.suggestLoading }}</div>
+                      <div v-else-if="!citySuggestEntries.length" class="suggest-state">{{ ui.suggestEmpty }}</div>
                       <button
                         v-for="entry in citySuggestEntries"
                         :key="`city-${entry.value}`"
                         type="button"
                         class="suggest-item"
+                        :class="{ active: citySuggestEntries[citySuggestIndex]?.value === entry.value }"
                         @mousedown.prevent="selectCitySuggestion(entry)"
                       >
                         <span class="suggest-main" v-html="highlightSuggestion(entry.value, form.city)"></span>
@@ -109,14 +113,18 @@
                       @focus="openSuggest('street')"
                       @input="openSuggest('street')"
                       @keydown.esc.prevent="closeSuggest"
+                      @keydown="onStreetKeydown"
                       required
                     />
                     <div v-if="showStreetSuggest" class="suggest-menu">
+                      <div v-if="streetSuggestLoading" class="suggest-state">{{ ui.suggestLoading }}</div>
+                      <div v-else-if="!streetSuggestEntries.length" class="suggest-state">{{ ui.suggestEmpty }}</div>
                       <button
                         v-for="entry in streetSuggestEntries"
                         :key="`street-${entry.value}`"
                         type="button"
                         class="suggest-item"
+                        :class="{ active: streetSuggestEntries[streetSuggestIndex]?.value === entry.value }"
                         @mousedown.prevent="selectStreetSuggestion(entry)"
                       >
                         <span class="suggest-main" v-html="highlightSuggestion(entry.value, form.street)"></span>
@@ -339,6 +347,8 @@ type CheckoutUi = {
   emptyText: string
   toCatalog: string
   draftSaved: string
+  suggestLoading: string
+  suggestEmpty: string
 }
 
 type CheckoutForm = {
@@ -464,6 +474,8 @@ const ui = computed<CheckoutUi>(() => {
       emptyText: 'Adaugă produse în coș pentru a continua.',
       toCatalog: 'Mergi la catalog',
       draftSaved: 'Ciornă salvată:'
+      suggestLoading: 'Se caută adrese...',
+      suggestEmpty: 'Nu am găsit variante'
     }
   }
 
@@ -515,6 +527,8 @@ const ui = computed<CheckoutUi>(() => {
       emptyText: 'Add products to your cart to continue.',
       toCatalog: 'Go to catalog',
       draftSaved: 'Draft saved:'
+      suggestLoading: 'Searching addresses...',
+      suggestEmpty: 'No suggestions found'
     }
   }
 
@@ -565,6 +579,8 @@ const ui = computed<CheckoutUi>(() => {
     emptyText: 'Добавь товары в корзину, чтобы продолжить.',
     toCatalog: 'Перейти в каталог',
     draftSaved: 'Черновик сохранён:'
+    suggestLoading: 'Ищем адрес...',
+    suggestEmpty: 'Ничего не найдено'
   }
 })
 
@@ -784,6 +800,10 @@ const remoteStreetSuggestions = ref<GeoSuggestionEntry[]>([])
 const citySuggestRef = ref<HTMLElement | null>(null)
 const streetSuggestRef = ref<HTMLElement | null>(null)
 const activeSuggest = ref<'city' | 'street' | null>(null)
+const citySuggestIndex = ref(-1)
+const streetSuggestIndex = ref(-1)
+const citySuggestLoading = ref(false)
+const streetSuggestLoading = ref(false)
 let citySuggestTimer: ReturnType<typeof setTimeout> | null = null
 let streetSuggestTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -963,21 +983,25 @@ const streetSuggestEntries = computed(() =>
 const showCitySuggest = computed(() =>
   activeSuggest.value === 'city' &&
   String(form.city || '').trim().length >= 1 &&
-  citySuggestEntries.value.length > 0
+  (citySuggestEntries.value.length > 0 || citySuggestLoading.value)
 )
 
 const showStreetSuggest = computed(() =>
   activeSuggest.value === 'street' &&
   String(form.street || '').trim().length >= 1 &&
-  streetSuggestEntries.value.length > 0
+  (streetSuggestEntries.value.length > 0 || streetSuggestLoading.value)
 )
 
 const closeSuggest = () => {
   activeSuggest.value = null
+  citySuggestIndex.value = -1
+  streetSuggestIndex.value = -1
 }
 
 const openSuggest = (kind: 'city' | 'street') => {
   activeSuggest.value = kind
+  if (kind === 'city') citySuggestIndex.value = citySuggestEntries.value.length ? 0 : -1
+  if (kind === 'street') streetSuggestIndex.value = streetSuggestEntries.value.length ? 0 : -1
 }
 
 const selectCitySuggestion = (entry: GeoSuggestionEntry) => {
@@ -990,6 +1014,52 @@ const selectStreetSuggestion = (entry: GeoSuggestionEntry) => {
   form.street = entry.street || entry.value
   applySuggestionData(entry, 'street')
   closeSuggest()
+}
+
+const onCityKeydown = (event: KeyboardEvent) => {
+  if (!showCitySuggest.value) return
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    const size = citySuggestEntries.value.length
+    if (!size) return
+    citySuggestIndex.value = citySuggestIndex.value < size - 1 ? citySuggestIndex.value + 1 : 0
+    return
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    const size = citySuggestEntries.value.length
+    if (!size) return
+    citySuggestIndex.value = citySuggestIndex.value > 0 ? citySuggestIndex.value - 1 : size - 1
+    return
+  }
+  if (event.key === 'Enter' && citySuggestIndex.value >= 0) {
+    event.preventDefault()
+    const target = citySuggestEntries.value[citySuggestIndex.value]
+    if (target) selectCitySuggestion(target)
+  }
+}
+
+const onStreetKeydown = (event: KeyboardEvent) => {
+  if (!showStreetSuggest.value) return
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    const size = streetSuggestEntries.value.length
+    if (!size) return
+    streetSuggestIndex.value = streetSuggestIndex.value < size - 1 ? streetSuggestIndex.value + 1 : 0
+    return
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    const size = streetSuggestEntries.value.length
+    if (!size) return
+    streetSuggestIndex.value = streetSuggestIndex.value > 0 ? streetSuggestIndex.value - 1 : size - 1
+    return
+  }
+  if (event.key === 'Enter' && streetSuggestIndex.value >= 0) {
+    event.preventDefault()
+    const target = streetSuggestEntries.value[streetSuggestIndex.value]
+    if (target) selectStreetSuggestion(target)
+  }
 }
 
 const pickupPointSuggestions = computed(() => pickupPointBase[form.phoneCode] || pickupPointBase['+373'])
@@ -1108,6 +1178,9 @@ const fetchGeoSuggestions = async (kind: 'city' | 'street', query: string) => {
     return
   }
 
+  if (kind === 'city') citySuggestLoading.value = true
+  if (kind === 'street') streetSuggestLoading.value = true
+
   try {
     const response = await $fetch<{ success: boolean; entries?: GeoSuggestionEntry[]; items?: string[] }>('/api/geo/suggest', {
       method: 'GET',
@@ -1136,6 +1209,9 @@ const fetchGeoSuggestions = async (kind: 'city' | 'street', query: string) => {
   } catch {
     if (kind === 'city') remoteCitySuggestions.value = []
     if (kind === 'street') remoteStreetSuggestions.value = []
+  } finally {
+    if (kind === 'city') citySuggestLoading.value = false
+    if (kind === 'street') streetSuggestLoading.value = false
   }
 }
 
@@ -1604,6 +1680,10 @@ useSeoMeta({
   background: #f3f8f5;
 }
 
+.suggest-item.active {
+  background: #edf6f0;
+}
+
 .suggest-main {
   color: #20344a;
   font-weight: 700;
@@ -1619,6 +1699,13 @@ useSeoMeta({
 .suggest-item small {
   color: #61748a;
   font-size: 12px;
+}
+
+.suggest-state {
+  padding: 10px 12px;
+  color: #61748a;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .field-error {
