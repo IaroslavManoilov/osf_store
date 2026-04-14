@@ -73,33 +73,59 @@
 
                 <label class="field" :class="{ invalid: !!fieldErrors.city }">
                   <span>{{ ui.city }}</span>
-                  <input
-                    v-model.trim="form.city"
-                    type="text"
-                    list="checkout-city-list"
-                    autocomplete="address-level2"
-                    @change="onCitySuggestionSelected"
-                    required
-                  />
-                  <datalist id="checkout-city-list">
-                    <option v-for="city in citySuggestions" :key="`city-${city}`" :value="city" />
-                  </datalist>
+                  <div ref="citySuggestRef" class="suggest-wrap">
+                    <input
+                      v-model.trim="form.city"
+                      type="text"
+                      autocomplete="address-level2"
+                      @focus="openSuggest('city')"
+                      @input="openSuggest('city')"
+                      @keydown.esc.prevent="closeSuggest"
+                      required
+                    />
+                    <div v-if="showCitySuggest" class="suggest-menu">
+                      <button
+                        v-for="entry in citySuggestEntries"
+                        :key="`city-${entry.value}`"
+                        type="button"
+                        class="suggest-item"
+                        @mousedown.prevent="selectCitySuggestion(entry)"
+                      >
+                        <span class="suggest-main" v-html="highlightSuggestion(entry.value, form.city)"></span>
+                        <small v-if="entry.postalCode">{{ ui.postalCode }}: {{ entry.postalCode }}</small>
+                      </button>
+                    </div>
+                  </div>
                   <small v-if="fieldErrors.city" class="field-error">{{ fieldErrors.city }}</small>
                 </label>
 
                 <label v-if="form.deliveryType === 'courier'" class="field" :class="{ invalid: !!fieldErrors.street }">
                   <span>{{ ui.street }}</span>
-                  <input
-                    v-model.trim="form.street"
-                    type="text"
-                    list="checkout-street-list"
-                    autocomplete="street-address"
-                    @change="onStreetSuggestionSelected"
-                    required
-                  />
-                  <datalist id="checkout-street-list">
-                    <option v-for="street in streetSuggestions" :key="`street-${street}`" :value="street" />
-                  </datalist>
+                  <div ref="streetSuggestRef" class="suggest-wrap">
+                    <input
+                      v-model.trim="form.street"
+                      type="text"
+                      autocomplete="street-address"
+                      @focus="openSuggest('street')"
+                      @input="openSuggest('street')"
+                      @keydown.esc.prevent="closeSuggest"
+                      required
+                    />
+                    <div v-if="showStreetSuggest" class="suggest-menu">
+                      <button
+                        v-for="entry in streetSuggestEntries"
+                        :key="`street-${entry.value}`"
+                        type="button"
+                        class="suggest-item"
+                        @mousedown.prevent="selectStreetSuggestion(entry)"
+                      >
+                        <span class="suggest-main" v-html="highlightSuggestion(entry.value, form.street)"></span>
+                        <small v-if="entry.city || entry.postalCode">
+                          {{ entry.city || '' }}<template v-if="entry.city && entry.postalCode"> · </template>{{ entry.postalCode || '' }}
+                        </small>
+                      </button>
+                    </div>
+                  </div>
                   <small v-if="fieldErrors.street" class="field-error">{{ fieldErrors.street }}</small>
                 </label>
 
@@ -755,6 +781,9 @@ const countryPhoneRules: Record<string, { min: number; max: number; groups: numb
 const defaultPhoneRule = countryPhoneRules['+373']!
 const remoteCitySuggestions = ref<GeoSuggestionEntry[]>([])
 const remoteStreetSuggestions = ref<GeoSuggestionEntry[]>([])
+const citySuggestRef = ref<HTMLElement | null>(null)
+const streetSuggestRef = ref<HTMLElement | null>(null)
+const activeSuggest = ref<'city' | 'street' | null>(null)
 let citySuggestTimer: ReturnType<typeof setTimeout> | null = null
 let streetSuggestTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -843,6 +872,43 @@ const onPhoneInput = () => {
 const mergeUnique = (items: string[]) =>
   Array.from(new Set(items.map((item) => String(item || '').trim()).filter(Boolean))).slice(0, 10)
 
+const mergeUniqueEntries = (items: GeoSuggestionEntry[]) => {
+  const byValue = new Map<string, GeoSuggestionEntry>()
+  for (const item of items) {
+    const value = String(item.value || '').trim()
+    if (!value || byValue.has(value.toLowerCase())) continue
+    byValue.set(value.toLowerCase(), {
+      value,
+      city: item.city,
+      street: item.street,
+      postalCode: item.postalCode
+    })
+  }
+  return Array.from(byValue.values()).slice(0, 10)
+}
+
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
+
+const highlightSuggestion = (value: string, query: string) => {
+  const safeValue = String(value || '')
+  const q = String(query || '').trim()
+  if (!q) return escapeHtml(safeValue)
+
+  const idx = safeValue.toLowerCase().indexOf(q.toLowerCase())
+  if (idx < 0) return escapeHtml(safeValue)
+
+  const before = escapeHtml(safeValue.slice(0, idx))
+  const match = escapeHtml(safeValue.slice(idx, idx + q.length))
+  const after = escapeHtml(safeValue.slice(idx + q.length))
+  return `${before}<mark>${match}</mark>${after}`
+}
+
 const findEntryByValue = (entries: GeoSuggestionEntry[], value: string) => {
   const normalized = String(value || '').trim().toLowerCase()
   if (!normalized) return null
@@ -879,6 +945,52 @@ const streetSuggestions = computed(() => {
   const local = !city ? defaultStreetSuggestions : (cityStreetSuggestions[city] || defaultStreetSuggestions)
   return mergeUnique([...remoteStreetSuggestions.value.map((item) => item.value), ...local])
 })
+
+const citySuggestEntries = computed(() =>
+  mergeUniqueEntries([
+    ...remoteCitySuggestions.value,
+    ...citySuggestions.value.map((value) => ({ value }))
+  ]).filter((item) => String(item.value || '').toLowerCase().includes(String(form.city || '').trim().toLowerCase()))
+)
+
+const streetSuggestEntries = computed(() =>
+  mergeUniqueEntries([
+    ...remoteStreetSuggestions.value,
+    ...streetSuggestions.value.map((value) => ({ value, city: form.city || undefined }))
+  ]).filter((item) => String(item.value || '').toLowerCase().includes(String(form.street || '').trim().toLowerCase()))
+)
+
+const showCitySuggest = computed(() =>
+  activeSuggest.value === 'city' &&
+  String(form.city || '').trim().length >= 1 &&
+  citySuggestEntries.value.length > 0
+)
+
+const showStreetSuggest = computed(() =>
+  activeSuggest.value === 'street' &&
+  String(form.street || '').trim().length >= 1 &&
+  streetSuggestEntries.value.length > 0
+)
+
+const closeSuggest = () => {
+  activeSuggest.value = null
+}
+
+const openSuggest = (kind: 'city' | 'street') => {
+  activeSuggest.value = kind
+}
+
+const selectCitySuggestion = (entry: GeoSuggestionEntry) => {
+  form.city = entry.city || entry.value
+  applySuggestionData(entry, 'city')
+  closeSuggest()
+}
+
+const selectStreetSuggestion = (entry: GeoSuggestionEntry) => {
+  form.street = entry.street || entry.value
+  applySuggestionData(entry, 'street')
+  closeSuggest()
+}
 
 const pickupPointSuggestions = computed(() => pickupPointBase[form.phoneCode] || pickupPointBase['+373'])
 
@@ -986,16 +1098,6 @@ const openMapSearch = () => {
   const query = encodeURIComponent(form.mapQuery || [form.city, form.street, form.house].filter(Boolean).join(' '))
   const url = `https://www.google.com/maps/search/?api=1&query=${query || 'Moldova'}`
   window.open(url, '_blank', 'noopener,noreferrer')
-}
-
-const onCitySuggestionSelected = () => {
-  const entry = findEntryByValue(remoteCitySuggestions.value, form.city)
-  applySuggestionData(entry, 'city')
-}
-
-const onStreetSuggestionSelected = () => {
-  const entry = findEntryByValue(remoteStreetSuggestions.value, form.street)
-  applySuggestionData(entry, 'street')
 }
 
 const fetchGeoSuggestions = async (kind: 'city' | 'street', query: string) => {
@@ -1162,11 +1264,29 @@ const submitOrder = async () => {
 const siteUrl = 'https://onestyleforever.com'
 const previewImage = `${siteUrl}/logo-preview.png`
 
+const handleDocumentPointerDown = (event: Event) => {
+  const target = event.target as Node | null
+  const cityRoot = citySuggestRef.value
+  const streetRoot = streetSuggestRef.value
+
+  if (activeSuggest.value === 'city' && cityRoot && target && !cityRoot.contains(target)) {
+    closeSuggest()
+    return
+  }
+
+  if (activeSuggest.value === 'street' && streetRoot && target && !streetRoot.contains(target)) {
+    closeSuggest()
+  }
+}
+
 onMounted(() => {
   shopStore.sanitizeCart()
   loadCheckoutProfile()
   loadCheckoutDraft()
   onPhoneInput()
+  if (import.meta.client) {
+    window.addEventListener('pointerdown', handleDocumentPointerDown)
+  }
   $fetch<{ success: boolean; csrfToken?: string }>('/api/checkout/csrf')
     .then((response) => {
       checkoutCsrfToken.value = String(response?.csrfToken || '')
@@ -1261,6 +1381,9 @@ onBeforeUnmount(() => {
   if (streetSuggestTimer) {
     clearTimeout(streetSuggestTimer)
     streetSuggestTimer = null
+  }
+  if (import.meta.client) {
+    window.removeEventListener('pointerdown', handleDocumentPointerDown)
   }
 })
 
@@ -1442,6 +1565,60 @@ useSeoMeta({
   font: inherit;
   color: var(--text);
   outline: none;
+}
+
+.suggest-wrap {
+  position: relative;
+}
+
+.suggest-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(13, 24, 17, 0.12);
+  max-height: 250px;
+  overflow: auto;
+  padding: 6px;
+  display: grid;
+  gap: 4px;
+}
+
+.suggest-item {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: grid;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.suggest-item:hover {
+  background: #f3f8f5;
+}
+
+.suggest-main {
+  color: #20344a;
+  font-weight: 700;
+}
+
+.suggest-main :deep(mark) {
+  background: #dff0e5;
+  color: #1b5d3a;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
+.suggest-item small {
+  color: #61748a;
+  font-size: 12px;
 }
 
 .field-error {
