@@ -347,6 +347,12 @@
                   <strong>{{ item.price }} MDL</strong>
                 </div>
               </NuxtLink>
+              <div class="related-actions">
+                <NuxtLink :to="localePath(`/product/${item.id}`)" class="btn-alt related-open-btn">{{ ui.relatedOpen }}</NuxtLink>
+                <button type="button" class="btn-main related-add-btn" @click="quickAddFromList(item)">
+                  {{ ui.relatedAdd }}
+                </button>
+              </div>
             </article>
           </div>
         </div>
@@ -385,6 +391,12 @@
                   <strong>{{ item.price }} MDL</strong>
                 </div>
               </NuxtLink>
+              <div class="related-actions">
+                <NuxtLink :to="localePath(`/product/${item.id}`)" class="btn-alt related-open-btn">{{ ui.relatedOpen }}</NuxtLink>
+                <button type="button" class="btn-main related-add-btn" @click="quickAddFromList(item)">
+                  {{ ui.relatedAdd }}
+                </button>
+              </div>
             </article>
           </div>
         </div>
@@ -423,6 +435,12 @@
                   <strong>{{ item.price }} MDL</strong>
                 </div>
               </NuxtLink>
+              <div class="related-actions">
+                <NuxtLink :to="localePath(`/product/${item.id}`)" class="btn-alt related-open-btn">{{ ui.relatedOpen }}</NuxtLink>
+                <button type="button" class="btn-main related-add-btn" @click="quickAddFromList(item)">
+                  {{ ui.relatedAdd }}
+                </button>
+              </div>
             </article>
           </div>
         </div>
@@ -440,11 +458,25 @@
     </section>
 
     <div v-if="product" class="mobile-sticky-bar">
-      <div class="mobile-price">
-        <span>{{ ui.price }}</span>
-        <strong>{{ product.price }} MDL</strong>
+      <div v-if="product.sizes?.length" class="mobile-sticky-sizes">
+        <button
+          v-for="size in product.sizes"
+          :key="`sticky-size-${size}`"
+          type="button"
+          class="mobile-sticky-size"
+          :class="{ active: selectedSize === size }"
+          @click="selectedSize = size"
+        >
+          {{ size }}
+        </button>
       </div>
-      <button type="button" class="btn-main mobile-buy cta-pulse" :disabled="!canBuySelectedSize" @click="buyNow">{{ ui.buyNow }}</button>
+      <div class="mobile-sticky-main">
+        <div class="mobile-price">
+          <span>{{ ui.price }}</span>
+          <strong>{{ product.price }} MDL</strong>
+        </div>
+        <button type="button" class="btn-main mobile-buy cta-pulse" :disabled="!canBuySelectedSize" @click="buyNow">{{ ui.buyNow }}</button>
+      </div>
     </div>
 
     <div v-if="product" class="desktop-sticky-bar" :class="{ visible: showDesktopStickyBar }">
@@ -1254,6 +1286,8 @@ const ui = computed(() => {
       addedWishlist: 'Produs adăugat la favorite.',
       removedWishlist: 'Produs eliminat din favorite.',
       stickyPickSize: 'alege mărimea',
+      relatedOpen: 'Deschide',
+      relatedAdd: 'Adaugă rapid',
       notFoundTitle: 'Produsul nu a fost găsit',
       notFoundText: 'Se pare că acest produs nu mai este disponibil.',
       toCatalog: 'Înapoi la catalog'
@@ -1344,6 +1378,8 @@ const ui = computed(() => {
       addedWishlist: 'Product added to wishlist.',
       removedWishlist: 'Product removed from wishlist.',
       stickyPickSize: 'pick size',
+      relatedOpen: 'Open',
+      relatedAdd: 'Quick add',
       notFoundTitle: 'Product not found',
       notFoundText: 'Looks like this product is no longer available.',
       toCatalog: 'Back to catalog'
@@ -1433,6 +1469,8 @@ const ui = computed(() => {
     addedWishlist: 'Товар добавлен в избранное.',
     removedWishlist: 'Товар убран из избранного.',
     stickyPickSize: 'выбери размер',
+    relatedOpen: 'Открыть',
+    relatedAdd: 'Быстро добавить',
     notFoundTitle: 'Товар не найден',
     notFoundText: 'Похоже, этот товар больше не доступен.',
     toCatalog: 'Вернуться в каталог'
@@ -1471,6 +1509,25 @@ const buyNow = async () => {
 
   uiStore.showToast(ui.value.quickCheckout, 'info')
   await navigateTo(localePath('/checkout'))
+}
+
+const quickAddFromList = (item: LocalizedProduct) => {
+  const fallbackSize = Array.isArray(item.sizes) ? String(item.sizes[0] || '').trim() : ''
+  if (!fallbackSize) {
+    uiStore.showToast(ui.value.selectSizeError, 'error')
+    return
+  }
+
+  shopStore.addToCart({
+    id: item.id,
+    title: item.title,
+    price: item.price,
+    image: item.image,
+    description: item.description,
+    selectedSize: fallbackSize
+  })
+
+  uiStore.showToast(`${ui.value.relatedAdd}: ${item.title} · ${fallbackSize}`, 'success')
 }
 
 const toggleWishlist = () => {
@@ -2148,6 +2205,18 @@ useHead(
   font-size: 18px;
 }
 
+.related-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 14px 14px;
+}
+
+.related-open-btn,
+.related-add-btn {
+  min-height: 40px;
+}
+
 .faq-box {
   padding: 24px;
 }
@@ -2439,6 +2508,17 @@ useHead(
 }
 
 .mobile-sticky-bar {
+  display: none;
+}
+
+.mobile-sticky-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mobile-sticky-sizes {
   display: none;
 }
 
@@ -2763,10 +2843,38 @@ useHead(
     background: rgba(255, 255, 255, 0.98);
     border-top: 1px solid var(--border);
     padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    display: grid;
+    gap: 8px;
+  }
+
+  .mobile-sticky-sizes {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .mobile-sticky-sizes::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-sticky-size {
+    min-width: 38px;
+    min-height: 34px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+    font-weight: 800;
+    font-size: 14px;
+    padding: 0 12px;
+  }
+
+  .mobile-sticky-size.active {
+    border-color: #2e8a54;
+    color: #1f6e44;
+    background: #f0f7f2;
   }
 
   .desktop-sticky-bar {
