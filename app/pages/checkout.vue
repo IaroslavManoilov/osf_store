@@ -2864,4 +2864,43 @@ useSeoMeta({
     display: flex;
   }
 }
+
+@media (max-width: 389px) {
+  .checkout-intro,
+  .checkout-form-box,
+  .checkout-summary-box,
+  .empty-box {
+    padding: 12px;
+  }
+
+  .checkout-title {
+    font-size: clamp(28px, 7.2vw, 34px);
+  }
+
+  .checkout-text {
+    font-size: 14px;
+  }
+
+  .payment-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 390px) and (max-width: 429px) {
+  .checkout-intro,
+  .checkout-form-box,
+  .checkout-summary-box,
+  .empty-box {
+    padding: 14px;
+  }
+}
+
+@media (min-width: 430px) and (max-width: 479px) {
+  .checkout-intro,
+  .checkout-form-box,
+  .checkout-summary-box,
+  .empty-box {
+    padding: 16px;
+  }
+}
 </style>

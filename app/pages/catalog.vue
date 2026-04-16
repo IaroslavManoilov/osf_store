@@ -2687,4 +2687,63 @@ useHead(
     transform: scale(1.28);
   }
 }
+
+@media (max-width: 389px) {
+  .catalog-title {
+    font-size: clamp(22px, 8vw, 26px);
+  }
+
+  .catalog-subtitle {
+    font-size: 12px;
+  }
+
+  .mobile-sticky-filters {
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .product-grid {
+    gap: 7px;
+  }
+
+  .product-card {
+    border-radius: 14px;
+  }
+
+  .product-media-link {
+    padding: 30px 4px 4px;
+  }
+
+  .product-media img {
+    transform: scale(1.3);
+  }
+
+  .product-body {
+    padding: 8px;
+  }
+
+  .product-title-link h3 {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 390px) and (max-width: 429px) {
+  .product-media-link {
+    padding-top: 32px;
+  }
+
+  .product-media img {
+    transform: scale(1.29);
+  }
+}
+
+@media (min-width: 430px) and (max-width: 479px) {
+  .product-media-link {
+    padding-top: 35px;
+  }
+
+  .product-media img {
+    transform: scale(1.24);
+  }
+}
 </style>

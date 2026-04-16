@@ -1539,4 +1539,37 @@ watch(deliveryCity, (value) => {
     align-items: flex-start;
   }
 }
+
+@media (max-width: 389px) {
+  .cart-intro,
+  .cart-card,
+  .summary-box,
+  .empty-box {
+    padding: 10px;
+  }
+
+  .cart-title {
+    font-size: 25px;
+  }
+
+  .cart-image-wrap {
+    max-height: 200px;
+  }
+
+  .cart-title-link h2 {
+    font-size: 17px;
+  }
+}
+
+@media (min-width: 390px) and (max-width: 429px) {
+  .cart-image-wrap {
+    max-height: 216px;
+  }
+}
+
+@media (min-width: 430px) and (max-width: 479px) {
+  .cart-image-wrap {
+    max-height: 230px;
+  }
+}
 </style>

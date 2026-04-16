@@ -1193,4 +1193,91 @@ watch(
     display: none;
   }
 }
+
+@media (max-width: 389px) {
+  .header-box {
+    padding: 4px;
+    gap: 3px;
+  }
+
+  .brand-mark {
+    width: 36px;
+    height: 36px;
+  }
+
+  .brand-mark img {
+    width: 24px;
+    height: 24px;
+  }
+
+  .brand-mobile {
+    font-size: 9px;
+  }
+
+  .icon-btn,
+  .notify-btn,
+  .cart-btn,
+  .burger-btn {
+    width: 30px;
+    height: 30px;
+    min-height: 30px;
+  }
+
+  .lang-link {
+    min-width: 22px;
+    min-height: 22px;
+  }
+}
+
+@media (min-width: 390px) and (max-width: 429px) {
+  .header-box {
+    padding: 4px 6px;
+    gap: 4px;
+  }
+
+  .brand-mark {
+    width: 38px;
+    height: 38px;
+  }
+
+  .brand-mark img {
+    width: 27px;
+    height: 27px;
+  }
+
+  .icon-btn,
+  .notify-btn,
+  .cart-btn,
+  .burger-btn {
+    width: 31px;
+    height: 31px;
+    min-height: 31px;
+  }
+}
+
+@media (min-width: 430px) and (max-width: 479px) {
+  .header-box {
+    padding: 5px 7px;
+    gap: 5px;
+  }
+
+  .brand-mark {
+    width: 40px;
+    height: 40px;
+  }
+
+  .brand-mark img {
+    width: 29px;
+    height: 29px;
+  }
+
+  .icon-btn,
+  .notify-btn,
+  .cart-btn,
+  .burger-btn {
+    width: 33px;
+    height: 33px;
+    min-height: 33px;
+  }
+}
 </style>

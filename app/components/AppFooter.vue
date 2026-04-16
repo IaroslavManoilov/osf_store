@@ -343,4 +343,34 @@ const localePath = useLocalePath()
     justify-content: flex-start;
   }
 }
+
+@media (max-width: 389px) {
+  .app-footer {
+    padding: 20px 0 12px;
+  }
+
+  .footer-links {
+    gap: 6px;
+  }
+
+  .footer-section a {
+    font-size: 10px;
+  }
+
+  .footer-bottom p {
+    font-size: 10px;
+  }
+}
+
+@media (min-width: 390px) and (max-width: 429px) {
+  .footer-section a {
+    font-size: 11px;
+  }
+}
+
+@media (min-width: 430px) and (max-width: 479px) {
+  .footer-section a {
+    font-size: 12px;
+  }
+}
 </style>
