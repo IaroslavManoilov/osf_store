@@ -1187,7 +1187,7 @@ useHead(
   .product-card {
     width: 100%;
     max-width: 100%;
-    grid-template-columns: minmax(0, 46%) minmax(0, 54%);
+    grid-template-columns: minmax(0, 48%) minmax(0, 52%);
     border-radius: 16px;
   }
 
@@ -1199,13 +1199,13 @@ useHead(
   .product-media-link {
     min-height: 0;
     height: 100%;
-    padding: 22px 2px 2px;
+    padding: 14px 2px 2px;
     border-radius: 12px;
   }
 
   .product-media img {
-    width: 128%;
-    height: 128%;
+    width: 140%;
+    height: 140%;
     max-width: none;
     max-height: none;
     transform: none;
@@ -1213,12 +1213,12 @@ useHead(
   }
 
   .product-badge {
-    top: 12px;
+    top: 10px;
     left: 12px;
   }
 
   .wishlist-toggle {
-    top: 12px;
+    top: 10px;
     right: 12px;
   }
 
@@ -1278,9 +1278,45 @@ useHead(
   .quick-btn,
   .buy-btn {
     width: 100%;
-    min-height: 32px;
+    min-height: 34px;
     font-size: 10px;
     padding: 0 8px;
+  }
+}
+
+@media (max-width: 420px) {
+  .intro-card,
+  .intro-visual-card,
+  .featured-box,
+  .philosophy-box,
+  .final-box {
+    padding: 10px;
+  }
+
+  .intro-title {
+    font-size: clamp(22px, 8.2vw, 28px);
+  }
+
+  .intro-text {
+    margin: 6px 0 8px;
+    font-size: 13px;
+  }
+
+  .intro-visual-main {
+    min-height: 170px;
+  }
+
+  .product-card {
+    grid-template-columns: minmax(0, 50%) minmax(0, 50%);
+  }
+
+  .product-media-link {
+    padding-top: 12px;
+  }
+
+  .product-media img {
+    width: 146%;
+    height: 146%;
   }
 }
 </style>

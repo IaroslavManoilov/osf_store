@@ -2215,12 +2215,12 @@ useSeoMeta({
 .checkout-form-box,
 .checkout-summary-box,
 .empty-box {
-  padding: 32px;
+  padding: 26px;
 }
 
 .checkout-intro.compact {
-  padding-top: 12px;
-  padding-bottom: 12px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .checkout-title {
