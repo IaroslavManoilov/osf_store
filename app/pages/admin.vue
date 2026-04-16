@@ -70,7 +70,10 @@
             <div v-if="showEnvChecklist" class="launch-env-panel">
               <div class="launch-env-head">
                 <strong>{{ envHeaderText }}</strong>
-                <button type="button" class="btn-alt" @click="copyAllEnvSnippet">{{ envCopyAllText }}</button>
+                <div class="launch-env-head-actions">
+                  <button type="button" class="btn-alt" @click="downloadEnvTemplate">{{ envDownloadText }}</button>
+                  <button type="button" class="btn-alt" @click="copyAllEnvSnippet">{{ envCopyAllText }}</button>
+                </div>
               </div>
 
               <p class="launch-env-note">{{ envHintText }}</p>
@@ -639,6 +642,7 @@ const envHeaderText = computed(() => locale.value === 'en' ? 'What to set in Ver
 const envHintText = computed(() => locale.value === 'en' ? 'Project Settings -> Environment Variables. Add all keys below for Production.' : locale.value === 'ro' ? 'Project Settings -> Environment Variables. Adaugă toate cheile de mai jos pentru Production.' : 'Project Settings -> Environment Variables. Добавь все ключи ниже для Production.')
 const envCopyText = computed(() => locale.value === 'en' ? 'Copy line' : locale.value === 'ro' ? 'Copiază linia' : 'Копировать строку')
 const envCopyAllText = computed(() => locale.value === 'en' ? 'Copy all' : locale.value === 'ro' ? 'Copiază tot' : 'Копировать всё')
+const envDownloadText = computed(() => locale.value === 'en' ? 'Download .env template' : locale.value === 'ro' ? 'Descarcă .env template' : 'Скачать .env template')
 
 const launchStatusLabel = (status: 'done' | 'partial' | 'todo') => {
   if (locale.value === 'en') {
@@ -1765,6 +1769,27 @@ const copyAllEnvSnippet = async () => {
   )
 }
 
+const downloadEnvTemplate = () => {
+  if (!import.meta.client) return
+  const lines = envChecklistItems.value.map((item) => `${item.key}=${item.sample}`)
+  if (!lines.length) return
+
+  const header = [
+    '# ONE STYLE FOREVER',
+    '# Generated from /admin go-live checklist',
+    '# Set these values in Vercel -> Project Settings -> Environment Variables',
+    ''
+  ]
+  const content = [...header, ...lines, ''].join('\n')
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = '.env.template'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 const saveInventory = async (productId: string) => {
   const row = inventoryDraft[productId]
   if (!row) return
@@ -2255,6 +2280,12 @@ useSeoMeta({
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.launch-env-head-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .launch-env-head strong {
