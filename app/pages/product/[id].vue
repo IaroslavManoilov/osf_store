@@ -1001,7 +1001,7 @@ const socialProofLabel = computed(() => {
   return `${buyers} ${ui.value.socialProofBuyersSuffix} · ${orders} ${ui.value.socialProofOrdersSuffix}`
 })
 
-const loadSocialProof = async () => {
+async function loadSocialProof() {
   if (!product.value) return
 
   socialProofLoading.value = true
@@ -1168,7 +1168,7 @@ const canBuySelectedSize = computed(() => {
   return selectedSizeStock.value > 0
 })
 
-const loadLiveInventory = async () => {
+async function loadLiveInventory() {
   if (!product.value) return
 
   try {
@@ -2970,6 +2970,49 @@ useHead(
 @media (max-width: 980px) {
   .desktop-sticky-bar {
     display: none;
+  }
+}
+
+@media (max-width: 389px) {
+  .product-box,
+  .related-box,
+  .not-found-box {
+    padding: 10px;
+  }
+
+  .main-image {
+    min-height: 280px;
+    padding: 6px;
+  }
+
+  .product-title {
+    font-size: 28px;
+    line-height: 0.95;
+  }
+
+  .price-box strong,
+  .price-block strong {
+    font-size: 26px;
+  }
+
+  .mobile-sticky-bar {
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (min-width: 390px) and (max-width: 429px) {
+  .main-image {
+    min-height: 300px;
+  }
+
+  .product-title {
+    font-size: 30px;
+  }
+}
+
+@media (min-width: 430px) and (max-width: 479px) {
+  .main-image {
+    min-height: 320px;
   }
 }
 </style>

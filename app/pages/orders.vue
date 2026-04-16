@@ -2068,4 +2068,37 @@ useSeoMeta({
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 389px) {
+  .orders-intro,
+  .orders-track,
+  .orders-lookup {
+    padding: 12px;
+  }
+
+  .orders-track h2,
+  .orders-lookup h2 {
+    font-size: 24px;
+  }
+
+  .order-card {
+    padding: 10px;
+  }
+}
+
+@media (min-width: 390px) and (max-width: 429px) {
+  .orders-intro,
+  .orders-track,
+  .orders-lookup {
+    padding: 14px;
+  }
+}
+
+@media (min-width: 430px) and (max-width: 479px) {
+  .orders-intro,
+  .orders-track,
+  .orders-lookup {
+    padding: 16px;
+  }
+}
 </style>
