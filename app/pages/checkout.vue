@@ -2829,17 +2829,61 @@ useSeoMeta({
     padding: 18px;
   }
 
+  .checkout-intro.compact {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .checkout-form-box h2,
+  .summary-title {
+    font-size: 28px;
+  }
+
+  .checkout-form {
+    margin-top: 18px;
+  }
+
   .form-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .field-full {
     grid-column: auto;
   }
 
+  .field span {
+    font-size: 13px;
+  }
+
+  .field input,
+  .field select,
+  .field textarea {
+    min-height: 50px;
+    border-radius: 16px;
+    padding: 0 14px;
+  }
+
+  .field textarea {
+    min-height: 120px;
+    padding: 14px;
+  }
+
   .phone-group,
   .map-row {
     grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .checkout-trust {
+    margin-top: 12px;
+    gap: 6px;
+  }
+
+  .checkout-trust span {
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 11px;
   }
 
   .quick-address-card {
@@ -2862,6 +2906,17 @@ useSeoMeta({
 
   .checkout-sticky-bar {
     display: flex;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+
+  .sticky-total strong {
+    font-size: 17px;
+  }
+
+  .sticky-submit {
+    min-height: 42px;
+    padding-inline: 16px;
   }
 }
 
@@ -2881,8 +2936,71 @@ useSeoMeta({
     font-size: 14px;
   }
 
-  .payment-grid {
-    grid-template-columns: 1fr;
+  .checkout-form-box h2,
+  .summary-title {
+    font-size: 24px;
+  }
+
+  .checkout-steps {
+    margin-top: 10px;
+    gap: 6px;
+  }
+
+  .step-pill {
+    min-height: 34px;
+    padding: 0 10px 0 6px;
+    gap: 6px;
+  }
+
+  .step-pill strong {
+    font-size: 11px;
+  }
+
+  .phone-group select {
+    font-size: 15px;
+  }
+
+  .summary-products {
+    margin-top: 14px;
+    gap: 10px;
+  }
+
+  .summary-product {
+    padding-bottom: 10px;
+    gap: 8px;
+  }
+
+  .summary-total {
+    margin-top: 14px;
+    font-size: 16px;
+  }
+
+  .summary-total strong {
+    font-size: 22px;
+  }
+
+  .checkout-guarantee {
+    margin-top: 14px;
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .checkout-guarantee p {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .sticky-total span {
+    font-size: 11px;
+  }
+
+  .sticky-total strong {
+    font-size: 16px;
+  }
+
+  .sticky-submit {
+    min-height: 40px;
+    font-size: 15px;
   }
 }
 
@@ -2893,6 +3011,33 @@ useSeoMeta({
   .empty-box {
     padding: 14px;
   }
+
+  .checkout-form-box h2,
+  .summary-title {
+    font-size: 26px;
+  }
+
+  .checkout-steps {
+    margin-top: 12px;
+    gap: 6px;
+  }
+
+  .step-pill {
+    min-height: 35px;
+  }
+
+  .summary-products {
+    margin-top: 16px;
+    gap: 12px;
+  }
+
+  .summary-total {
+    margin-top: 16px;
+  }
+
+  .summary-total strong {
+    font-size: 23px;
+  }
 }
 
 @media (min-width: 430px) and (max-width: 479px) {
@@ -2901,6 +3046,20 @@ useSeoMeta({
   .checkout-summary-box,
   .empty-box {
     padding: 16px;
+  }
+
+  .checkout-form-box h2,
+  .summary-title {
+    font-size: 27px;
+  }
+
+  .checkout-steps {
+    margin-top: 12px;
+  }
+
+  .summary-products {
+    margin-top: 18px;
+    gap: 14px;
   }
 }
 </style>
