@@ -206,6 +206,21 @@ const localePath = useLocalePath()
   font-size: 13px;
 }
 
+@media (min-width: 980px) and (max-width: 1100px) {
+  .footer-content {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr);
+    gap: 24px;
+  }
+
+  .footer-brand h3 {
+    font-size: 26px;
+  }
+
+  .footer-links {
+    gap: 24px;
+  }
+}
+
 @media (max-width: 880px) {
   .footer-content {
     grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);

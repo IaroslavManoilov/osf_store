@@ -2794,6 +2794,22 @@ useSeoMeta({
 }
 
 @media (min-width: 980px) and (max-width: 1100px) {
+  .checkout-intro,
+  .checkout-form-box,
+  .checkout-summary-box,
+  .empty-box {
+    padding: 22px;
+  }
+
+  .checkout-title {
+    font-size: clamp(34px, 4.3vw, 44px);
+  }
+
+  .checkout-text {
+    margin-top: 10px;
+    font-size: 16px;
+  }
+
   .checkout-layout {
     grid-template-columns: minmax(0, 1fr) 340px;
   }

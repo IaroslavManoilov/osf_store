@@ -1356,6 +1356,32 @@ watch(deliveryCity, (value) => {
   }
 }
 
+@media (min-width: 980px) and (max-width: 1100px) {
+  .cart-intro,
+  .cart-card,
+  .summary-box,
+  .empty-box {
+    padding: 24px;
+  }
+
+  .cart-card {
+    grid-template-columns: minmax(220px, 32%) minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .cart-image-wrap {
+    max-width: 300px;
+  }
+
+  .cart-title-link h2 {
+    font-size: 24px;
+  }
+
+  .line-total strong {
+    font-size: 24px;
+  }
+}
+
 @media (max-width: 900px) {
   .cart-intro,
   .cart-card,

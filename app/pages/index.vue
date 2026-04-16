@@ -1071,6 +1071,51 @@ useHead(
 
 }
 
+@media (min-width: 980px) and (max-width: 1100px) {
+  .intro-card,
+  .intro-visual-card,
+  .featured-box,
+  .philosophy-box,
+  .final-box {
+    padding: 22px;
+  }
+
+  .intro-title {
+    font-size: clamp(34px, 4.4vw, 44px);
+  }
+
+  .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .product-card {
+    display: block;
+  }
+
+  .product-media {
+    min-height: 220px;
+  }
+
+  .product-media img {
+    max-width: 220px;
+    max-height: 220px;
+    transform: none;
+  }
+
+  .product-title-link h3 {
+    font-size: 20px;
+  }
+
+  .product-body p {
+    font-size: 15px;
+  }
+
+  .product-bottom strong {
+    font-size: 24px;
+  }
+}
+
 @media (max-width: 760px) {
   .home-page {
     padding-top: 12px;

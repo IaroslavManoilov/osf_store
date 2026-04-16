@@ -2232,6 +2232,38 @@ useHead(
   }
 }
 
+@media (min-width: 980px) and (max-width: 1100px) {
+  .catalog-intro {
+    padding: 24px;
+  }
+
+  .catalog-title {
+    font-size: clamp(34px, 4.4vw, 44px);
+  }
+
+  .catalog-layout {
+    grid-template-columns: 270px minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .filters-box {
+    padding: 18px;
+  }
+
+  .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .product-body {
+    padding: 16px;
+  }
+
+  .product-title-link h3 {
+    font-size: 20px;
+  }
+}
+
 @media (max-width: 900px) {
   .mobile-sticky-filters {
     position: static;
