@@ -37,6 +37,36 @@
 
     <section v-if="loaded" class="section-space">
       <div class="site-container">
+        <div class="surface-card launch-card">
+          <div class="launch-head">
+            <h2>{{ launchHeaderText }}</h2>
+            <button type="button" class="btn-alt" :disabled="readinessLoading" @click="loadReadiness">
+              {{ readinessLoading ? ui.loading : launchRefreshText }}
+            </button>
+          </div>
+
+          <p v-if="readinessUpdatedAt" class="launch-updated">
+            {{ launchUpdatedText }}: {{ formatDate(readinessUpdatedAt) }}
+          </p>
+
+          <div class="launch-grid" v-if="launchSteps.length">
+            <article v-for="step in launchSteps" :key="step.id" class="launch-item">
+              <div class="launch-item-head">
+                <strong>{{ step.title }}</strong>
+                <span class="launch-status" :class="`st-${step.status}`">{{ launchStatusLabel(step.status) }}</span>
+              </div>
+              <p>{{ step.description }}</p>
+              <ul>
+                <li v-for="point in step.points" :key="point">{{ point }}</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="loaded" class="section-space">
+      <div class="site-container">
         <div class="surface-card inventory-card">
           <div class="inventory-head">
             <h2>{{ ui.inventoryTitle }}</h2>
@@ -473,6 +503,41 @@ type AuditEntry = {
   targetId?: string
 }
 
+type ReadinessChecks = {
+  payment: {
+    hasStripe: boolean
+    isStripeLive: boolean
+    hasMaib: boolean
+    ready: boolean
+  }
+  legal: {
+    contacts: boolean
+    shipping: boolean
+    returns: boolean
+    privacy: boolean
+    faq: boolean
+    ready: boolean
+  }
+  customerTracking: {
+    hasTrackSecret: boolean
+    hasOtpSecret: boolean
+    hasTelegram: boolean
+    ready: boolean
+  }
+  reliability: {
+    hasSupabase: boolean
+    hasAdminKey: boolean
+    hasCleanupSecret: boolean
+    ready: boolean
+  }
+  trust: {
+    trustedMetrics: boolean
+    reviewsCount: number
+    orders30d: number
+    ready: boolean
+  }
+}
+
 const { locale } = useI18n()
 const uiStore = useUiStore()
 
@@ -515,6 +580,9 @@ const csvInputEl = ref<HTMLInputElement | null>(null)
 const csvContent = ref('')
 const csvFileName = ref('')
 const csvImportBusy = ref(false)
+const readinessLoading = ref(false)
+const readinessUpdatedAt = ref('')
+const readinessData = ref<ReadinessChecks | null>(null)
 const paymentFilters = [
   { value: 'all' },
   { value: 'pending' },
@@ -524,6 +592,195 @@ const paymentFilters = [
 
 const selectedCount = computed(() => selectedOrderIds.value.length)
 const allVisibleSelected = computed(() => !!orders.value.length && orders.value.every((order) => selectedOrderIds.value.includes(order.id)))
+const launchHeaderText = computed(() => locale.value === 'en' ? 'Go-live checklist 1-5' : locale.value === 'ro' ? 'Checklist lansare 1-5' : 'Боевой запуск 1-5')
+const launchRefreshText = computed(() => locale.value === 'en' ? 'Refresh checklist' : locale.value === 'ro' ? 'Reîncarcă checklist' : 'Обновить чеклист')
+const launchUpdatedText = computed(() => locale.value === 'en' ? 'Updated' : locale.value === 'ro' ? 'Actualizat' : 'Обновлено')
+
+const launchStatusLabel = (status: 'done' | 'partial' | 'todo') => {
+  if (locale.value === 'en') {
+    if (status === 'done') return 'Done'
+    if (status === 'partial') return 'In progress'
+    return 'To do'
+  }
+  if (locale.value === 'ro') {
+    if (status === 'done') return 'Gata'
+    if (status === 'partial') return 'În progres'
+    return 'De făcut'
+  }
+  if (status === 'done') return 'Готово'
+  if (status === 'partial') return 'В работе'
+  return 'Нужно сделать'
+}
+
+const launchSteps = computed(() => {
+  const checks = readinessData.value
+  if (!checks) return []
+
+  const paymentStatus: 'done' | 'partial' | 'todo' = checks.payment.ready ? 'done' : (checks.payment.hasStripe || checks.payment.hasMaib ? 'partial' : 'todo')
+  const trackingStatus: 'done' | 'partial' | 'todo' = checks.customerTracking.ready ? 'done' : (checks.customerTracking.hasTrackSecret || checks.customerTracking.hasOtpSecret || checks.customerTracking.hasTelegram ? 'partial' : 'todo')
+  const reliabilityStatus: 'done' | 'partial' | 'todo' = checks.reliability.ready ? 'done' : (checks.reliability.hasSupabase || checks.reliability.hasAdminKey || checks.reliability.hasCleanupSecret ? 'partial' : 'todo')
+  const trustStatus: 'done' | 'partial' | 'todo' = checks.trust.ready ? 'done' : ((checks.trust.orders30d > 0 || checks.trust.reviewsCount > 0) ? 'partial' : 'todo')
+
+  if (locale.value === 'en') {
+    return [
+      {
+        id: 'payment',
+        title: '1. Live payments',
+        description: 'Accept real card payments, not only test/COD.',
+        status: paymentStatus,
+        points: [
+          `MAIB configured: ${checks.payment.hasMaib ? 'yes' : 'no'}`,
+          `Stripe live: ${checks.payment.isStripeLive ? 'yes' : 'no'}`
+        ]
+      },
+      {
+        id: 'legal',
+        title: '2. Legal pages',
+        description: 'Store policy pages available to increase trust.',
+        status: checks.legal.ready ? 'done' : 'todo',
+        points: ['Contacts, Shipping, Returns, Privacy, FAQ']
+      },
+      {
+        id: 'tracking',
+        title: '3. Customer tracking',
+        description: 'Customer sees order state and receives updates.',
+        status: trackingStatus,
+        points: [
+          `Track secret: ${checks.customerTracking.hasTrackSecret ? 'ok' : 'missing'}`,
+          `OTP secret: ${checks.customerTracking.hasOtpSecret ? 'ok' : 'missing'}`,
+          `Telegram enabled: ${checks.customerTracking.hasTelegram ? 'ok' : 'missing'}`
+        ]
+      },
+      {
+        id: 'reliability',
+        title: '4. Reliability and security',
+        description: 'Critical backend and admin safety checks.',
+        status: reliabilityStatus,
+        points: [
+          `Supabase: ${checks.reliability.hasSupabase ? 'ok' : 'missing'}`,
+          `Admin key: ${checks.reliability.hasAdminKey ? 'ok' : 'weak/missing'}`,
+          `Cleanup secret: ${checks.reliability.hasCleanupSecret ? 'ok' : 'weak/missing'}`
+        ]
+      },
+      {
+        id: 'trust',
+        title: '5. Trust and conversion',
+        description: 'Real social proof from delivered orders.',
+        status: trustStatus,
+        points: [
+          `Reviews: ${checks.trust.reviewsCount}`,
+          `Orders 30d: ${checks.trust.orders30d}`
+        ]
+      }
+    ]
+  }
+
+  if (locale.value === 'ro') {
+    return [
+      {
+        id: 'payment',
+        title: '1. Plăți live',
+        description: 'Plată reală cu card, nu doar test/ramburs.',
+        status: paymentStatus,
+        points: [
+          `MAIB configurat: ${checks.payment.hasMaib ? 'da' : 'nu'}`,
+          `Stripe live: ${checks.payment.isStripeLive ? 'da' : 'nu'}`
+        ]
+      },
+      {
+        id: 'legal',
+        title: '2. Pagini legale',
+        description: 'Pagini de politici publicate pentru încredere.',
+        status: checks.legal.ready ? 'done' : 'todo',
+        points: ['Contacte, Livrare, Returnare, Confidențialitate, FAQ']
+      },
+      {
+        id: 'tracking',
+        title: '3. Tracking client',
+        description: 'Clientul vede statusul comenzii și primește update.',
+        status: trackingStatus,
+        points: [
+          `Secret tracking: ${checks.customerTracking.hasTrackSecret ? 'ok' : 'lipsă'}`,
+          `Secret OTP: ${checks.customerTracking.hasOtpSecret ? 'ok' : 'lipsă'}`,
+          `Telegram activ: ${checks.customerTracking.hasTelegram ? 'ok' : 'lipsă'}`
+        ]
+      },
+      {
+        id: 'reliability',
+        title: '4. Fiabilitate și securitate',
+        description: 'Verificări critice pentru backend și admin.',
+        status: reliabilityStatus,
+        points: [
+          `Supabase: ${checks.reliability.hasSupabase ? 'ok' : 'lipsă'}`,
+          `Cheie admin: ${checks.reliability.hasAdminKey ? 'ok' : 'slabă/lipsă'}`,
+          `Secret cleanup: ${checks.reliability.hasCleanupSecret ? 'ok' : 'slab/lipsă'}`
+        ]
+      },
+      {
+        id: 'trust',
+        title: '5. Încredere și conversie',
+        description: 'Social proof real din comenzi livrate.',
+        status: trustStatus,
+        points: [
+          `Recenzii: ${checks.trust.reviewsCount}`,
+          `Comenzi 30 zile: ${checks.trust.orders30d}`
+        ]
+      }
+    ]
+  }
+
+  return [
+    {
+      id: 'payment',
+      title: '1. Живая оплата',
+      description: 'Реальная оплата картой, не только тест/наложка.',
+      status: paymentStatus,
+      points: [
+        `MAIB настроен: ${checks.payment.hasMaib ? 'да' : 'нет'}`,
+        `Stripe live: ${checks.payment.isStripeLive ? 'да' : 'нет'}`
+      ]
+    },
+    {
+      id: 'legal',
+      title: '2. Юридические страницы',
+      description: 'Политики и контакты опубликованы для доверия.',
+      status: checks.legal.ready ? 'done' : 'todo',
+      points: ['Контакты, Доставка, Возврат, Конфиденциальность, FAQ']
+    },
+    {
+      id: 'tracking',
+      title: '3. Трекинг клиента',
+      description: 'Клиент видит статус заказа и получает обновления.',
+      status: trackingStatus,
+      points: [
+        `Track secret: ${checks.customerTracking.hasTrackSecret ? 'ok' : 'нет'}`,
+        `OTP secret: ${checks.customerTracking.hasOtpSecret ? 'ok' : 'нет'}`,
+        `Telegram включен: ${checks.customerTracking.hasTelegram ? 'ok' : 'нет'}`
+      ]
+    },
+    {
+      id: 'reliability',
+      title: '4. Надёжность и безопасность',
+      description: 'Критичные проверки бэкенда и админки.',
+      status: reliabilityStatus,
+      points: [
+        `Supabase: ${checks.reliability.hasSupabase ? 'ok' : 'нет'}`,
+        `Admin key: ${checks.reliability.hasAdminKey ? 'ok' : 'слабый/нет'}`,
+        `Cleanup secret: ${checks.reliability.hasCleanupSecret ? 'ok' : 'слабый/нет'}`
+      ]
+    },
+    {
+      id: 'trust',
+      title: '5. Доверие и конверсия',
+      description: 'Реальный social proof из заказов.',
+      status: trustStatus,
+      points: [
+        `Отзывов: ${checks.trust.reviewsCount}`,
+        `Заказов за 30 дней: ${checks.trust.orders30d}`
+      ]
+    }
+  ]
+})
 
 const lowStockItems = computed(() => {
   const threshold = Number(lowStockThreshold.value || 0)
@@ -1267,6 +1524,29 @@ const loadAudit = async () => {
   }
 }
 
+const loadReadiness = async () => {
+  if (!csrfToken.value) return
+  readinessLoading.value = true
+  try {
+    const response = await $fetch<{
+      success: boolean
+      updatedAt: string
+      checks: ReadinessChecks
+    }>('/api/admin/readiness', {
+      headers: {
+        'x-csrf-token': csrfToken.value
+      }
+    })
+
+    readinessData.value = response?.checks || null
+    readinessUpdatedAt.value = String(response?.updatedAt || '')
+  } catch (error) {
+    uiStore.showToast(resolveErrorMessage(error), 'error')
+  } finally {
+    readinessLoading.value = false
+  }
+}
+
 const saveInventory = async (productId: string) => {
   const row = inventoryDraft[productId]
   if (!row) return
@@ -1389,6 +1669,7 @@ const loadOrders = async () => {
   await loadInventory()
   await loadProductOverrides()
   await loadAudit()
+  await loadReadiness()
 }
 
 const resetOrderFilters = async () => {
@@ -1583,6 +1864,8 @@ const logout = async (showToast = false) => {
   inventoryHistory.value = []
   editableProducts.value = []
   auditEntries.value = []
+  readinessUpdatedAt.value = ''
+  readinessData.value = null
   for (const key of Object.keys(inventoryDraft)) {
     delete inventoryDraft[key]
   }
@@ -1612,7 +1895,7 @@ onMounted(() => {
       }
       csrfToken.value = response?.csrfToken || ''
       buildDefaultEditableProducts()
-      return Promise.all([fetchOrders(), loadInventory(), loadProductOverrides(), loadAudit()])
+      return Promise.all([fetchOrders(), loadInventory(), loadProductOverrides(), loadAudit(), loadReadiness()])
     })
     .catch(() => {
       loaded.value = false
@@ -1700,6 +1983,85 @@ useSeoMeta({
 .inventory-card {
   padding: 16px;
 }
+
+.launch-card {
+  padding: 16px;
+}
+
+.launch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.launch-head h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.launch-updated {
+  margin: 8px 0 0;
+  color: #5b6f86;
+  font-size: 13px;
+}
+
+.launch-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.launch-item {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  background: #fff;
+  display: grid;
+  gap: 8px;
+}
+
+.launch-item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.launch-item-head strong {
+  font-size: 16px;
+}
+
+.launch-status {
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+}
+
+.launch-item p {
+  margin: 0;
+  color: #445973;
+  font-size: 13px;
+}
+
+.launch-item ul {
+  margin: 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 4px;
+  color: #3f5269;
+  font-size: 13px;
+}
+
+.st-done { background: #edf9f0; color: #1f6f41; border-color: #bfe0c9; }
+.st-partial { background: #fff7eb; color: #80511f; border-color: #edd7bb; }
+.st-todo { background: #fff1f1; color: #8a2a2a; border-color: #efcaca; }
 
 .inventory-head {
   display: flex;
@@ -2169,6 +2531,10 @@ useSeoMeta({
   }
 
   .inventory-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .launch-grid {
     grid-template-columns: 1fr;
   }
 
