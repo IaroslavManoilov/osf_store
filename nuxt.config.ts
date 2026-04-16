@@ -30,6 +30,10 @@ export default defineNuxtConfig({
     adminKey: process.env.NUXT_ADMIN_KEY || '',
     stripeSecretKey: process.env.NUXT_STRIPE_SECRET_KEY || '',
     stripeWebhookSecret: process.env.NUXT_STRIPE_WEBHOOK_SECRET || '',
+    maibProjectId: process.env.NUXT_MAIB_PROJECT_ID || '',
+    maibProjectSecret: process.env.NUXT_MAIB_PROJECT_SECRET || '',
+    maibSignatureKey: process.env.NUXT_MAIB_SIGNATURE_KEY || '',
+    maibApiBaseUrl: process.env.NUXT_MAIB_API_BASE_URL || 'https://api.maibmerchants.md/v1',
     supabaseUrl: process.env.NUXT_SUPABASE_URL || '',
     supabaseServiceRoleKey: process.env.NUXT_SUPABASE_SERVICE_ROLE_KEY || '',
     public: {

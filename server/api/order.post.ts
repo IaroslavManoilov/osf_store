@@ -9,6 +9,7 @@ import { createOrderTrackToken } from '../utils/order-track-token'
 import { requireCheckoutCsrf } from '../utils/checkout-csrf'
 import { readProductOverridesSafe } from '../utils/product-overrides'
 import { getSiteUrl, getStripeClient } from '../utils/stripe'
+import { createMaibPayment, isMaibConfigured } from '../utils/maib'
 import { getProducts } from '~/data/products'
 
 type OrderItem = {
@@ -244,36 +245,50 @@ export default defineEventHandler(async (event) => {
   let telegramSent = false
   let emailSent = false
   const warnings: string[] = []
-  let stripeCheckoutUrl = ''
+  let externalCheckoutUrl = ''
 
   if (paymentMethod === 'card_online') {
     const siteUrl = getSiteUrl(event)
-    const stripe = getStripeClient(event)
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      client_reference_id: orderId,
-      metadata: {
-        order_id: orderId
-      },
-      success_url: `${siteUrl}/checkout/success?orderId=${encodeURIComponent(orderId)}&trackToken=${encodeURIComponent(trackToken)}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteUrl}/checkout?paymentCanceled=1&orderId=${encodeURIComponent(orderId)}`,
-      line_items: normalizedItems.map((item) => ({
-        quantity: item.quantity,
-        price_data: {
-          currency: 'mdl',
-          product_data: {
-            name: `${item.title} [${String(item.selectedSize || '-')}]`
-          },
-          unit_amount: Math.max(1, Math.round(item.price * 100))
-        }
-      }))
-    })
+    if (isMaibConfigured(event)) {
+      const maibPayment = await createMaibPayment(event, {
+        amount: serverTotal,
+        orderId,
+        description: `Order ${orderId}`,
+        language: 'ru',
+        callbackUrl: `${siteUrl}/api/payment/maib/callback`,
+        okUrl: `${siteUrl}/checkout/success?orderId=${encodeURIComponent(orderId)}&trackToken=${encodeURIComponent(trackToken)}&maib=1`,
+        failUrl: `${siteUrl}/checkout?paymentCanceled=1&orderId=${encodeURIComponent(orderId)}`
+      })
+      externalCheckoutUrl = maibPayment.checkoutUrl
+    } else {
+      const stripe = getStripeClient(event)
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        client_reference_id: orderId,
+        metadata: {
+          order_id: orderId
+        },
+        success_url: `${siteUrl}/checkout/success?orderId=${encodeURIComponent(orderId)}&trackToken=${encodeURIComponent(trackToken)}&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${siteUrl}/checkout?paymentCanceled=1&orderId=${encodeURIComponent(orderId)}`,
+        line_items: normalizedItems.map((item) => ({
+          quantity: item.quantity,
+          price_data: {
+            currency: 'mdl',
+            product_data: {
+              name: `${item.title} [${String(item.selectedSize || '-')}]`
+            },
+            unit_amount: Math.max(1, Math.round(item.price * 100))
+          }
+        }))
+      })
 
-    stripeCheckoutUrl = String(session.url || '').trim()
-    if (!stripeCheckoutUrl) {
+      externalCheckoutUrl = String(session.url || '').trim()
+    }
+
+    if (!externalCheckoutUrl) {
       throw createError({
         statusCode: 500,
-        statusMessage: 'Stripe checkout URL is empty'
+        statusMessage: 'Card checkout URL is empty'
       })
     }
   }
@@ -399,7 +414,7 @@ Total: ${serverTotal} MDL
     payment: {
       method: paymentMethod,
       status: paymentStatus,
-      checkoutUrl: stripeCheckoutUrl || undefined
+      checkoutUrl: externalCheckoutUrl || undefined
     },
     receipt: {
       orderId,

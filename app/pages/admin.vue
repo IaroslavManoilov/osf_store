@@ -246,6 +246,9 @@
               <option value="">{{ ui.statusAll }}</option>
               <option v-for="status in statuses" :key="status" :value="status">{{ statusLabel(status) }}</option>
             </select>
+            <select v-model="paymentFilter" class="status-filter" @change="loadOrders">
+              <option v-for="filter in paymentFilters" :key="`pay-${filter.value}`" :value="filter.value">{{ paymentFilterLabel(filter.value) }}</option>
+            </select>
             <input v-model="dateFrom" type="date" class="status-filter date-filter" />
             <input v-model="dateTo" type="date" class="status-filter date-filter" />
             <button type="button" class="btn-alt" @click="loadOrders">{{ ui.applyFilters }}</button>
@@ -304,6 +307,13 @@
               <p><strong>{{ ui.address }}</strong> {{ order.customer.address }}</p>
               <p v-if="order.customer.email"><strong>Email:</strong> {{ order.customer.email }}</p>
               <p v-if="order.customer.comment"><strong>{{ ui.comment }}</strong> {{ order.customer.comment }}</p>
+              <p>
+                <strong>{{ ui.payment }}</strong>
+                <span class="payment-pill" :class="paymentBadgeClass(order.payment.status)">
+                  {{ paymentStatusLabel(order.payment.status) }}
+                </span>
+                <span class="payment-method-text">· {{ paymentMethodLabel(order.payment.method) }}</span>
+              </p>
             </div>
 
             <div class="order-items">
@@ -337,6 +347,15 @@
                   @click="updateStatus(order.id)"
                 >
                   {{ savingId === order.id ? ui.saving : ui.saveStatus }}
+                </button>
+                <button
+                  v-if="canConfirmPayment(order)"
+                  type="button"
+                  class="btn-main"
+                  :disabled="confirmingPaymentId === order.id"
+                  @click="confirmPayment(order.id)"
+                >
+                  {{ confirmingPaymentId === order.id ? ui.saving : ui.confirmPaymentManually }}
                 </button>
               </div>
             </div>
@@ -392,6 +411,10 @@ type AdminOrder = {
     selectedSize?: string
   }>
   total: number
+  payment: {
+    method: 'card_online' | 'phone_transfer' | 'cash_on_delivery'
+    status: 'pending' | 'paid' | 'cash_on_delivery'
+  }
   status: OrderStatus
   statusHistory?: Array<{
     status: OrderStatus
@@ -462,6 +485,7 @@ const loading = ref(false)
 const loaded = ref(false)
 const savingId = ref('')
 const statusFilter = ref('')
+const paymentFilter = ref<'all' | 'pending' | 'paid' | 'cash_on_delivery'>('all')
 const dateFrom = ref('')
 const dateTo = ref('')
 const errorMessage = ref('')
@@ -484,12 +508,19 @@ const lowStockThreshold = ref(3)
 const editableProducts = ref<EditableProduct[]>([])
 const savingProducts = ref(false)
 const exportingCsv = ref(false)
+const confirmingPaymentId = ref('')
 const loadingAudit = ref(false)
 const auditEntries = ref<AuditEntry[]>([])
 const csvInputEl = ref<HTMLInputElement | null>(null)
 const csvContent = ref('')
 const csvFileName = ref('')
 const csvImportBusy = ref(false)
+const paymentFilters = [
+  { value: 'all' },
+  { value: 'pending' },
+  { value: 'paid' },
+  { value: 'cash_on_delivery' }
+] as const
 
 const selectedCount = computed(() => selectedOrderIds.value.length)
 const allVisibleSelected = computed(() => !!orders.value.length && orders.value.every((order) => selectedOrderIds.value.includes(order.id)))
@@ -528,6 +559,10 @@ const ui = computed(() => {
       logout: 'Ieșire',
       ordersCount: 'Comenzi',
       statusAll: 'Toate statusurile',
+      paymentAll: 'Toate plățile',
+      paymentPending: 'În așteptare plată',
+      paymentPaid: 'Plătit',
+      paymentCod: 'Ramburs',
       applyFilters: 'Aplică filtre',
       resetFilters: 'Resetează filtre',
       selectAllVisible: 'Selectează tot din listă',
@@ -542,6 +577,11 @@ const ui = computed(() => {
       items: 'Produse',
       size: 'Mărime',
       total: 'Total',
+      payment: 'Plată:',
+      paymentMethodCard: 'Card online',
+      paymentMethodPhone: 'Transfer telefonic',
+      paymentMethodCod: 'Plată la livrare',
+      confirmPaymentManually: 'Confirmă plata manual',
       statusNotePlaceholder: 'Comentariu status (opțional)',
       saveStatus: 'Salvează status',
       saveInventory: 'Salvează stoc',
@@ -596,6 +636,10 @@ const ui = computed(() => {
       logout: 'Logout',
       ordersCount: 'Orders',
       statusAll: 'All statuses',
+      paymentAll: 'All payments',
+      paymentPending: 'Awaiting payment',
+      paymentPaid: 'Paid',
+      paymentCod: 'Cash on delivery',
       applyFilters: 'Apply filters',
       resetFilters: 'Reset filters',
       selectAllVisible: 'Select all visible',
@@ -610,6 +654,11 @@ const ui = computed(() => {
       items: 'Items',
       size: 'Size',
       total: 'Total',
+      payment: 'Payment:',
+      paymentMethodCard: 'Card online',
+      paymentMethodPhone: 'Phone transfer',
+      paymentMethodCod: 'Cash on delivery',
+      confirmPaymentManually: 'Confirm payment manually',
       statusNotePlaceholder: 'Status note (optional)',
       saveStatus: 'Save status',
       saveInventory: 'Save stock',
@@ -663,6 +712,10 @@ const ui = computed(() => {
     logout: 'Выйти',
     ordersCount: 'Заказы',
     statusAll: 'Все статусы',
+    paymentAll: 'Все оплаты',
+    paymentPending: 'Ожидает оплату',
+    paymentPaid: 'Оплачено',
+    paymentCod: 'Наложка',
     applyFilters: 'Применить фильтры',
     resetFilters: 'Сбросить фильтры',
     selectAllVisible: 'Выбрать все в списке',
@@ -677,6 +730,11 @@ const ui = computed(() => {
     items: 'Товары',
     size: 'Размер',
     total: 'Итого',
+    payment: 'Оплата:',
+    paymentMethodCard: 'Картой онлайн',
+    paymentMethodPhone: 'Перевод по телефону',
+    paymentMethodCod: 'Наложенный платеж',
+    confirmPaymentManually: 'Подтвердить оплату вручную',
     statusNotePlaceholder: 'Комментарий к статусу (необязательно)',
     saveStatus: 'Сохранить статус',
     saveInventory: 'Сохранить остатки',
@@ -764,6 +822,35 @@ const formatDate = (iso: string) => {
 
 const formatDelta = (delta: number) => {
   return delta > 0 ? `+${delta}` : String(delta)
+}
+
+const paymentFilterLabel = (value: 'all' | 'pending' | 'paid' | 'cash_on_delivery') => {
+  if (value === 'pending') return ui.value.paymentPending
+  if (value === 'paid') return ui.value.paymentPaid
+  if (value === 'cash_on_delivery') return ui.value.paymentCod
+  return ui.value.paymentAll
+}
+
+const paymentStatusLabel = (value: 'pending' | 'paid' | 'cash_on_delivery') => {
+  if (value === 'pending') return ui.value.paymentPending
+  if (value === 'paid') return ui.value.paymentPaid
+  return ui.value.paymentCod
+}
+
+const paymentMethodLabel = (value: 'card_online' | 'phone_transfer' | 'cash_on_delivery') => {
+  if (value === 'card_online') return ui.value.paymentMethodCard
+  if (value === 'phone_transfer') return ui.value.paymentMethodPhone
+  return ui.value.paymentMethodCod
+}
+
+const paymentBadgeClass = (value: 'pending' | 'paid' | 'cash_on_delivery') => {
+  if (value === 'paid') return 'p-paid'
+  if (value === 'cash_on_delivery') return 'p-cod'
+  return 'p-pending'
+}
+
+const canConfirmPayment = (order: AdminOrder) => {
+  return order.payment.method === 'phone_transfer' && order.payment.status !== 'paid'
 }
 
 const sourceLabel = (source: string) => {
@@ -1240,6 +1327,7 @@ const fetchOrders = async () => {
         : undefined,
       query: {
         ...(statusFilter.value ? { status: statusFilter.value } : {}),
+        ...(paymentFilter.value !== 'all' ? { payment: paymentFilter.value } : {}),
         ...(dateFrom.value ? { from: dateFrom.value } : {}),
         ...(dateTo.value ? { to: dateTo.value } : {})
       }
@@ -1247,6 +1335,10 @@ const fetchOrders = async () => {
 
     orders.value = response.orders.map((order) => ({
       ...order,
+      payment: {
+        method: order.payment?.method || 'cash_on_delivery',
+        status: order.payment?.status || 'cash_on_delivery'
+      },
       statusHistory: Array.isArray(order.statusHistory)
         ? order.statusHistory
             .filter((entry) => !!entry?.status && !!entry?.changedAt)
@@ -1301,6 +1393,7 @@ const loadOrders = async () => {
 
 const resetOrderFilters = async () => {
   statusFilter.value = ''
+  paymentFilter.value = 'all'
   dateFrom.value = ''
   dateTo.value = ''
   await loadOrders()
@@ -1406,6 +1499,44 @@ const updateStatus = async (orderId: string) => {
   }
 }
 
+const confirmPayment = async (orderId: string) => {
+  confirmingPaymentId.value = orderId
+  try {
+    const response = await $fetch<{
+      success: boolean
+      paymentStatus: 'pending' | 'paid' | 'cash_on_delivery'
+    }>(`/api/admin/orders/${orderId}/payment`, {
+      method: 'PATCH',
+      headers: csrfToken.value
+        ? {
+            'x-csrf-token': csrfToken.value
+          }
+        : undefined,
+      body: {
+        status: 'paid'
+      }
+    })
+
+    const target = orders.value.find((item) => item.id === orderId)
+    if (target) {
+      target.payment.status = response.paymentStatus
+    }
+
+    uiStore.showToast(
+      locale.value === 'en'
+        ? 'Payment confirmed'
+        : locale.value === 'ro'
+          ? 'Plată confirmată'
+          : 'Оплата подтверждена',
+      'success'
+    )
+  } catch (error) {
+    uiStore.showToast(resolveErrorMessage(error), 'error')
+  } finally {
+    confirmingPaymentId.value = ''
+  }
+}
+
 const resolveErrorMessage = (error: unknown) => {
   const maybe = error as {
     data?: { statusMessage?: string }
@@ -1446,6 +1577,7 @@ const logout = async (showToast = false) => {
   dateFrom.value = ''
   dateTo.value = ''
   bulkNote.value = ''
+  paymentFilter.value = 'all'
   orders.value = []
   stockBySize.value = {}
   inventoryHistory.value = []
@@ -1877,6 +2009,28 @@ useSeoMeta({
   display: inline-flex;
   align-items: center;
 }
+
+.payment-pill {
+  margin-left: 6px;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.payment-method-text {
+  margin-left: 6px;
+  color: var(--muted);
+}
+
+.p-pending { background: #fff7eb; color: #80511f; border-color: #edd7bb; }
+.p-paid { background: #edf9f0; color: #1f6f41; border-color: #bfe0c9; }
+.p-cod { background: #eef3ff; color: #2e4f90; border-color: #cad8f4; }
 
 .s-new { background: #eef7f0; color: #1f5d3b; border-color: #bcdac4; }
 .s-confirmed { background: #edf4fb; color: #2a5678; border-color: #c7d9ec; }

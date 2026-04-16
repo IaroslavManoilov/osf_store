@@ -64,6 +64,7 @@ export default defineEventHandler(async (event) => {
   const supabase = getSupabaseAdmin(event)
   const query = getQuery(event)
   const status = String(query.status || '').trim() as OrderStatus | ''
+  const payment = String(query.payment || '').trim() as 'pending' | 'paid' | 'cash_on_delivery' | ''
   const fromRaw = String(query.from || '').trim()
   const toRaw = String(query.to || '').trim()
 
@@ -77,6 +78,13 @@ export default defineEventHandler(async (event) => {
 
   if (status && validStatuses.includes(status)) {
     ordersQuery = ordersQuery.eq('status', status)
+  }
+  if (payment === 'pending') {
+    ordersQuery = ordersQuery.eq('payment_status', 'pending')
+  } else if (payment === 'paid') {
+    ordersQuery = ordersQuery.eq('payment_status', 'paid')
+  } else if (payment === 'cash_on_delivery') {
+    ordersQuery = ordersQuery.eq('payment_method', 'cash_on_delivery')
   }
   if (fromIso && Number.isFinite(fromIso.getTime())) {
     ordersQuery = ordersQuery.gte('created_at', fromIso.toISOString())
