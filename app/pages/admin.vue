@@ -61,6 +61,34 @@
               </ul>
             </article>
           </div>
+
+          <div class="launch-env">
+            <button type="button" class="btn-alt launch-env-toggle" @click="showEnvChecklist = !showEnvChecklist">
+              {{ showEnvChecklist ? envHideText : envShowText }}
+            </button>
+
+            <div v-if="showEnvChecklist" class="launch-env-panel">
+              <div class="launch-env-head">
+                <strong>{{ envHeaderText }}</strong>
+                <button type="button" class="btn-alt" @click="copyAllEnvSnippet">{{ envCopyAllText }}</button>
+              </div>
+
+              <p class="launch-env-note">{{ envHintText }}</p>
+
+              <div class="env-grid">
+                <article v-for="item in envChecklistItems" :key="item.key" class="env-item">
+                  <div class="env-item-head">
+                    <code>{{ item.key }}</code>
+                    <span class="launch-status" :class="`st-${item.status}`">{{ launchStatusLabel(item.status) }}</span>
+                  </div>
+                  <p>{{ item.help }}</p>
+                  <div class="env-item-actions">
+                    <button type="button" class="btn-alt" @click="copyEnvSnippet(item)">{{ envCopyText }}</button>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -540,6 +568,13 @@ type ReadinessChecks = {
   }
 }
 
+type EnvChecklistItem = {
+  key: string
+  sample: string
+  status: 'done' | 'partial' | 'todo'
+  help: string
+}
+
 const { locale } = useI18n()
 const uiStore = useUiStore()
 
@@ -585,6 +620,7 @@ const csvImportBusy = ref(false)
 const readinessLoading = ref(false)
 const readinessUpdatedAt = ref('')
 const readinessData = ref<ReadinessChecks | null>(null)
+const showEnvChecklist = ref(false)
 const paymentFilters = [
   { value: 'all' },
   { value: 'pending' },
@@ -597,6 +633,12 @@ const allVisibleSelected = computed(() => !!orders.value.length && orders.value.
 const launchHeaderText = computed(() => locale.value === 'en' ? 'Go-live checklist 1-5' : locale.value === 'ro' ? 'Checklist lansare 1-5' : 'Боевой запуск 1-5')
 const launchRefreshText = computed(() => locale.value === 'en' ? 'Refresh checklist' : locale.value === 'ro' ? 'Reîncarcă checklist' : 'Обновить чеклист')
 const launchUpdatedText = computed(() => locale.value === 'en' ? 'Updated' : locale.value === 'ro' ? 'Actualizat' : 'Обновлено')
+const envShowText = computed(() => locale.value === 'en' ? 'Show Vercel ENV checklist' : locale.value === 'ro' ? 'Arată checklist Vercel ENV' : 'Показать чеклист Vercel ENV')
+const envHideText = computed(() => locale.value === 'en' ? 'Hide Vercel ENV checklist' : locale.value === 'ro' ? 'Ascunde checklist Vercel ENV' : 'Скрыть чеклист Vercel ENV')
+const envHeaderText = computed(() => locale.value === 'en' ? 'What to set in Vercel' : locale.value === 'ro' ? 'Ce trebuie setat în Vercel' : 'Что включить в Vercel')
+const envHintText = computed(() => locale.value === 'en' ? 'Project Settings -> Environment Variables. Add all keys below for Production.' : locale.value === 'ro' ? 'Project Settings -> Environment Variables. Adaugă toate cheile de mai jos pentru Production.' : 'Project Settings -> Environment Variables. Добавь все ключи ниже для Production.')
+const envCopyText = computed(() => locale.value === 'en' ? 'Copy line' : locale.value === 'ro' ? 'Copiază linia' : 'Копировать строку')
+const envCopyAllText = computed(() => locale.value === 'en' ? 'Copy all' : locale.value === 'ro' ? 'Copiază tot' : 'Копировать всё')
 
 const launchStatusLabel = (status: 'done' | 'partial' | 'todo') => {
   if (locale.value === 'en') {
@@ -786,6 +828,124 @@ const launchSteps = computed(() => {
         `Отзывов: ${checks.trust.reviewsCount}`,
         `Заказов за 30 дней: ${checks.trust.orders30d}`
       ]
+    }
+  ]
+})
+
+const envChecklistItems = computed<EnvChecklistItem[]>(() => {
+  const checks = readinessData.value
+  if (!checks) return []
+
+  const statusByBoolean = (ok: boolean): 'done' | 'todo' => (ok ? 'done' : 'todo')
+
+  const t = (ru: string, ro: string, en: string) => {
+    if (locale.value === 'en') return en
+    if (locale.value === 'ro') return ro
+    return ru
+  }
+
+  return [
+    {
+      key: 'NUXT_SUPABASE_URL',
+      sample: 'https://your-project-ref.supabase.co',
+      status: statusByBoolean(checks.reliability.hasSupabase),
+      help: t('URL проекта Supabase (server)', 'URL proiect Supabase (server)', 'Supabase project URL (server)')
+    },
+    {
+      key: 'NUXT_SUPABASE_SERVICE_ROLE_KEY',
+      sample: 'eyJhbGciOi...',
+      status: statusByBoolean(checks.reliability.hasSupabase),
+      help: t('Service Role ключ Supabase', 'Cheie Service Role Supabase', 'Supabase Service Role key')
+    },
+    {
+      key: 'NUXT_PUBLIC_SUPABASE_URL',
+      sample: 'https://your-project-ref.supabase.co',
+      status: statusByBoolean(checks.reliability.hasSupabase),
+      help: t('Публичный URL Supabase', 'URL public Supabase', 'Public Supabase URL')
+    },
+    {
+      key: 'NUXT_PUBLIC_SUPABASE_ANON_KEY',
+      sample: 'sb_publishable_...',
+      status: statusByBoolean(checks.reliability.hasSupabase),
+      help: t('Публичный anon/publishable ключ', 'Cheie publică anon/publishable', 'Public anon/publishable key')
+    },
+    {
+      key: 'NUXT_ADMIN_KEY',
+      sample: 'change_this_to_a_long_secure_key',
+      status: statusByBoolean(checks.reliability.hasAdminKey),
+      help: t('Ключ входа в /admin', 'Cheie acces /admin', 'Admin login key for /admin')
+    },
+    {
+      key: 'NUXT_CLEANUP_SECRET',
+      sample: 'change_this_to_cleanup_secret',
+      status: statusByBoolean(checks.reliability.hasCleanupSecret),
+      help: t('Секрет для /api/system/cleanup', 'Secret pentru /api/system/cleanup', 'Secret for /api/system/cleanup')
+    },
+    {
+      key: 'NUXT_ORDER_TRACK_SECRET',
+      sample: 'change_this_to_another_long_secure_key',
+      status: statusByBoolean(checks.customerTracking.hasTrackSecret),
+      help: t('Секрет трекинга заказов', 'Secret tracking comenzi', 'Order tracking secret')
+    },
+    {
+      key: 'NUXT_ORDER_OTP_SECRET',
+      sample: 'change_this_to_yet_another_long_secure_key',
+      status: statusByBoolean(checks.customerTracking.hasOtpSecret),
+      help: t('Секрет одноразовых кодов', 'Secret coduri OTP', 'One-time code secret')
+    },
+    {
+      key: 'NUXT_TELEGRAM_BOT_TOKEN',
+      sample: '123456:ABCDEF...',
+      status: statusByBoolean(checks.customerTracking.hasTelegram),
+      help: t('Токен Telegram бота', 'Token bot Telegram', 'Telegram bot token')
+    },
+    {
+      key: 'NUXT_TELEGRAM_BOT_USERNAME',
+      sample: 'your_bot_username',
+      status: statusByBoolean(checks.customerTracking.hasTelegram),
+      help: t('Username бота без @', 'Username bot fără @', 'Bot username without @')
+    },
+    {
+      key: 'NUXT_TELEGRAM_CHAT_ID',
+      sample: '123456789',
+      status: statusByBoolean(checks.customerTracking.hasTelegram),
+      help: t('Chat ID для уведомлений', 'Chat ID pentru notificări', 'Chat ID for notifications')
+    },
+    {
+      key: 'NUXT_STRIPE_SECRET_KEY',
+      sample: 'sk_live_or_test_key',
+      status: checks.payment.isStripeLive ? 'done' : (checks.payment.hasStripe ? 'partial' : 'todo'),
+      help: t('Secret key Stripe', 'Cheie secretă Stripe', 'Stripe secret key')
+    },
+    {
+      key: 'NUXT_PUBLIC_STRIPE_PUBLISHABLE_KEY',
+      sample: 'pk_live_or_test_key',
+      status: checks.payment.isStripeLive ? 'done' : (checks.payment.hasStripe ? 'partial' : 'todo'),
+      help: t('Публичный ключ Stripe', 'Cheie publică Stripe', 'Stripe publishable key')
+    },
+    {
+      key: 'NUXT_STRIPE_WEBHOOK_SECRET',
+      sample: 'whsec_from_stripe_webhooks',
+      status: statusByBoolean(checks.payment.hasStripeWebhook),
+      help: t('Секрет Stripe webhook', 'Secret webhook Stripe', 'Stripe webhook secret')
+    },
+    {
+      key: 'NUXT_MAIB_PROJECT_ID',
+      sample: 'your_maib_project_id',
+      status: statusByBoolean(checks.payment.hasMaib),
+      help: t('MAIB project id', 'MAIB project id', 'MAIB project id')
+    },
+    {
+      key: 'NUXT_MAIB_PROJECT_SECRET',
+      sample: 'your_maib_project_secret',
+      status: statusByBoolean(checks.payment.hasMaib),
+      help: t('MAIB project secret', 'MAIB project secret', 'MAIB project secret')
+    },
+    {
+      key: 'NUXT_MAIB_SIGNATURE_KEY',
+      sample: 'your_maib_signature_key',
+      status: statusByBoolean(checks.payment.hasMaib),
+      help: t('MAIB подпись callback', 'Semnătură callback MAIB', 'MAIB callback signature key')
     }
   ]
 })
@@ -1555,6 +1715,56 @@ const loadReadiness = async () => {
   }
 }
 
+const copyText = async (text: string) => {
+  if (!import.meta.client) return false
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch {
+    // Fallback below.
+  }
+
+  try {
+    const area = document.createElement('textarea')
+    area.value = text
+    area.style.position = 'fixed'
+    area.style.left = '-9999px'
+    document.body.appendChild(area)
+    area.focus()
+    area.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(area)
+    return ok
+  } catch {
+    return false
+  }
+}
+
+const copyEnvSnippet = async (item: EnvChecklistItem) => {
+  const line = `${item.key}=${item.sample}`
+  const ok = await copyText(line)
+  uiStore.showToast(
+    ok
+      ? (locale.value === 'en' ? 'Copied' : locale.value === 'ro' ? 'Copiat' : 'Скопировано')
+      : (locale.value === 'en' ? 'Copy failed' : locale.value === 'ro' ? 'Copiere eșuată' : 'Не удалось скопировать'),
+    ok ? 'success' : 'error'
+  )
+}
+
+const copyAllEnvSnippet = async () => {
+  const lines = envChecklistItems.value.map((item) => `${item.key}=${item.sample}`).join('\n')
+  if (!lines) return
+  const ok = await copyText(lines)
+  uiStore.showToast(
+    ok
+      ? (locale.value === 'en' ? 'All ENV lines copied' : locale.value === 'ro' ? 'Toate liniile ENV au fost copiate' : 'Все ENV строки скопированы')
+      : (locale.value === 'en' ? 'Copy failed' : locale.value === 'ro' ? 'Copiere eșuată' : 'Не удалось скопировать'),
+    ok ? 'success' : 'error'
+  )
+}
+
 const saveInventory = async (productId: string) => {
   const row = inventoryDraft[productId]
   if (!row) return
@@ -2019,6 +2229,81 @@ useSeoMeta({
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.launch-env {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.launch-env-toggle {
+  width: fit-content;
+}
+
+.launch-env-panel {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  background: #fbfdfb;
+  display: grid;
+  gap: 10px;
+}
+
+.launch-env-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.launch-env-head strong {
+  font-size: 15px;
+}
+
+.launch-env-note {
+  margin: 0;
+  color: #51657d;
+  font-size: 13px;
+}
+
+.env-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.env-item {
+  border: 1px solid #dbe7dd;
+  border-radius: 14px;
+  padding: 10px;
+  background: #fff;
+  display: grid;
+  gap: 8px;
+}
+
+.env-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.env-item-head code {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1c3047;
+}
+
+.env-item p {
+  margin: 0;
+  color: #4b6078;
+  font-size: 12px;
+}
+
+.env-item-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .launch-item {
@@ -2543,6 +2828,10 @@ useSeoMeta({
   }
 
   .launch-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .env-grid {
     grid-template-columns: 1fr;
   }
 
