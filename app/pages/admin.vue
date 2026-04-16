@@ -71,6 +71,9 @@
               <div class="launch-env-head">
                 <strong>{{ envHeaderText }}</strong>
                 <div class="launch-env-head-actions">
+                  <button type="button" class="btn-alt" :disabled="readinessLoading" @click="checkEnvNow">
+                    {{ readinessLoading ? ui.loading : envCheckNowText }}
+                  </button>
                   <button type="button" class="btn-alt" @click="downloadEnvTemplate">{{ envDownloadText }}</button>
                   <button type="button" class="btn-alt" @click="copyAllEnvSnippet">{{ envCopyAllText }}</button>
                 </div>
@@ -89,6 +92,15 @@
                     <button type="button" class="btn-alt" @click="copyEnvSnippet(item)">{{ envCopyText }}</button>
                   </div>
                 </article>
+              </div>
+
+              <div class="env-missing" v-if="envMissingItems.length">
+                <strong>{{ envMissingTitleText }}</strong>
+                <ul>
+                  <li v-for="item in envMissingItems" :key="`missing-${item.key}`">
+                    <code>{{ item.key }}</code> - {{ item.fix }}
+                  </li>
+                </ul>
               </div>
             </div>
           </div>
@@ -578,6 +590,11 @@ type EnvChecklistItem = {
   help: string
 }
 
+type EnvMissingItem = {
+  key: string
+  fix: string
+}
+
 const { locale } = useI18n()
 const uiStore = useUiStore()
 
@@ -643,6 +660,8 @@ const envHintText = computed(() => locale.value === 'en' ? 'Project Settings -> 
 const envCopyText = computed(() => locale.value === 'en' ? 'Copy line' : locale.value === 'ro' ? 'Copiază linia' : 'Копировать строку')
 const envCopyAllText = computed(() => locale.value === 'en' ? 'Copy all' : locale.value === 'ro' ? 'Copiază tot' : 'Копировать всё')
 const envDownloadText = computed(() => locale.value === 'en' ? 'Download .env template' : locale.value === 'ro' ? 'Descarcă .env template' : 'Скачать .env template')
+const envCheckNowText = computed(() => locale.value === 'en' ? 'Check ENV now' : locale.value === 'ro' ? 'Verifică ENV acum' : 'Проверить ENV сейчас')
+const envMissingTitleText = computed(() => locale.value === 'en' ? 'What is missing' : locale.value === 'ro' ? 'Ce lipsește' : 'Чего не хватает')
 
 const launchStatusLabel = (status: 'done' | 'partial' | 'todo') => {
   if (locale.value === 'en') {
@@ -952,6 +971,41 @@ const envChecklistItems = computed<EnvChecklistItem[]>(() => {
       help: t('MAIB подпись callback', 'Semnătură callback MAIB', 'MAIB callback signature key')
     }
   ]
+})
+
+const envFixByKey = (key: string) => {
+  const t = (ru: string, ro: string, en: string) => {
+    if (locale.value === 'en') return en
+    if (locale.value === 'ro') return ro
+    return ru
+  }
+
+  const k = String(key || '')
+  if (k.startsWith('NUXT_SUPABASE_') || k.startsWith('NUXT_PUBLIC_SUPABASE_')) {
+    return t('Скопируй из Supabase -> Project Settings -> API Keys/URL.', 'Copiază din Supabase -> Project Settings -> API Keys/URL.', 'Copy from Supabase -> Project Settings -> API Keys/URL.')
+  }
+  if (k.startsWith('NUXT_STRIPE_') || k.startsWith('NUXT_PUBLIC_STRIPE_')) {
+    return t('Добавь ключи из Stripe Dashboard -> Developers.', 'Adaugă cheile din Stripe Dashboard -> Developers.', 'Add keys from Stripe Dashboard -> Developers.')
+  }
+  if (k.startsWith('NUXT_MAIB_')) {
+    return t('Добавь данные мерчанта MAIB из eCommerce кабинета.', 'Adaugă datele merchant MAIB din cabinetul eCommerce.', 'Add MAIB merchant credentials from eCommerce cabinet.')
+  }
+  if (k.startsWith('NUXT_TELEGRAM_')) {
+    return t('Укажи токен бота и chat id из BotFather/Telegram.', 'Setează token bot și chat id din BotFather/Telegram.', 'Set bot token and chat id from BotFather/Telegram.')
+  }
+  if (k.includes('SECRET') || k.includes('KEY')) {
+    return t('Сгенерируй длинное случайное значение (минимум 24 символа).', 'Generează o valoare random lungă (minim 24 caractere).', 'Generate a long random value (minimum 24 chars).')
+  }
+  return t('Добавь значение в Vercel ENV и redeploy.', 'Adaugă valoarea în Vercel ENV și redeploy.', 'Set this value in Vercel ENV and redeploy.')
+}
+
+const envMissingItems = computed<EnvMissingItem[]>(() => {
+  return envChecklistItems.value
+    .filter((item) => item.status !== 'done')
+    .map((item) => ({
+      key: item.key,
+      fix: envFixByKey(item.key)
+    }))
 })
 
 const lowStockItems = computed(() => {
@@ -1719,6 +1773,31 @@ const loadReadiness = async () => {
   }
 }
 
+const checkEnvNow = async () => {
+  showEnvChecklist.value = true
+  await loadReadiness()
+  const missing = envMissingItems.value.length
+  if (missing > 0) {
+    uiStore.showToast(
+      locale.value === 'en'
+        ? `Missing ENV: ${missing}`
+        : locale.value === 'ro'
+          ? `ENV lipsă: ${missing}`
+          : `Не хватает ENV: ${missing}`,
+      'info'
+    )
+  } else {
+    uiStore.showToast(
+      locale.value === 'en'
+        ? 'All required ENV values are set'
+        : locale.value === 'ro'
+          ? 'Toate valorile ENV necesare sunt setate'
+          : 'Все нужные ENV значения заполнены',
+      'success'
+    )
+  }
+}
+
 const copyText = async (text: string) => {
   if (!import.meta.client) return false
   try {
@@ -2335,6 +2414,35 @@ useSeoMeta({
 .env-item-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.env-missing {
+  border: 1px solid #edd7bb;
+  background: #fff7eb;
+  border-radius: 14px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.env-missing strong {
+  font-size: 14px;
+  color: #6f4a1f;
+}
+
+.env-missing ul {
+  margin: 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 6px;
+  color: #6a4f30;
+  font-size: 13px;
+}
+
+.env-missing code {
+  font-size: 12px;
+  font-weight: 700;
+  color: #20344a;
 }
 
 .launch-item {
