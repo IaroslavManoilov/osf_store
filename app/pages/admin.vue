@@ -507,6 +507,7 @@ type ReadinessChecks = {
   payment: {
     hasStripe: boolean
     isStripeLive: boolean
+    hasStripeWebhook: boolean
     hasMaib: boolean
     ready: boolean
   }
@@ -526,6 +527,7 @@ type ReadinessChecks = {
   }
   reliability: {
     hasSupabase: boolean
+    dbPingOk: boolean
     hasAdminKey: boolean
     hasCleanupSecret: boolean
     ready: boolean
@@ -630,7 +632,8 @@ const launchSteps = computed(() => {
         status: paymentStatus,
         points: [
           `MAIB configured: ${checks.payment.hasMaib ? 'yes' : 'no'}`,
-          `Stripe live: ${checks.payment.isStripeLive ? 'yes' : 'no'}`
+          `Stripe live: ${checks.payment.isStripeLive ? 'yes' : 'no'}`,
+          `Stripe webhook: ${checks.payment.hasStripeWebhook ? 'yes' : 'no'}`
         ]
       },
       {
@@ -658,6 +661,7 @@ const launchSteps = computed(() => {
         status: reliabilityStatus,
         points: [
           `Supabase: ${checks.reliability.hasSupabase ? 'ok' : 'missing'}`,
+          `Database ping: ${checks.reliability.dbPingOk ? 'ok' : 'failed'}`,
           `Admin key: ${checks.reliability.hasAdminKey ? 'ok' : 'weak/missing'}`,
           `Cleanup secret: ${checks.reliability.hasCleanupSecret ? 'ok' : 'weak/missing'}`
         ]
@@ -684,7 +688,8 @@ const launchSteps = computed(() => {
         status: paymentStatus,
         points: [
           `MAIB configurat: ${checks.payment.hasMaib ? 'da' : 'nu'}`,
-          `Stripe live: ${checks.payment.isStripeLive ? 'da' : 'nu'}`
+          `Stripe live: ${checks.payment.isStripeLive ? 'da' : 'nu'}`,
+          `Stripe webhook: ${checks.payment.hasStripeWebhook ? 'da' : 'nu'}`
         ]
       },
       {
@@ -712,6 +717,7 @@ const launchSteps = computed(() => {
         status: reliabilityStatus,
         points: [
           `Supabase: ${checks.reliability.hasSupabase ? 'ok' : 'lipsă'}`,
+          `Ping DB: ${checks.reliability.dbPingOk ? 'ok' : 'eșuat'}`,
           `Cheie admin: ${checks.reliability.hasAdminKey ? 'ok' : 'slabă/lipsă'}`,
           `Secret cleanup: ${checks.reliability.hasCleanupSecret ? 'ok' : 'slab/lipsă'}`
         ]
@@ -737,7 +743,8 @@ const launchSteps = computed(() => {
       status: paymentStatus,
       points: [
         `MAIB настроен: ${checks.payment.hasMaib ? 'да' : 'нет'}`,
-        `Stripe live: ${checks.payment.isStripeLive ? 'да' : 'нет'}`
+        `Stripe live: ${checks.payment.isStripeLive ? 'да' : 'нет'}`,
+        `Stripe webhook: ${checks.payment.hasStripeWebhook ? 'да' : 'нет'}`
       ]
     },
     {
@@ -765,6 +772,7 @@ const launchSteps = computed(() => {
       status: reliabilityStatus,
       points: [
         `Supabase: ${checks.reliability.hasSupabase ? 'ok' : 'нет'}`,
+        `Пинг БД: ${checks.reliability.dbPingOk ? 'ok' : 'ошибка'}`,
         `Admin key: ${checks.reliability.hasAdminKey ? 'ok' : 'слабый/нет'}`,
         `Cleanup secret: ${checks.reliability.hasCleanupSecret ? 'ok' : 'слабый/нет'}`
       ]

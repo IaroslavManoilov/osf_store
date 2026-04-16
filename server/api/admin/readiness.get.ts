@@ -21,6 +21,7 @@ export default defineEventHandler(async (event) => {
 
   const hasStripe = !!stripeSecret && !!stripePublic
   const isStripeLive = hasStripe && stripeSecret.startsWith('sk_live_') && stripePublic.startsWith('pk_live_')
+  const hasStripeWebhook = !!String(config.stripeWebhookSecret || '').trim()
   const hasMaib = !!maibId && !!maibSecret && !!maibSignature
 
   const hasTrackSecret = String(config.orderTrackSecret || '').trim().length >= 24
@@ -33,27 +34,34 @@ export default defineEventHandler(async (event) => {
   let reviewsCount = 0
   let orders30d = 0
   let trustedMetrics = false
+  let dbPingOk = false
 
   if (hasSupabase) {
     try {
       const supabase = getSupabaseAdmin(event)
       const fromDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-      const [{ count: reviews }, { count: orders }] = await Promise.all([
+      const [{ count: reviews }, { count: orders }, pingResult] = await Promise.all([
         supabase
           .from('product_reviews')
           .select('id', { count: 'exact', head: true }),
         supabase
           .from('orders')
           .select('id', { count: 'exact', head: true })
-          .gte('created_at', fromDate)
+          .gte('created_at', fromDate),
+        supabase
+          .from('orders')
+          .select('id')
+          .limit(1)
       ])
 
       reviewsCount = Number(reviews || 0)
       orders30d = Number(orders || 0)
       trustedMetrics = true
+      dbPingOk = !pingResult.error
     } catch {
       trustedMetrics = false
+      dbPingOk = false
     }
   }
 
@@ -64,6 +72,7 @@ export default defineEventHandler(async (event) => {
       payment: {
         hasStripe,
         isStripeLive,
+        hasStripeWebhook,
         hasMaib,
         ready: hasMaib || isStripeLive
       },
@@ -83,9 +92,10 @@ export default defineEventHandler(async (event) => {
       },
       reliability: {
         hasSupabase,
+        dbPingOk,
         hasAdminKey,
         hasCleanupSecret,
-        ready: hasSupabase && hasAdminKey && hasCleanupSecret
+        ready: hasSupabase && dbPingOk && hasAdminKey && hasCleanupSecret
       },
       trust: {
         trustedMetrics,
@@ -96,4 +106,3 @@ export default defineEventHandler(async (event) => {
     }
   }
 })
-
