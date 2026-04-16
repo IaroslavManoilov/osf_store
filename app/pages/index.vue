@@ -125,6 +125,12 @@
                 </NuxtLink>
 
                 <p>{{ product.shortDescription }}</p>
+                <div class="product-proof-row">
+                  <span class="product-proof" v-if="getWeeklyOrders(product.id) > 0">
+                    {{ ui.socialProofPrefix }} {{ getWeeklyOrders(product.id) }}
+                  </span>
+                  <span v-else class="product-proof muted">{{ ui.socialProofEmpty }}</span>
+                </div>
 
                 <div class="size-list">
                   <button
@@ -276,6 +282,7 @@ onMounted(() => {
 
   if (stored === 'A' || stored === 'B') {
     abVariant.value = stored
+    void loadSocialProofForIds(featuredProducts.value.map((item) => item.id))
     return
   }
 
@@ -285,6 +292,8 @@ onMounted(() => {
   } catch {
     // Ignore storage write failures.
   }
+
+  void loadSocialProofForIds(featuredProducts.value.map((item) => item.id))
 })
 
 const ui = computed(() => {
@@ -317,6 +326,8 @@ const ui = computed(() => {
       quickView: 'Vezi produs',
       addToCart: 'În coș',
       chooseSize: 'Alege mărimea',
+      socialProofPrefix: 'Comenzi în 7 zile:',
+      socialProofEmpty: 'Model nou',
       philosophyLabel: 'Filosofie',
       philosophyTitle: 'ONE STYLE FOREVER înseamnă claritate, stil și dezvoltare',
       philosophyText: 'De la prima vizită pe site până la comandă, experiența trebuie să fie simplă și memorabilă.',
@@ -368,6 +379,8 @@ const ui = computed(() => {
       quickView: 'View product',
       addToCart: 'Add to cart',
       chooseSize: 'Choose size',
+      socialProofPrefix: 'Ordered in 7 days:',
+      socialProofEmpty: 'New arrival',
       philosophyLabel: 'Philosophy',
       philosophyTitle: 'ONE STYLE FOREVER means clarity, style, and growth',
       philosophyText: 'From first visit to checkout, the experience should feel simple and memorable.',
@@ -418,6 +431,8 @@ const ui = computed(() => {
     quickView: 'Смотреть товар',
     addToCart: 'В корзину',
     chooseSize: 'Выбери размер',
+    socialProofPrefix: 'За 7 дней заказали:',
+    socialProofEmpty: 'Новая модель',
     philosophyLabel: 'Философия',
     philosophyTitle: 'ONE STYLE FOREVER — это ясность, стиль и рост бренда',
     philosophyText: 'От первого посещения сайта до оформления заказа всё должно быть простым и запоминающимся.',
@@ -441,6 +456,33 @@ const ui = computed(() => {
 })
 
 const featuredProducts = computed(() => getProducts(locale.value).slice(0, 3))
+const weeklyOrdersByProduct = ref<Record<string, number>>({})
+const loadedSocialProofIds = new Set<string>()
+const loadingSocialProofIds = new Set<string>()
+
+const getWeeklyOrders = (productId: string) => {
+  const value = weeklyOrdersByProduct.value[productId]
+  return Number.isFinite(value) ? Math.max(0, Number(value)) : 0
+}
+
+const loadSocialProofForIds = async (ids: string[]) => {
+  const uniqueIds = Array.from(new Set(ids.map((id) => String(id || '').trim()).filter(Boolean)))
+  const toLoad = uniqueIds.filter((id) => !loadedSocialProofIds.has(id) && !loadingSocialProofIds.has(id))
+  if (!toLoad.length) return
+
+  toLoad.forEach((id) => loadingSocialProofIds.add(id))
+  await Promise.all(toLoad.map(async (id) => {
+    try {
+      const response = await $fetch<{ success: boolean; orders7d?: number }>(`/api/social-proof/${id}`)
+      weeklyOrdersByProduct.value[id] = Math.max(0, Number(response?.orders7d || 0))
+    } catch {
+      weeklyOrdersByProduct.value[id] = 0
+    } finally {
+      loadedSocialProofIds.add(id)
+      loadingSocialProofIds.delete(id)
+    }
+  }))
+}
 
 const addFeaturedToCart = (product: LocalizedProduct) => {
   const added = addProductWithSize(product, {
@@ -816,6 +858,29 @@ useHead(
   margin: 0;
   color: #4a5a70;
   line-height: 1.6;
+}
+
+.product-proof-row {
+  min-height: 24px;
+}
+
+.product-proof {
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid #cfe2d2;
+  background: #f3faf4;
+  color: #1f6f41;
+  font-size: 11px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+}
+
+.product-proof.muted {
+  border-color: #dbe6dc;
+  background: #f8fbf8;
+  color: #607183;
 }
 
 .size-list {

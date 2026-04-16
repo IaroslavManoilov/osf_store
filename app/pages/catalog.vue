@@ -279,6 +279,12 @@
                         : ui.outOfStock }}
                     </span>
                   </div>
+                  <div class="product-proof-row">
+                    <span class="product-proof" v-if="getWeeklyOrders(product.id) > 0">
+                      {{ ui.socialProofPrefix }} {{ getWeeklyOrders(product.id) }}
+                    </span>
+                    <span v-else class="product-proof muted">{{ ui.socialProofEmpty }}</span>
+                  </div>
 
                   <NuxtLink
                     :to="localePath(`/product/${product.id}`)"
@@ -509,6 +515,9 @@ const mobileFiltersOpen = ref(false)
 const openQuickSizeFor = ref('')
 const stockTotals = ref<Record<string, number>>({})
 const stockBySize = ref<Record<string, Record<string, number>>>({})
+const weeklyOrdersByProduct = ref<Record<string, number>>({})
+const loadedSocialProofIds = new Set<string>()
+const loadingSocialProofIds = new Set<string>()
 const recentlyViewedIds = ref<string[]>([])
 const serverTogetherIds = ref<string[]>([])
 const serverRecommendIds = ref<string[]>([])
@@ -603,6 +612,8 @@ const ui = computed(() => {
       outOfStockToast: 'Produsul nu mai este în stoc.',
       clearSearch: 'Șterge căutarea',
       quickAdd: 'Adaugă rapid',
+      socialProofPrefix: 'Comenzi în 7 zile:',
+      socialProofEmpty: 'Model nou',
       withItemTitle: 'Cu acest produs cumpără',
       withItemSubtitle: 'Completează comanda într-un singur clic',
       viewedTitle: 'Văzute recent',
@@ -677,6 +688,8 @@ const ui = computed(() => {
       outOfStockToast: 'This product is currently out of stock.',
       clearSearch: 'Clear search',
       quickAdd: 'Quick add',
+      socialProofPrefix: 'Ordered in 7 days:',
+      socialProofEmpty: 'New arrival',
       withItemTitle: 'Frequently bought together',
       withItemSubtitle: 'Complete the look in one click',
       viewedTitle: 'Recently viewed',
@@ -750,6 +763,8 @@ const ui = computed(() => {
     outOfStockToast: 'Товар закончился на складе.',
     clearSearch: 'Очистить поиск',
     quickAdd: 'Быстро добавить',
+    socialProofPrefix: 'За 7 дней заказали:',
+    socialProofEmpty: 'Новая модель',
     withItemTitle: 'С этим товаром покупают',
     withItemSubtitle: 'Дополните заказ в один клик',
     viewedTitle: 'Недавно смотрели',
@@ -1170,6 +1185,31 @@ const getDeliveryDateLabel = (product: { badge: string }) => {
   const localeCode = locale.value === 'ro' ? 'ro-RO' : locale.value === 'en' ? 'en-US' : 'ru-RU'
   return date.toLocaleDateString(localeCode, { day: 'numeric', month: 'long' })
 }
+
+const getWeeklyOrders = (productId: string) => {
+  const value = weeklyOrdersByProduct.value[productId]
+  return Number.isFinite(value) ? Math.max(0, Number(value)) : 0
+}
+
+const loadSocialProofForIds = async (ids: string[]) => {
+  const uniqueIds = Array.from(new Set(ids.map((id) => String(id || '').trim()).filter(Boolean)))
+  const toLoad = uniqueIds.filter((id) => !loadedSocialProofIds.has(id) && !loadingSocialProofIds.has(id))
+  if (!toLoad.length) return
+
+  toLoad.forEach((id) => loadingSocialProofIds.add(id))
+  await Promise.all(toLoad.map(async (id) => {
+    try {
+      const response = await $fetch<{ success: boolean; orders7d?: number }>(`/api/social-proof/${id}`)
+      weeklyOrdersByProduct.value[id] = Math.max(0, Number(response?.orders7d || 0))
+    } catch {
+      weeklyOrdersByProduct.value[id] = 0
+    } finally {
+      loadedSocialProofIds.add(id)
+      loadingSocialProofIds.delete(id)
+    }
+  }))
+}
+
 const toggleQuickSizePicker = (productId: string) => {
   openQuickSizeFor.value = openQuickSizeFor.value === productId ? '' : productId
 }
@@ -1200,6 +1240,7 @@ onMounted(() => {
   })
 
   loadLiveInventory()
+  void loadSocialProofForIds(products.value.map((item) => item.id))
   recentlyViewedIds.value = getRecentlyViewedIds()
   void loadServerRecommendations()
   if (!import.meta.client) return
@@ -1230,6 +1271,15 @@ watch(searchInput, (value) => {
     searchQuery.value = value.trim()
   }, 120)
 })
+
+watch(
+  () => filteredProducts.value.map((item) => item.id).join('|'),
+  (idsLine) => {
+    const ids = idsLine ? idsLine.split('|') : []
+    void loadSocialProofForIds(ids)
+  },
+  { immediate: true }
+)
 
 watch(
   () => route.query,
@@ -1939,6 +1989,29 @@ useHead(
   color: var(--primary);
   font-size: 14px;
   font-weight: 800;
+}
+
+.product-proof-row {
+  margin: -6px 0 10px;
+}
+
+.product-proof {
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid #cfe2d2;
+  background: #f3faf4;
+  color: #1f6f41;
+  font-size: 11px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+}
+
+.product-proof.muted {
+  border-color: #dbe6dc;
+  background: #f8fbf8;
+  color: #607183;
 }
 
 .product-title-link {
