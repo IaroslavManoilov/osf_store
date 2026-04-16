@@ -74,6 +74,9 @@
                   <button type="button" class="btn-alt" :disabled="readinessLoading" @click="checkEnvNow">
                     {{ readinessLoading ? ui.loading : envCheckNowText }}
                   </button>
+                  <a class="btn-alt" :href="vercelEnvUrl" target="_blank" rel="noopener noreferrer">
+                    {{ envOpenVercelText }}
+                  </a>
                   <button type="button" class="btn-alt" @click="downloadEnvTemplate">{{ envDownloadText }}</button>
                   <button type="button" class="btn-alt" @click="copyAllEnvSnippet">{{ envCopyAllText }}</button>
                 </div>
@@ -597,6 +600,7 @@ type EnvMissingItem = {
 
 const { locale } = useI18n()
 const uiStore = useUiStore()
+const runtimeConfig = useRuntimeConfig()
 
 const statuses: OrderStatus[] = ['new', 'confirmed', 'assembled', 'shipped', 'delivered', 'cancelled', 'returned']
 const adminActorStorageKey = 'osf_admin_actor_v1'
@@ -661,7 +665,12 @@ const envCopyText = computed(() => locale.value === 'en' ? 'Copy line' : locale.
 const envCopyAllText = computed(() => locale.value === 'en' ? 'Copy all' : locale.value === 'ro' ? 'Copiază tot' : 'Копировать всё')
 const envDownloadText = computed(() => locale.value === 'en' ? 'Download .env template' : locale.value === 'ro' ? 'Descarcă .env template' : 'Скачать .env template')
 const envCheckNowText = computed(() => locale.value === 'en' ? 'Check ENV now' : locale.value === 'ro' ? 'Verifică ENV acum' : 'Проверить ENV сейчас')
+const envOpenVercelText = computed(() => locale.value === 'en' ? 'Open Vercel ENV' : locale.value === 'ro' ? 'Deschide Vercel ENV' : 'Открыть Vercel ENV')
 const envMissingTitleText = computed(() => locale.value === 'en' ? 'What is missing' : locale.value === 'ro' ? 'Ce lipsește' : 'Чего не хватает')
+const vercelEnvUrl = computed(() => {
+  const value = String(runtimeConfig.public.vercelEnvUrl || '').trim()
+  return value || 'https://vercel.com/dashboard'
+})
 
 const launchStatusLabel = (status: 'done' | 'partial' | 'todo') => {
   if (locale.value === 'en') {

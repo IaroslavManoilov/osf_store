@@ -38,6 +38,7 @@ export default defineNuxtConfig({
     supabaseServiceRoleKey: process.env.NUXT_SUPABASE_SERVICE_ROLE_KEY || '',
     public: {
       siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://onestyleforever.com',
+      vercelEnvUrl: process.env.NUXT_PUBLIC_VERCEL_ENV_URL || '',
       stripePublishableKey: process.env.NUXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
       supabaseUrl: process.env.NUXT_PUBLIC_SUPABASE_URL || process.env.NUXT_SUPABASE_URL || '',
       supabaseAnonKey: process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY || ''
