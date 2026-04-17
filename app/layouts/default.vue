@@ -4,6 +4,7 @@
     <main class="page-main">
       <slot />
     </main>
+    <ScrollTopButton />
     <AppFooter />
   </div>
 </template>
