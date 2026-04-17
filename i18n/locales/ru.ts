@@ -7,6 +7,7 @@ export default {
     wishlist: 'Избранное',
     checkout: 'Оформление',
     orders: 'Мои заказы',
+    account: 'Аккаунт',
     language: 'Язык',
     menu: 'Открыть меню',
     explore: 'Перейти в каталог',

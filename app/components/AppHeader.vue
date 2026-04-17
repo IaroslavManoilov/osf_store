@@ -102,6 +102,19 @@
             </NuxtLink>
           </div>
 
+          <NuxtLink :to="accountPath" class="icon-btn" :aria-label="$t('nav.account')">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8" />
+              <path
+                d="M5 19c.6-2.9 3.1-4.8 7-4.8 3.9 0 6.4 1.9 7 4.8"
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-width="1.8"
+              />
+            </svg>
+          </NuxtLink>
+
           <NuxtLink :to="localePath('/wishlist')" class="icon-btn" :aria-label="$t('nav.wishlist')">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path
@@ -186,6 +199,14 @@
             </NuxtLink>
 
             <NuxtLink
+              :to="accountPath"
+              class="mobile-nav-link"
+              @click="closeMobileMenu"
+            >
+              {{ $t('nav.account') }}
+            </NuxtLink>
+
+            <NuxtLink
               :to="localePath('/wishlist')"
               class="mobile-nav-link"
               @click="closeMobileMenu"
@@ -237,6 +258,7 @@ const localePath = useLocalePath()
 const switchLocalePath = useSwitchLocalePath()
 const shopStore = useShopStore()
 const uiStore = useUiStore()
+const customerAuth = useCustomerAuth()
 const mobileMenuOpen = ref(false)
 const headerRootRef = ref<HTMLElement | null>(null)
 const notificationsEnabled = ref(false)
@@ -262,6 +284,18 @@ const isActiveRoute = (path: string) => {
   const target = normalizePath(localePath(path))
   return current === target
 }
+
+const accountPath = computed(() => {
+  if (customerAuth.isAuthenticated.value) {
+    return localePath('/orders')
+  }
+  return localePath({
+    path: '/auth',
+    query: {
+      next: normalizePath(route.path)
+    }
+  })
+})
 
 const closeMobileMenu = () => {
   mobileMenuOpen.value = false
@@ -438,6 +472,8 @@ watch(
 
 onMounted(() => {
   if (!import.meta.client) return
+
+  void customerAuth.initAuth()
 
   try {
     notificationsEnabled.value = window.localStorage.getItem(notificationsStorageKey) === 'enabled'

@@ -7,6 +7,7 @@ export default {
     wishlist: 'Favorite',
     checkout: 'Checkout',
     orders: 'Comenzile mele',
+    account: 'Cont',
     language: 'Limbă',
     menu: 'Deschide meniul',
     explore: 'Vezi catalogul',

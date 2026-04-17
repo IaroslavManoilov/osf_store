@@ -6,6 +6,7 @@ type CustomerProfile = {
   name: string
   phone: string
   email: string
+  login?: string
 }
 
 let client: SupabaseClient | null = null
@@ -13,6 +14,14 @@ let initPromise: Promise<void> | null = null
 let authSubscriptionSet = false
 
 const safeText = (value: unknown, max = 120) => String(value || '').trim().slice(0, max)
+const normalizePhone = (value: unknown) => String(value || '').replace(/[^\d+]/g, '').slice(0, 30)
+const normalizeEmail = (value: unknown) => safeText(value, 160).toLowerCase()
+const normalizeLogin = (value: unknown) => safeText(value, 60).replace(/\s+/g, '')
+
+const getUserMeta = (currentUser: User | null) => {
+  const meta = currentUser?.user_metadata
+  return meta && typeof meta === 'object' ? meta : {}
+}
 
 const getClient = () => {
   if (client) return client
@@ -47,15 +56,30 @@ export const useCustomerAuth = () => {
       return
     }
 
+    const meta = getUserMeta(user.value)
+    const metaName = safeText(meta?.name || meta?.full_name, 100)
+    const metaPhone = normalizePhone(meta?.phone)
+    const metaLogin = normalizeLogin(meta?.login)
+    const fallbackProfile: CustomerProfile = {
+      userId: String(user.value?.id || ''),
+      name: metaName,
+      phone: metaPhone,
+      email: normalizeEmail(user.value?.email || ''),
+      login: metaLogin
+    }
+
     try {
       const data = await $fetch<{ success: boolean; profile?: CustomerProfile }>('/api/account/profile', {
         headers: {
           authorization: `Bearer ${accessToken.value}`
         }
       })
-      profile.value = data?.profile || null
+      profile.value = {
+        ...(data?.profile || fallbackProfile),
+        login: normalizeLogin(data?.profile?.login || metaLogin)
+      }
     } catch {
-      profile.value = null
+      profile.value = fallbackProfile
     }
   }
 
@@ -140,11 +164,12 @@ export const useCustomerAuth = () => {
     return data
   }
 
-  const saveProfile = async (input: { name?: string; email?: string; phone?: string }) => {
+  const saveProfile = async (input: { name?: string; email?: string; phone?: string; login?: string }) => {
     if (!isAuthenticated.value) throw new Error('Unauthorized')
     const name = safeText(input.name, 100)
     const email = safeText(input.email, 120)
-    const phone = String(input.phone || '').replace(/[^\d+]/g, '').slice(0, 30)
+    const phone = normalizePhone(input.phone)
+    const login = normalizeLogin(input.login)
 
     const data = await $fetch<{ success: boolean; profile?: CustomerProfile }>('/api/account/profile', {
       method: 'PUT',
@@ -157,17 +182,113 @@ export const useCustomerAuth = () => {
         phone
       }
     })
-    profile.value = data?.profile || profile.value
+    profile.value = {
+      ...(data?.profile || profile.value || {
+        userId: String(user.value?.id || ''),
+        name,
+        phone,
+        email
+      }),
+      login
+    }
 
     const supabase = getClient()
     if (supabase) {
       await supabase.auth.updateUser({
         data: {
           name,
-          phone
+          phone,
+          login
         }
       })
     }
+  }
+
+  const signInWithPassword = async (emailRaw: string, passwordRaw: string) => {
+    const email = normalizeEmail(emailRaw)
+    const password = String(passwordRaw || '')
+    if (!email || !password) throw new Error('Email and password are required')
+    const supabase = getClient()
+    if (!supabase) throw new Error('Supabase is not configured')
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    })
+    if (error) throw error
+
+    session.value = data.session || null
+    user.value = data.user || data.session?.user || null
+    await refreshProfile()
+    return data
+  }
+
+  const signUpWithEmail = async (input: {
+    email: string
+    password: string
+    name?: string
+    phone?: string
+    login?: string
+  }) => {
+    const email = normalizeEmail(input.email)
+    const password = String(input.password || '')
+    const name = safeText(input.name, 100)
+    const phone = normalizePhone(input.phone)
+    const login = normalizeLogin(input.login)
+
+    if (!email) throw new Error('Email is required')
+    if (password.length < 8) throw new Error('Password must be at least 8 characters')
+
+    const supabase = getClient()
+    if (!supabase) throw new Error('Supabase is not configured')
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          phone,
+          login
+        }
+      }
+    })
+
+    if (error) throw error
+
+    session.value = data.session || null
+    user.value = data.user || null
+
+    if (data.session) {
+      await saveProfile({
+        name,
+        email,
+        phone,
+        login
+      })
+      await refreshProfile()
+    }
+
+    return {
+      ...data,
+      needsEmailConfirmation: !data.session
+    }
+  }
+
+  const signInWithOAuth = async (provider: 'google' | 'apple', redirectTo?: string) => {
+    const supabase = getClient()
+    if (!supabase) throw new Error('Supabase is not configured')
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: redirectTo
+        ? {
+            redirectTo
+          }
+        : undefined
+    })
+    if (error) throw error
+    return data
   }
 
   const logout = async () => {
@@ -184,6 +305,9 @@ export const useCustomerAuth = () => {
     initAuth,
     sendOtp,
     verifyOtp,
+    signInWithPassword,
+    signUpWithEmail,
+    signInWithOAuth,
     saveProfile,
     refreshProfile,
     logout,
