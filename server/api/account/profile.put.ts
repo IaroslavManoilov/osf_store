@@ -4,19 +4,43 @@ import { requireCustomerAuth } from '../../utils/customer-auth'
 
 type ProfilePayload = {
   name?: string
+  firstName?: string
+  lastName?: string
+  login?: string
   phone?: string
   email?: string
+  about?: string
+  currency?: string
+  language?: string
+  notificationsEnabled?: boolean
 }
 
 const safeText = (value: unknown, max = 120) => String(value || '').trim().slice(0, max)
 const normalizePhone = (value: unknown) => String(value || '').replace(/[^\d+]/g, '').slice(0, 30)
+const safeLogin = (value: unknown) => safeText(value, 60).replace(/\s+/g, '')
+const normalizeCurrency = (value: unknown) => {
+  const v = String(value || '').toUpperCase().trim()
+  return ['MDL', 'EUR', 'USD', 'RON'].includes(v) ? v : 'MDL'
+}
+const normalizeLanguage = (value: unknown) => {
+  const v = String(value || '').toLowerCase().trim()
+  return ['ru', 'ro', 'en'].includes(v) ? v : 'ru'
+}
 
 export default defineEventHandler(async (event) => {
   const customer = await requireCustomerAuth(event)
   const body = await readBody<ProfilePayload>(event)
 
-  const name = safeText(body?.name, 100)
+  const firstName = safeText(body?.firstName, 60)
+  const lastName = safeText(body?.lastName, 60)
+  const fallbackName = [firstName, lastName].filter(Boolean).join(' ').trim()
+  const name = safeText(body?.name, 100) || fallbackName
   const email = safeText(body?.email, 120)
+  const login = safeLogin(body?.login)
+  const about = safeText(body?.about, 500)
+  const currency = normalizeCurrency(body?.currency)
+  const language = normalizeLanguage(body?.language)
+  const notificationsEnabled = body?.notificationsEnabled === false ? false : true
   const phone = normalizePhone(body?.phone || customer.phone)
 
   if (!name) {
@@ -40,8 +64,15 @@ export default defineEventHandler(async (event) => {
       {
         user_id: customer.userId,
         full_name: name,
+        first_name: firstName,
+        last_name: lastName,
+        login: login || null,
         phone,
         email: email || null,
+        about: about || null,
+        currency,
+        preferred_language: language,
+        notifications_enabled: notificationsEnabled,
         updated_at: new Date().toISOString()
       },
       { onConflict: 'user_id' }
@@ -59,8 +90,15 @@ export default defineEventHandler(async (event) => {
     profile: {
       userId: customer.userId,
       name,
+      firstName,
+      lastName,
+      login,
       phone,
-      email
+      email,
+      about,
+      currency,
+      language,
+      notificationsEnabled
     }
   }
 })

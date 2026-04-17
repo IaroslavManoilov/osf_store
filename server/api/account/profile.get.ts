@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
 
   const { data, error } = await supabase
     .from('customer_profiles')
-    .select('user_id, full_name, phone, email')
+    .select('user_id, full_name, first_name, last_name, login, phone, email, about, currency, preferred_language, notifications_enabled')
     .eq('user_id', customer.userId)
     .maybeSingle()
 
@@ -19,18 +19,36 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  const fullName = String(data?.full_name || '').trim()
+  const firstName = String(data?.first_name || '').trim()
+  const lastName = String(data?.last_name || '').trim()
+
   const profile = data
     ? {
         userId: String(data.user_id || customer.userId),
-        name: String(data.full_name || '').trim(),
+        name: fullName || [firstName, lastName].filter(Boolean).join(' ').trim(),
+        firstName,
+        lastName,
+        login: String(data.login || '').trim(),
         phone: String(data.phone || customer.phone || '').trim(),
-        email: String(data.email || customer.email || '').trim()
+        email: String(data.email || customer.email || '').trim(),
+        about: String(data.about || '').trim(),
+        currency: String(data.currency || 'MDL').trim() || 'MDL',
+        language: String(data.preferred_language || 'ru').trim() || 'ru',
+        notificationsEnabled: !!data.notifications_enabled
       }
     : {
         userId: customer.userId,
         name: '',
+        firstName: '',
+        lastName: '',
+        login: '',
         phone: String(customer.phone || '').trim(),
-        email: String(customer.email || '').trim()
+        email: String(customer.email || '').trim(),
+        about: '',
+        currency: 'MDL',
+        language: 'ru',
+        notificationsEnabled: true
       }
 
   return {

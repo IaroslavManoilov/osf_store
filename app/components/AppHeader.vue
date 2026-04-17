@@ -287,12 +287,12 @@ const isActiveRoute = (path: string) => {
 
 const accountPath = computed(() => {
   if (customerAuth.isAuthenticated.value) {
-    return localePath('/orders')
+    return localePath('/account')
   }
   return localePath({
     path: '/auth',
     query: {
-      next: normalizePath(route.path)
+      next: '/account'
     }
   })
 })

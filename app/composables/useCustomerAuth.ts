@@ -4,9 +4,15 @@ import { createClient, type Session, type SupabaseClient, type User } from '@sup
 type CustomerProfile = {
   userId: string
   name: string
+  firstName?: string
+  lastName?: string
   phone: string
   email: string
   login?: string
+  about?: string
+  currency?: 'MDL' | 'EUR' | 'USD' | 'RON'
+  language?: 'ru' | 'ro' | 'en'
+  notificationsEnabled?: boolean
 }
 
 let client: SupabaseClient | null = null
@@ -63,9 +69,15 @@ export const useCustomerAuth = () => {
     const fallbackProfile: CustomerProfile = {
       userId: String(user.value?.id || ''),
       name: metaName,
+      firstName: '',
+      lastName: '',
       phone: metaPhone,
       email: normalizeEmail(user.value?.email || ''),
-      login: metaLogin
+      login: metaLogin,
+      about: '',
+      currency: 'MDL',
+      language: 'ru',
+      notificationsEnabled: true
     }
 
     try {
@@ -76,7 +88,10 @@ export const useCustomerAuth = () => {
       })
       profile.value = {
         ...(data?.profile || fallbackProfile),
-        login: normalizeLogin(data?.profile?.login || metaLogin)
+        login: normalizeLogin(data?.profile?.login || metaLogin),
+        currency: (data?.profile?.currency || fallbackProfile.currency || 'MDL') as CustomerProfile['currency'],
+        language: (data?.profile?.language || fallbackProfile.language || 'ru') as CustomerProfile['language'],
+        notificationsEnabled: data?.profile?.notificationsEnabled ?? fallbackProfile.notificationsEnabled ?? true
       }
     } catch {
       profile.value = fallbackProfile
@@ -164,12 +179,33 @@ export const useCustomerAuth = () => {
     return data
   }
 
-  const saveProfile = async (input: { name?: string; email?: string; phone?: string; login?: string }) => {
+  const saveProfile = async (input: {
+    name?: string
+    firstName?: string
+    lastName?: string
+    email?: string
+    phone?: string
+    login?: string
+    about?: string
+    currency?: 'MDL' | 'EUR' | 'USD' | 'RON'
+    language?: 'ru' | 'ro' | 'en'
+    notificationsEnabled?: boolean
+  }) => {
     if (!isAuthenticated.value) throw new Error('Unauthorized')
     const name = safeText(input.name, 100)
     const email = safeText(input.email, 120)
     const phone = normalizePhone(input.phone)
     const login = normalizeLogin(input.login)
+    const firstName = safeText(input.firstName, 60)
+    const lastName = safeText(input.lastName, 60)
+    const about = safeText(input.about, 500)
+    const currency = ['MDL', 'EUR', 'USD', 'RON'].includes(String(input.currency || '').toUpperCase())
+      ? (String(input.currency || '').toUpperCase() as CustomerProfile['currency'])
+      : 'MDL'
+    const language = ['ru', 'ro', 'en'].includes(String(input.language || '').toLowerCase())
+      ? (String(input.language || '').toLowerCase() as CustomerProfile['language'])
+      : 'ru'
+    const notificationsEnabled = input.notificationsEnabled !== false
 
     const data = await $fetch<{ success: boolean; profile?: CustomerProfile }>('/api/account/profile', {
       method: 'PUT',
@@ -178,18 +214,31 @@ export const useCustomerAuth = () => {
       },
       body: {
         name,
+        firstName,
+        lastName,
         email,
-        phone
+        phone,
+        login,
+        about,
+        currency,
+        language,
+        notificationsEnabled
       }
     })
     profile.value = {
       ...(data?.profile || profile.value || {
         userId: String(user.value?.id || ''),
         name,
+        firstName,
+        lastName,
         phone,
         email
       }),
-      login
+      login,
+      about,
+      currency,
+      language,
+      notificationsEnabled
     }
 
     const supabase = getClient()
@@ -198,10 +247,25 @@ export const useCustomerAuth = () => {
         data: {
           name,
           phone,
-          login
+          login,
+          firstName,
+          lastName
         }
       })
     }
+  }
+
+  const updatePassword = async (nextPasswordRaw: string) => {
+    const nextPassword = String(nextPasswordRaw || '')
+    if (nextPassword.length < 8) {
+      throw new Error('Password must be at least 8 characters')
+    }
+    const supabase = getClient()
+    if (!supabase) throw new Error('Supabase is not configured')
+    const { error } = await supabase.auth.updateUser({
+      password: nextPassword
+    })
+    if (error) throw error
   }
 
   const signInWithPassword = async (emailRaw: string, passwordRaw: string) => {
@@ -309,6 +373,7 @@ export const useCustomerAuth = () => {
     signUpWithEmail,
     signInWithOAuth,
     saveProfile,
+    updatePassword,
     refreshProfile,
     logout,
     isAuthenticated,

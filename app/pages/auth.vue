@@ -378,7 +378,13 @@ const startOAuth = async (provider: 'google') => {
   resetMessages()
   oauthLoading.value = provider
   try {
-    await auth.signInWithOAuth(provider, getOAuthRedirectUrl())
+    const data = await auth.signInWithOAuth(provider, getOAuthRedirectUrl())
+    const oauthUrl = String((data as { url?: string } | null)?.url || '').trim()
+    if (import.meta.client && oauthUrl) {
+      window.location.assign(oauthUrl)
+      return
+    }
+    throw new Error(ui.value.fallback)
   } catch (error) {
     errorMessage.value = getApiMessage(error)
     oauthLoading.value = ''
