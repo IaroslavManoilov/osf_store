@@ -868,6 +868,8 @@ watch(
   .header-actions {
     gap: 6px;
     margin-left: 0;
+    justify-content: flex-end;
+    flex: 1;
   }
 
   .cart-btn {
@@ -963,7 +965,7 @@ watch(
     margin-top: 4px;
     border-radius: 16px;
     padding: 6px;
-    min-height: 52px;
+    min-height: 50px;
     gap: 5px;
   }
 
@@ -972,13 +974,13 @@ watch(
   }
 
   .brand-mark {
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
   }
 
   .brand-mark img {
-    width: 30px;
-    height: 30px;
+    width: 29px;
+    height: 29px;
   }
 
   .header-actions {
@@ -989,9 +991,9 @@ watch(
   .notify-btn,
   .cart-btn,
   .burger-btn {
-    width: 33px;
-    height: 33px;
-    min-height: 33px;
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
   }
 
   .icon-btn svg,
@@ -1048,25 +1050,29 @@ watch(
 @media (max-width: 420px) {
   .header-box {
     gap: 4px;
-    padding: 4px 6px;
+    padding: 4px 5px;
   }
 
   .brand-mobile {
-    font-size: 11px;
+    font-size: 12px;
+  }
+
+  .notify-btn {
+    display: none;
   }
 
   .icon-btn,
-  .notify-btn,
   .cart-btn,
   .burger-btn {
-    width: 31px;
-    height: 31px;
-    min-height: 31px;
+    width: 30px;
+    height: 30px;
+    min-height: 30px;
   }
 
   .lang-link {
-    min-width: 24px;
-    min-height: 24px;
+    min-width: 23px;
+    min-height: 23px;
+    font-size: 9px;
   }
 }
 
@@ -1088,10 +1094,6 @@ watch(
 
   .brand-mobile {
     font-size: 10px;
-  }
-
-  .notify-btn {
-    display: none;
   }
 
   .icon-btn,

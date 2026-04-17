@@ -1305,7 +1305,7 @@ useHead(
   .product-card {
     width: 100%;
     max-width: 100%;
-    grid-template-columns: minmax(0, 41%) minmax(0, 59%);
+    grid-template-columns: minmax(0, 45%) minmax(0, 55%);
     border-radius: 16px;
   }
 
@@ -1317,7 +1317,7 @@ useHead(
   .product-media-link {
     min-height: 0;
     height: 100%;
-    padding: 30px 4px 4px;
+    padding: 24px 4px 4px;
     border-radius: 12px;
   }
 
@@ -1326,7 +1326,7 @@ useHead(
     height: 100%;
     max-width: 100%;
     max-height: 100%;
-    transform: scale(1.12);
+    transform: scale(1.18);
   }
 
   .product-badge {
@@ -1359,6 +1359,10 @@ useHead(
     overflow: hidden;
   }
 
+  .product-body {
+    padding: 10px;
+  }
+
   .product-body p {
     font-size: 13px;
     margin-bottom: 0;
@@ -1383,7 +1387,7 @@ useHead(
   }
 
   .product-bottom strong {
-    font-size: 18px;
+    font-size: 17px;
   }
 
   .size-list {
@@ -1391,8 +1395,8 @@ useHead(
   }
 
   .size-pill {
-    min-width: 38px;
-    min-height: 32px;
+    min-width: 36px;
+    min-height: 30px;
     font-size: 11px;
   }
 
@@ -1405,7 +1409,7 @@ useHead(
   .quick-btn,
   .buy-btn {
     width: 100%;
-    min-height: 34px;
+    min-height: 32px;
     font-size: 11px;
     padding: 0 8px;
   }
@@ -1434,15 +1438,15 @@ useHead(
   }
 
   .product-card {
-    grid-template-columns: minmax(0, 43%) minmax(0, 57%);
+    grid-template-columns: minmax(0, 46%) minmax(0, 54%);
   }
 
   .product-media-link {
-    padding-top: 26px;
+    padding-top: 20px;
   }
 
   .product-media img {
-    transform: scale(1.14);
+    transform: scale(1.2);
   }
 }
 
@@ -1456,15 +1460,15 @@ useHead(
   }
 
   .product-card {
-    grid-template-columns: minmax(0, 44%) minmax(0, 56%);
+    grid-template-columns: minmax(0, 47%) minmax(0, 53%);
   }
 
   .product-media-link {
-    padding-top: 24px;
+    padding-top: 18px;
   }
 
   .product-media img {
-    transform: scale(1.16);
+    transform: scale(1.22);
   }
 
   .product-body {
