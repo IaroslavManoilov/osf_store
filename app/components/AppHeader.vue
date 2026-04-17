@@ -320,6 +320,19 @@ const notifyLabel = computed(() => {
 const toggleNotifications = async () => {
   if (!import.meta.client) return
 
+  if (notificationsEnabled.value) {
+    notificationsEnabled.value = false
+    try {
+      window.localStorage.setItem(notificationsStorageKey, 'disabled')
+    } catch {
+      // Ignore storage write failures.
+    }
+    if (locale.value === 'ro') uiStore.showToast('Notificările au fost dezactivate.', 'info')
+    else if (locale.value === 'en') uiStore.showToast('Notifications are disabled.', 'info')
+    else uiStore.showToast('Уведомления выключены.', 'info')
+    return
+  }
+
   let enabled = false
 
   if ('Notification' in window) {
@@ -470,13 +483,14 @@ watch(
   }
 )
 
-onMounted(() => {
+  onMounted(() => {
   if (!import.meta.client) return
 
   void customerAuth.initAuth()
 
   try {
-    notificationsEnabled.value = window.localStorage.getItem(notificationsStorageKey) === 'enabled'
+    const rawMode = String(window.localStorage.getItem(notificationsStorageKey) || '').trim().toLowerCase()
+    notificationsEnabled.value = rawMode === 'enabled'
   } catch {
     notificationsEnabled.value = false
   }

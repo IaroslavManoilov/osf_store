@@ -157,10 +157,11 @@
                   </div>
                   <div>
                     <span class="status-pill">{{ statusLabel(order.status) }}</span>
-                    <strong>{{ order.total }} MDL</strong>
+                    <strong>{{ formatOrderTotal(order.total) }}</strong>
                   </div>
                 </article>
               </div>
+              <p v-if="ratesSourceLabel" class="rates-note">{{ ratesSourceLabel }}</p>
               <NuxtLink :to="localePath('/orders')" class="btn-alt orders-link">{{ ui.openOrders }}</NuxtLink>
             </section>
 
@@ -234,6 +235,13 @@ const errorMessage = ref('')
 
 const orders = ref<AccountOrder[]>([])
 const reviews = ref<AccountReview[]>([])
+const currencyRates = ref<Record<'MDL' | 'EUR' | 'USD' | 'RON', number>>({
+  MDL: 1,
+  EUR: 0.052,
+  USD: 0.056,
+  RON: 0.258
+})
+const ratesSource = ref('fallback')
 
 const form = reactive({
   firstName: '',
@@ -301,7 +309,9 @@ const ui = computed(() => {
       profileSaved: 'Profile updated.',
       passwordUpdated: 'Password updated.',
       passwordMismatch: 'Passwords do not match.',
-      passwordLength: 'Password must be at least 8 characters.'
+      passwordLength: 'Password must be at least 8 characters.',
+      ratesSourceLive: 'Exchange rate source: curs.md',
+      ratesSourceFallback: 'Exchange rate source: fallback'
     }
   }
 
@@ -353,7 +363,9 @@ const ui = computed(() => {
       profileSaved: 'Profil actualizat.',
       passwordUpdated: 'Parolă actualizată.',
       passwordMismatch: 'Parolele nu coincid.',
-      passwordLength: 'Parola trebuie să aibă minim 8 caractere.'
+      passwordLength: 'Parola trebuie să aibă minim 8 caractere.',
+      ratesSourceLive: 'Sursa cursului: curs.md',
+      ratesSourceFallback: 'Sursa cursului: rezervă'
     }
   }
 
@@ -404,7 +416,9 @@ const ui = computed(() => {
     profileSaved: 'Профиль обновлен.',
     passwordUpdated: 'Пароль обновлен.',
     passwordMismatch: 'Пароли не совпадают.',
-    passwordLength: 'Пароль должен быть минимум 8 символов.'
+    passwordLength: 'Пароль должен быть минимум 8 символов.',
+    ratesSourceLive: 'Источник курса: curs.md',
+    ratesSourceFallback: 'Источник курса: резервный'
   }
 })
 
@@ -465,6 +479,22 @@ const messages = computed(() => {
   return rows.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
 })
 
+const ratesSourceLabel = computed(() =>
+  ratesSource.value === 'curs.md' ? ui.value.ratesSourceLive : ui.value.ratesSourceFallback
+)
+
+const convertFromMDL = (value: number) => {
+  const target = form.currency
+  const rate = Number(currencyRates.value[target] || 1)
+  const converted = (Number(value) || 0) * (Number.isFinite(rate) && rate > 0 ? rate : 1)
+  return target === 'MDL' ? Math.round(converted) : Number(converted.toFixed(2))
+}
+
+const formatOrderTotal = (value: number) => {
+  const amount = convertFromMDL(value)
+  return `${amount} ${form.currency}`
+}
+
 const formatDate = (value: string) => {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
@@ -496,6 +526,27 @@ const loadReviews = async () => {
     }
   })
   reviews.value = Array.isArray(response.reviews) ? response.reviews : []
+}
+
+const loadCurrencyRates = async () => {
+  try {
+    const response = await $fetch<{
+      success: boolean
+      source: string
+      rates?: Partial<Record<'MDL' | 'EUR' | 'USD' | 'RON', number>>
+    }>('/api/currency/rates')
+    if (response?.success && response.rates) {
+      currencyRates.value = {
+        MDL: Number(response.rates.MDL || 1) || 1,
+        EUR: Number(response.rates.EUR || 0.052) || 0.052,
+        USD: Number(response.rates.USD || 0.056) || 0.056,
+        RON: Number(response.rates.RON || 0.258) || 0.258
+      }
+      ratesSource.value = String(response.source || 'fallback')
+    }
+  } catch {
+    ratesSource.value = 'fallback'
+  }
 }
 
 const syncFormFromProfile = () => {
@@ -532,6 +583,8 @@ const saveProfile = async () => {
 
     if (import.meta.client) {
       try {
+        window.localStorage.setItem('osf_pref_currency_v1', form.currency)
+        window.localStorage.setItem('osf_pref_language_v1', form.language)
         window.localStorage.setItem('osf_stock_notifications_v1', form.notificationsEnabled ? 'enabled' : 'disabled')
       } catch {
         // ignore localStorage write failures
@@ -594,7 +647,7 @@ onMounted(async () => {
 
   await auth.refreshProfile()
   syncFormFromProfile()
-  await Promise.all([loadOrders(), loadReviews()])
+  await Promise.all([loadOrders(), loadReviews(), loadCurrencyRates()])
 })
 </script>
 
@@ -822,6 +875,13 @@ onMounted(async () => {
   gap: 8px;
 }
 
+.rates-note {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .account-info {
   margin: 0;
   color: #1f6b43;
@@ -850,4 +910,3 @@ onMounted(async () => {
   }
 }
 </style>
-

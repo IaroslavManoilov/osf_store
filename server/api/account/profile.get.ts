@@ -6,11 +6,28 @@ export default defineEventHandler(async (event) => {
   const customer = await requireCustomerAuth(event)
   const supabase = getSupabaseAdmin(event)
 
-  const { data, error } = await supabase
+  let data: any = null
+  let error: any = null
+
+  const fullSelect = await supabase
     .from('customer_profiles')
     .select('user_id, full_name, first_name, last_name, login, phone, email, about, currency, preferred_language, notifications_enabled')
     .eq('user_id', customer.userId)
     .maybeSingle()
+
+  data = fullSelect.data
+  error = fullSelect.error
+
+  // Backward-compatible fallback for databases where new profile columns are not migrated yet.
+  if (error && /column .* does not exist/i.test(String(error.message || ''))) {
+    const legacy = await supabase
+      .from('customer_profiles')
+      .select('user_id, full_name, phone, email')
+      .eq('user_id', customer.userId)
+      .maybeSingle()
+    data = legacy.data
+    error = legacy.error
+  }
 
   if (error) {
     throw createError({
@@ -35,7 +52,7 @@ export default defineEventHandler(async (event) => {
         about: String(data.about || '').trim(),
         currency: String(data.currency || 'MDL').trim() || 'MDL',
         language: String(data.preferred_language || 'ru').trim() || 'ru',
-        notificationsEnabled: !!data.notifications_enabled
+        notificationsEnabled: data.notifications_enabled === false ? false : true
       }
     : {
         userId: customer.userId,

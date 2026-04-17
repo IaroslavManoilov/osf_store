@@ -58,25 +58,41 @@ export default defineEventHandler(async (event) => {
   }
 
   const supabase = getSupabaseAdmin(event)
-  const { error } = await supabase
+  const payload = {
+    user_id: customer.userId,
+    full_name: name,
+    first_name: firstName,
+    last_name: lastName,
+    login: login || null,
+    phone,
+    email: email || null,
+    about: about || null,
+    currency,
+    preferred_language: language,
+    notifications_enabled: notificationsEnabled,
+    updated_at: new Date().toISOString()
+  }
+
+  let { error } = await supabase
     .from('customer_profiles')
-    .upsert(
-      {
-        user_id: customer.userId,
-        full_name: name,
-        first_name: firstName,
-        last_name: lastName,
-        login: login || null,
-        phone,
-        email: email || null,
-        about: about || null,
-        currency,
-        preferred_language: language,
-        notifications_enabled: notificationsEnabled,
-        updated_at: new Date().toISOString()
-      },
-      { onConflict: 'user_id' }
-    )
+    .upsert(payload, { onConflict: 'user_id' })
+
+  // Backward-compatible fallback for not yet migrated DB schema.
+  if (error && /column .* does not exist/i.test(String(error.message || ''))) {
+    const legacy = await supabase
+      .from('customer_profiles')
+      .upsert(
+        {
+          user_id: customer.userId,
+          full_name: name,
+          phone,
+          email: email || null,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: 'user_id' }
+      )
+    error = legacy.error
+  }
 
   if (error) {
     throw createError({
