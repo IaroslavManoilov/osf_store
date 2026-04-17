@@ -30,34 +30,91 @@ export default defineEventHandler(async (event) => {
   const customer = await requireCustomerAuth(event)
   const supabase = getSupabaseAdmin(event)
 
-  const { data, error } = await supabase
-    .from('orders')
-    .select(`
-      id,
-      created_at,
+  const modernSelect = `
+    id,
+    created_at,
+    status,
+    total,
+    payment_method,
+    payment_status,
+    customer_phone,
+    order_items (
+      product_id,
+      title,
+      quantity,
+      selected_size,
+      price
+    ),
+    order_status_history (
       status,
-      total,
-      payment_method,
-      payment_status,
-      customer_phone,
-      order_items (
-        product_id,
-        title,
-        quantity,
-        selected_size,
-        price
-      ),
-      order_status_history (
-        status,
-        changed_at,
-        note,
-        actor
-      )
-    `)
+      changed_at,
+      note,
+      actor
+    )
+  `
+
+  const userSelect = await supabase
+    .from('orders')
+    .select(modernSelect)
     .eq('customer_user_id', customer.userId)
     .order('created_at', { ascending: false })
     .order('id', { foreignTable: 'order_items', ascending: true })
     .order('changed_at', { foreignTable: 'order_status_history', ascending: false })
+
+  let data: Row[] | null = Array.isArray(userSelect.data) ? (userSelect.data as any as Row[]) : []
+  let error = userSelect.error
+
+  // Fallback: older DB schema may miss relations/columns from modern query.
+  if (error) {
+    const byUserLite = await supabase
+      .from('orders')
+      .select('id, created_at, status, total, payment_method, payment_status, customer_phone')
+      .eq('customer_user_id', customer.userId)
+      .order('created_at', { ascending: false })
+
+    data = Array.isArray(byUserLite.data) ? (byUserLite.data as any as Row[]) : []
+    error = byUserLite.error
+  }
+
+  // Legacy fallback: very old schema may not have customer_user_id yet.
+  if (error) {
+    let profilePhone = ''
+    const profile = await supabase
+      .from('customer_profiles')
+      .select('phone')
+      .eq('user_id', customer.userId)
+      .maybeSingle()
+    if (!profile.error) {
+      profilePhone = String(profile.data?.phone || '').trim()
+    }
+
+    const phoneCandidates = Array.from(new Set([String(customer.phone || '').trim(), profilePhone].filter(Boolean)))
+    let legacyData: Row[] = []
+    let legacyError: any = null
+
+    for (const phone of phoneCandidates) {
+      const legacy = await supabase
+        .from('orders')
+        .select('id, created_at, status, total, customer_phone')
+        .eq('customer_phone', phone)
+        .order('created_at', { ascending: false })
+
+      if (!legacy.error) {
+        legacyData = Array.isArray(legacy.data) ? (legacy.data as any as Row[]) : []
+        legacyError = null
+        break
+      }
+      legacyError = legacy.error
+    }
+
+    if (!phoneCandidates.length) {
+      legacyData = []
+      legacyError = null
+    }
+
+    data = legacyData
+    error = legacyError
+  }
 
   if (error) {
     throw createError({

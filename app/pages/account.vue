@@ -510,22 +510,30 @@ const formatDate = (value: string) => {
 
 const loadOrders = async () => {
   if (!auth.accessToken.value) return
-  const response = await $fetch<{ success: boolean; orders: AccountOrder[] }>('/api/account/orders', {
-    headers: {
-      authorization: `Bearer ${auth.accessToken.value}`
-    }
-  })
-  orders.value = Array.isArray(response.orders) ? response.orders : []
+  try {
+    const response = await $fetch<{ success: boolean; orders: AccountOrder[] }>('/api/account/orders', {
+      headers: {
+        authorization: `Bearer ${auth.accessToken.value}`
+      }
+    })
+    orders.value = Array.isArray(response.orders) ? response.orders : []
+  } catch {
+    orders.value = []
+  }
 }
 
 const loadReviews = async () => {
   if (!auth.accessToken.value) return
-  const response = await $fetch<{ success: boolean; reviews: AccountReview[] }>('/api/account/reviews', {
-    headers: {
-      authorization: `Bearer ${auth.accessToken.value}`
-    }
-  })
-  reviews.value = Array.isArray(response.reviews) ? response.reviews : []
+  try {
+    const response = await $fetch<{ success: boolean; reviews: AccountReview[] }>('/api/account/reviews', {
+      headers: {
+        authorization: `Bearer ${auth.accessToken.value}`
+      }
+    })
+    reviews.value = Array.isArray(response.reviews) ? response.reviews : []
+  } catch {
+    reviews.value = []
+  }
 }
 
 const loadCurrencyRates = async () => {
