@@ -1892,7 +1892,7 @@ useHead(
   width: 100%;
   height: 100%;
   aspect-ratio: 1 / 1;
-  padding: 56px 12px 12px;
+  padding: 50px 10px 10px;
   border-radius: 18px;
   background: #fff;
   overflow: hidden;
@@ -1906,13 +1906,13 @@ useHead(
   object-fit: contain;
   object-position: center;
   display: block;
-  transform: scale(1.05);
+  transform: scale(1.02);
   filter: drop-shadow(0 8px 14px rgba(13, 27, 18, 0.08));
 }
 
 .product-badge {
   position: absolute;
-  top: 14px;
+  top: 12px;
   left: 16px;
   z-index: 7;
   min-height: 36px;
@@ -1933,7 +1933,7 @@ useHead(
 
 .wishlist-toggle {
   position: absolute;
-  top: 14px;
+  top: 12px;
   right: 16px;
   z-index: 7;
   width: 42px;
@@ -2483,9 +2483,9 @@ useHead(
   }
 
   .product-meta-row {
-    margin-bottom: 8px;
-    align-items: flex-start;
-    flex-direction: column;
+    margin-bottom: 6px;
+    align-items: center;
+    flex-direction: row;
     gap: 6px;
   }
 
@@ -2496,7 +2496,8 @@ useHead(
   }
 
   .product-stock {
-    font-size: 12px;
+    font-size: 11px;
+    text-align: right;
   }
 
   .product-title-link h3 {
@@ -2520,18 +2521,18 @@ useHead(
   }
 
   .product-bottom strong {
-    font-size: 20px;
+    font-size: 18px;
   }
 
   .product-actions {
-    gap: 8px;
+    gap: 6px;
   }
 
   .buy-now-btn,
   .buy-btn {
-    min-height: 36px;
+    min-height: 34px;
     border-radius: 12px;
-    font-size: 12px;
+    font-size: 11px;
     padding: 0 8px;
   }
 
@@ -2666,23 +2667,33 @@ useHead(
     height: 100%;
     min-height: 0;
     aspect-ratio: 1 / 1;
-    padding: 38px 6px 6px;
+    padding: 30px 6px 6px;
     border-radius: 14px;
   }
 
   .product-media img {
-    transform: scale(1.22);
+    transform: scale(1.14);
     transform-origin: center;
   }
 
   .product-badge {
-    top: 10px;
+    top: 8px;
     left: 8px;
+    min-height: 24px;
+    padding: 0 8px;
+    font-size: 10px;
   }
 
   .wishlist-toggle {
-    top: 10px;
+    top: 8px;
     right: 8px;
+    width: 30px;
+    height: 30px;
+  }
+
+  .wishlist-toggle svg {
+    width: 15px;
+    height: 15px;
   }
 
   .product-body {
@@ -2753,11 +2764,11 @@ useHead(
   }
 
   .product-media-link {
-    padding: 34px 5px 5px;
+    padding: 28px 5px 5px;
   }
 
   .product-media img {
-    transform: scale(1.28);
+    transform: scale(1.16);
   }
 }
 
@@ -2784,11 +2795,11 @@ useHead(
   }
 
   .product-media-link {
-    padding: 30px 4px 4px;
+    padding: 26px 4px 4px;
   }
 
   .product-media img {
-    transform: scale(1.3);
+    transform: scale(1.18);
   }
 
   .product-body {
@@ -2800,23 +2811,4 @@ useHead(
   }
 }
 
-@media (min-width: 390px) and (max-width: 429px) {
-  .product-media-link {
-    padding-top: 32px;
-  }
-
-  .product-media img {
-    transform: scale(1.29);
-  }
-}
-
-@media (min-width: 430px) and (max-width: 479px) {
-  .product-media-link {
-    padding-top: 35px;
-  }
-
-  .product-media img {
-    transform: scale(1.24);
-  }
-}
 </style>

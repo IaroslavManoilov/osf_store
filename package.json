@@ -5,6 +5,7 @@
   "scripts": {
     "build": "nuxt build",
     "dev": "./scripts/ensure-single-dev.sh && nuxt dev --port 3000",
+    "typecheck": "nuxi typecheck",
     "generate": "nuxt generate",
     "images:optimize": "node scripts/optimize-images.mjs",
     "test:e2e": "playwright test",

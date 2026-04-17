@@ -2247,7 +2247,7 @@ useSeoMeta({
 
 <style scoped>
 .checkout-page {
-  padding-top: 18px;
+  padding-top: 16px;
   padding-bottom: 84px;
 }
 
@@ -2255,7 +2255,7 @@ useSeoMeta({
 .checkout-form-box,
 .checkout-summary-box,
 .empty-box {
-  padding: 26px;
+  padding: 24px;
 }
 
 .checkout-intro.compact {
@@ -2264,7 +2264,7 @@ useSeoMeta({
 }
 
 .checkout-title {
-  font-size: clamp(36px, 4vw, 58px);
+  font-size: clamp(34px, 3.8vw, 52px);
   line-height: 0.96;
 }
 
@@ -2329,7 +2329,7 @@ useSeoMeta({
 .checkout-form-box h2,
 .summary-title {
   margin: 0;
-  font-size: 32px;
+  font-size: 30px;
   line-height: 1;
 }
 
@@ -2866,7 +2866,7 @@ useSeoMeta({
   .checkout-form-box,
   .checkout-summary-box,
   .empty-box {
-    padding: 18px;
+    padding: 16px;
   }
 
   .checkout-intro.compact {
@@ -2876,7 +2876,7 @@ useSeoMeta({
 
   .checkout-form-box h2,
   .summary-title {
-    font-size: 28px;
+    font-size: 26px;
   }
 
   .checkout-form {

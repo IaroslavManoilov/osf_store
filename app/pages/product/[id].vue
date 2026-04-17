@@ -2406,15 +2406,18 @@ useHead(
   margin-top: 10px;
   display: grid;
   gap: 6px;
+  min-width: 0;
 }
 
 .review-upload input {
-  max-width: 320px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .review-upload span {
   color: #5e7766;
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .review-draft-photos,
