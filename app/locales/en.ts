@@ -72,7 +72,3 @@ export default defineI18nLocale(() => ({
     text: '© 2026 ONE STYLE FOREVER · Moldova · Chișinău'
   }
 }))
-
-function defineI18nLocale(arg0: () => { nav: { home: string; catalog: string; about: string; cart: string; }; home: { badgeLocation: string; badgeBrand: string; label: string; title: string; subtitle: string; ctaCatalog: string; ctaAbout: string; feature1: string; feature2: string; feature3: string; visualTitle: string; visualText: string; featuredLabel: string; featuredTitle: string; featuredText: string; featuredAction: string; philosophyLabel: string; philosophyTitle: string; philosophyText: string; philosophyItem1Title: string; philosophyItem1Text: string; philosophyItem2Title: string; philosophyItem2Text: string; philosophyItem3Title: string; philosophyItem3Text: string; finalLabel: string; finalTitle: string; finalText: string; finalCatalog: string; finalAbout: string; }; products: { categorySweaters: string; categoryHoodies: string; inStock: string; details: string; whiteHalfzip: { title: string; description: string; }; blackHalfzip: { title: string; description: string; }; blackHoodie: { title: string; description: string; }; }; footer: { text: string; }; }) {
-    throw new Error("Function not implemented.");
-}
