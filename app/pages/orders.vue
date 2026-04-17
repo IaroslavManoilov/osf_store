@@ -290,6 +290,7 @@ import { getProducts, type ProductSize } from '~/data/products'
 type PublicOrder = {
   id: string
   createdAt: string
+  trackToken?: string
   status: 'new' | 'confirmed' | 'assembled' | 'shipped' | 'delivered' | 'cancelled' | 'returned'
   total: number
   items: Array<{
@@ -409,6 +410,7 @@ const route = useRoute()
 const shopStore = useShopStore()
 const uiStore = useUiStore()
 const runtimeConfig = useRuntimeConfig()
+const customerAuth = useCustomerAuth()
 
 const tracksKey = 'osf_order_tracks_v1'
 const noticesKey = 'osf_order_notices_v1'
@@ -1136,6 +1138,47 @@ const loadTrackedOrders = async (options?: { silent?: boolean; detectChanges?: b
   }
 
   try {
+    if (customerAuth.isAuthenticated.value && customerAuth.accessToken.value) {
+      const response = await $fetch<{ success: boolean; orders: PublicOrder[] }>('/api/account/orders', {
+        headers: {
+          authorization: `Bearer ${customerAuth.accessToken.value}`
+        }
+      })
+
+      const nextOrders = Array.isArray(response.orders) ? response.orders : []
+      const tokenMap: Record<string, string> = {}
+      for (const order of nextOrders) {
+        if (order.trackToken) {
+          tokenMap[order.id] = String(order.trackToken)
+          persistTrack({
+            id: order.id,
+            token: String(order.trackToken),
+            createdAt: order.createdAt
+          })
+        }
+      }
+      trackTokenByOrderId.value = tokenMap
+
+      if (detectChanges) {
+        for (const order of nextOrders) {
+          const previousStatus = knownStatusByOrderId.value[order.id]
+          const previousHistoryLen = knownHistoryByOrderId.value[order.id] || 0
+          const currentHistoryLen = Array.isArray(order.statusHistory) ? order.statusHistory.length : 0
+          const statusChanged = !!previousStatus && previousStatus !== order.status
+          const historyAppended = previousHistoryLen > 0 && currentHistoryLen > previousHistoryLen
+
+          if (statusChanged || historyAppended) {
+            pushOrderNotice(order)
+          }
+        }
+      }
+
+      trackedOrders.value = nextOrders
+      rememberTrackedState(nextOrders)
+      void loadPendingReviewItems()
+      return
+    }
+
     const tracks = parseSavedTracks()
     const tokenMap: Record<string, string> = {}
     for (const entry of tracks) {
@@ -1411,7 +1454,18 @@ const ensureRealtimeSubscription = () => {
   realtimeChannel.value = channel
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await customerAuth.initAuth()
+  if (!customerAuth.isAuthenticated.value) {
+    await navigateTo(
+      localePath({
+        path: '/auth',
+        query: { next: '/orders' }
+      })
+    )
+    return
+  }
+
   syncBrowserPermission()
   loadNoticesMode()
   loadNotices()

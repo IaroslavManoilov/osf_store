@@ -10,6 +10,7 @@ import { requireCheckoutCsrf } from '../utils/checkout-csrf'
 import { readProductOverridesSafe } from '../utils/product-overrides'
 import { getSiteUrl, getStripeClient } from '../utils/stripe'
 import { createMaibPayment, isMaibConfigured } from '../utils/maib'
+import { requireCustomerAuth } from '../utils/customer-auth'
 import { getProducts } from '~/data/products'
 
 type OrderItem = {
@@ -77,6 +78,7 @@ const paymentMethodLabelRu = (method: 'card_online' | 'phone_transfer' | 'cash_o
 
 export default defineEventHandler(async (event) => {
   requireCheckoutCsrf(event)
+  const customerAuth = await requireCustomerAuth(event)
 
   assertRateLimit(event, {
     namespace: 'create-order',
@@ -204,6 +206,7 @@ export default defineEventHandler(async (event) => {
     await saveOrder(event, {
       id: orderId,
       createdAt: nowIso,
+      customerUserId: customerAuth.userId,
       customer: {
         name: customerName,
         phone: customerPhone,

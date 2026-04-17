@@ -23,6 +23,7 @@ export type AdminOrderHistoryEntry = {
 export type AdminOrder = {
   id: string
   createdAt: string
+  customerUserId?: string
   customer: {
     name: string
     phone: string
@@ -54,6 +55,7 @@ export type AdminOrder = {
 type OrderRow = {
   id: string
   created_at: string
+  customer_user_id: string | null
   customer_name: string
   customer_phone: string
   customer_email: string | null
@@ -130,6 +132,7 @@ function toAdminOrder(row: OrderRow): AdminOrder {
   return {
     id: row.id,
     createdAt: row.created_at,
+    customerUserId: row.customer_user_id || undefined,
     customer: {
       name: row.customer_name,
       phone: row.customer_phone,
@@ -175,6 +178,7 @@ async function fetchOrders(event: H3Event, options?: { status?: string; id?: str
       `
       id,
       created_at,
+      customer_user_id,
       customer_name,
       customer_phone,
       customer_email,
@@ -271,6 +275,7 @@ export async function saveOrder(event: H3Event, order: AdminOrder) {
   const { error: insertOrderError } = await client.from('orders').insert({
     id: order.id,
     created_at: order.createdAt,
+    customer_user_id: order.customerUserId || null,
     customer_name: order.customer.name,
     customer_phone: order.customer.phone,
     customer_email: order.customer.email || null,

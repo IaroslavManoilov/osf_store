@@ -527,6 +527,7 @@ const { locale } = useI18n()
 const localePath = useLocalePath()
 const route = useRoute()
 const shopStore = useShopStore()
+const customerAuth = useCustomerAuth()
 
 const form = reactive<CheckoutForm>({
   name: '',
@@ -1855,6 +1856,22 @@ const submitOrder = async () => {
     return
   }
 
+  if (!customerAuth.isAuthenticated.value || !customerAuth.accessToken.value) {
+    errorMessage.value =
+      locale.value === 'en'
+        ? 'Please sign in before checkout.'
+        : locale.value === 'ro'
+          ? 'Autentifică-te înainte de checkout.'
+          : 'Перед оформлением нужно войти в аккаунт.'
+    await navigateTo(
+      localePath({
+        path: '/auth',
+        query: { next: '/checkout' }
+      })
+    )
+    return
+  }
+
   isSubmitting.value = true
 
   try {
@@ -1883,9 +1900,12 @@ const submitOrder = async () => {
       method: 'POST',
       headers: checkoutCsrfToken.value
         ? {
-            'x-checkout-csrf': checkoutCsrfToken.value
+            'x-checkout-csrf': checkoutCsrfToken.value,
+            authorization: `Bearer ${customerAuth.accessToken.value}`
           }
-        : undefined,
+        : {
+            authorization: `Bearer ${customerAuth.accessToken.value}`
+          },
       body: {
         customer: {
           name: form.name,
@@ -2037,6 +2057,26 @@ const handleDocumentPointerDown = (event: Event) => {
 }
 
 onMounted(() => {
+  void customerAuth.initAuth().then(async () => {
+    if (!customerAuth.isAuthenticated.value) {
+      await navigateTo(
+        localePath({
+          path: '/auth',
+          query: { next: '/checkout' }
+        })
+      )
+      return
+    }
+
+    if (!form.name && customerAuth.profile.value?.name) {
+      form.name = customerAuth.profile.value.name
+    }
+
+    if (!form.email && customerAuth.profile.value?.email) {
+      form.email = customerAuth.profile.value.email
+    }
+  })
+
   shopStore.sanitizeCart()
   loadCheckoutProfile()
   loadCheckoutDraft()
