@@ -672,7 +672,7 @@ const vercelEnvUrl = computed(() => {
   return value || 'https://vercel.com/dashboard'
 })
 
-const launchStatusLabel = (status: 'done' | 'partial' | 'todo') => {
+const launchStatusLabel = (status: string) => {
   if (locale.value === 'en') {
     if (status === 'done') return 'Done'
     if (status === 'partial') return 'In progress'

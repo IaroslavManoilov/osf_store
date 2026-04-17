@@ -5,7 +5,7 @@ import { fetchMaibPaymentInfo, isMaibCallbackSignatureValid } from '../../../uti
 const safeText = (value: unknown) => String(value || '').trim()
 
 export default defineEventHandler(async (event) => {
-  const body = (await readBody<Record<string, unknown>>(event).catch(() => ({}))) || {}
+  const body = (await readBody<Record<string, unknown>>(event).catch(() => ({} as Record<string, unknown>))) || {}
   const result = (body.result && typeof body.result === 'object' ? body.result : {}) as Record<string, unknown>
 
   const orderId = safeText(result.orderId || body.orderId)

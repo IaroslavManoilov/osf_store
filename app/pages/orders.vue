@@ -912,8 +912,7 @@ const pushOrderNotice = (order: PublicOrder) => {
     if (import.meta.client && 'Notification' in window && Notification.permission === 'granted') {
       const notification = new Notification('ONE STYLE FOREVER', {
         body: text,
-        tag: `order-${order.id}-${order.status}`,
-        renotify: true
+        tag: `order-${order.id}-${order.status}`
       })
       notification.onclick = () => window.focus()
     }

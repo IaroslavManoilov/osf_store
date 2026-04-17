@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const body = await readBody<CleanupBody>(event).catch(() => ({}))
+  const body = await readBody<CleanupBody>(event).catch(() => ({} as CleanupBody))
   const providedSecret = String(getHeader(event, 'x-cleanup-secret') || body?.secret || '').trim()
   if (!providedSecret || providedSecret !== expectedSecret) {
     throw createError({

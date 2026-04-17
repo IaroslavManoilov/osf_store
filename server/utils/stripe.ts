@@ -12,7 +12,7 @@ export const getStripeClient = (event: H3Event) => {
   }
 
   return new Stripe(secretKey, {
-    apiVersion: '2025-03-31.basil'
+    apiVersion: '2026-03-25.dahlia'
   })
 }
 

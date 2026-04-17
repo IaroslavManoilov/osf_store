@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
     windowMs: 60 * 1000
   })
 
-  const body = await readBody<DraftBody>(event).catch(() => ({}))
+  const body = await readBody<DraftBody>(event).catch(() => ({} as DraftBody))
   const draft = sanitizeDraft(body?.draft)
   const savedAt = String(body?.savedAt || new Date().toISOString())
   const phoneNorm = normalizeCheckoutDraftPhone(body?.phoneNorm || '')

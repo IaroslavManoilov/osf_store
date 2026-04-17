@@ -58,14 +58,15 @@ const parseCsv = (csv: string): CsvRow[] => {
     .filter((line) => line.length > 0)
 
   if (!lines.length) return []
-  const delimiter = detectDelimiter(lines[0])
-  const headers = parseCsvLine(lines[0], delimiter).map(normalizeHeader)
+  const headerLine = String(lines[0] || '')
+  const delimiter = detectDelimiter(headerLine)
+  const headers = parseCsvLine(headerLine, delimiter).map(normalizeHeader)
 
   if (!headers.length) return []
 
   const rows: CsvRow[] = []
   for (let index = 1; index < lines.length; index += 1) {
-    const values = parseCsvLine(lines[index], delimiter)
+    const values = parseCsvLine(String(lines[index] || ''), delimiter)
     const row: CsvRow = {}
 
     for (let col = 0; col < headers.length; col += 1) {
@@ -104,7 +105,7 @@ const textFromCsv = (value: string): string | null => {
 const pick = (row: CsvRow, keys: string[]) => {
   for (const key of keys) {
     const normalized = normalizeHeader(key)
-    if (normalized in row) return row[normalized]
+    if (normalized in row) return row[normalized] ?? ''
   }
   return ''
 }

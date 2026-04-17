@@ -31,7 +31,7 @@ const normalizeIds = (value: unknown, limit = 12) => {
 }
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody<RequestBody>(event).catch(() => ({}))
+  const body = await readBody<RequestBody>(event).catch(() => ({} as RequestBody))
   const cartIds = normalizeIds(body?.cartIds, 10)
   const viewedIds = normalizeIds(body?.viewedIds, 10)
 
