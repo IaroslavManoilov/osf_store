@@ -70,15 +70,32 @@ export default defineEventHandler(async (event) => {
   let usedLegacySchema = false
   let degradedMode = false
   let error: any = null
-
-  if (supabase) {
-    const initial = await supabase
-      .from('customer_profiles')
-      .upsert(payload, { onConflict: 'user_id' })
-    error = initial.error
-  } else {
+  if (!supabase) {
     degradedMode = true
+    return {
+      success: true,
+      legacySchema: false,
+      degradedMode,
+      profile: {
+        userId: customer.userId,
+        name,
+        firstName,
+        lastName,
+        login,
+        phone,
+        email,
+        about,
+        currency,
+        language,
+        notificationsEnabled
+      }
+    }
   }
+
+  const initial = await supabase
+    .from('customer_profiles')
+    .upsert(payload, { onConflict: 'user_id' })
+  error = initial.error
 
   // Backward-compatible fallback for not yet migrated DB schema.
   if (supabase && error && /column .* does not exist/i.test(String(error.message || ''))) {
@@ -100,7 +117,24 @@ export default defineEventHandler(async (event) => {
 
   if (error) {
     degradedMode = true
-    error = null
+    return {
+      success: true,
+      legacySchema: usedLegacySchema,
+      degradedMode,
+      profile: {
+        userId: customer.userId,
+        name,
+        firstName,
+        lastName,
+        login,
+        phone,
+        email,
+        about,
+        currency,
+        language,
+        notificationsEnabled
+      }
+    }
   }
 
   return {

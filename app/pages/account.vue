@@ -232,7 +232,6 @@ const { locale } = useI18n()
 const localePath = useLocalePath()
 const switchLocalePath = useSwitchLocalePath()
 const auth = useCustomerAuth()
-const profileDraftStorageKey = 'osf_account_profile_draft_v1'
 
 const savingProfile = ref(false)
 const savingSettings = ref(false)
@@ -268,60 +267,6 @@ const passwordForm = reactive({
   password: '',
   confirmPassword: ''
 })
-
-const saveProfileDraft = () => {
-  if (!import.meta.client) return
-  try {
-    window.localStorage.setItem(
-      profileDraftStorageKey,
-      JSON.stringify({
-        firstName: form.firstName,
-        lastName: form.lastName,
-        login: form.login,
-        phone: form.phone,
-        email: form.email,
-        about: form.about,
-        currency: form.currency,
-        language: form.language,
-        notificationsEnabled: form.notificationsEnabled
-      })
-    )
-  } catch {
-    // ignore localStorage write failures
-  }
-}
-
-const restoreProfileDraft = () => {
-  if (!import.meta.client) return
-  try {
-    const raw = window.localStorage.getItem(profileDraftStorageKey)
-    if (!raw) return
-    const draft = JSON.parse(raw) as Partial<typeof form> | null
-    if (!draft || typeof draft !== 'object') return
-
-    const currentFilled = [
-      form.firstName,
-      form.lastName,
-      form.login,
-      form.phone,
-      form.about
-    ].some((value) => String(value || '').trim().length > 0)
-
-    if (currentFilled) return
-
-    form.firstName = String(draft.firstName || '').trim()
-    form.lastName = String(draft.lastName || '').trim()
-    form.login = String(draft.login || '').trim()
-    form.phone = String(draft.phone || '').trim()
-    form.email = String(draft.email || form.email || '').trim()
-    form.about = String(draft.about || '').trim()
-    form.currency = (draft.currency || form.currency || 'MDL') as typeof form.currency
-    form.language = (draft.language || form.language || locale.value || 'ru') as typeof form.language
-    form.notificationsEnabled = draft.notificationsEnabled === false ? false : form.notificationsEnabled
-  } catch {
-    // ignore localStorage parse failures
-  }
-}
 
 const ui = computed(() => {
   if (locale.value === 'en') {
@@ -625,10 +570,7 @@ const loadCurrencyRates = async () => {
 
 const syncFormFromProfile = () => {
   const profile = auth.profile.value
-  if (!profile) {
-    restoreProfileDraft()
-    return
-  }
+  if (!profile) return
   form.firstName = String(profile.firstName || '').trim()
   form.lastName = String(profile.lastName || '').trim()
   form.login = String(profile.login || '').trim()
@@ -638,7 +580,6 @@ const syncFormFromProfile = () => {
   form.currency = (profile.currency || 'MDL') as typeof form.currency
   form.language = (profile.language || locale.value || 'ru') as typeof form.language
   form.notificationsEnabled = profile.notificationsEnabled !== false
-  restoreProfileDraft()
 }
 
 const saveProfile = async () => {
@@ -677,7 +618,6 @@ const saveProfile = async () => {
     }
 
     infoMessage.value = ui.value.profileSaved
-    saveProfileDraft()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Failed to save profile'
   } finally {
@@ -714,7 +654,6 @@ const saveSettings = async () => {
     }
 
     infoMessage.value = ui.value.profileSaved
-    saveProfileDraft()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Failed to save settings'
   } finally {
@@ -738,7 +677,6 @@ const toggleNotificationsSetting = async () => {
       }
     }
     infoMessage.value = ui.value.profileSaved
-    saveProfileDraft()
   } catch (error) {
     form.notificationsEnabled = !nextValue
     errorMessage.value = error instanceof Error ? error.message : 'Failed to update notifications'
@@ -790,7 +728,6 @@ onMounted(async () => {
 
   await auth.refreshProfile()
   syncFormFromProfile()
-  restoreProfileDraft()
   await Promise.all([loadOrders(), loadReviews(), loadCurrencyRates()])
 })
 
@@ -810,23 +747,6 @@ watch(
   { deep: true }
 )
 
-watch(
-  () => ({
-    firstName: form.firstName,
-    lastName: form.lastName,
-    login: form.login,
-    phone: form.phone,
-    email: form.email,
-    about: form.about,
-    currency: form.currency,
-    language: form.language,
-    notificationsEnabled: form.notificationsEnabled
-  }),
-  () => {
-    saveProfileDraft()
-  },
-  { deep: true }
-)
 </script>
 
 <style scoped>

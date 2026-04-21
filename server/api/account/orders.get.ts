@@ -58,9 +58,18 @@ const normalizeRows = (rows: Row[], secret: string) =>
 
 export default defineEventHandler(async (event) => {
   const customer = await requireCustomerAuth(event)
-  const supabase = getSupabaseAdmin(event)
+  let supabase: ReturnType<typeof getSupabaseAdmin> | null = null
+  try {
+    supabase = getSupabaseAdmin(event)
+  } catch {
+    supabase = null
+  }
   const config = useRuntimeConfig(event)
   const secret = config.orderTrackSecret || config.adminKey || 'osf-order-track-secret'
+
+  if (!supabase) {
+    return { success: true, degradedMode: true, orders: [] }
+  }
 
   try {
     const modern = await supabase
@@ -134,4 +143,3 @@ export default defineEventHandler(async (event) => {
     return { success: true, orders: [] }
   }
 })
-

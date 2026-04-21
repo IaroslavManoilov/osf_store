@@ -1,5 +1,5 @@
 import { createError, getHeader, type H3Event } from 'h3'
-import { getSupabaseAdmin } from './supabase-admin'
+import { getSupabaseAdmin, getSupabaseAnon } from './supabase-admin'
 
 export type AuthenticatedCustomer = {
   userId: string
@@ -22,7 +22,20 @@ export const requireCustomerAuth = async (event: H3Event): Promise<Authenticated
     })
   }
 
-  const supabase = getSupabaseAdmin(event)
+  let supabase: ReturnType<typeof getSupabaseAdmin> | ReturnType<typeof getSupabaseAnon>
+  try {
+    supabase = getSupabaseAdmin(event)
+  } catch {
+    // Fallback for environments without service role key: token validation still works with anon.
+    try {
+      supabase = getSupabaseAnon(event)
+    } catch {
+      throw createError({
+        statusCode: 500,
+        statusMessage: 'Customer auth is not configured. Set Supabase URL and keys.'
+      })
+    }
+  }
   const { data, error } = await supabase.auth.getUser(token)
 
   if (error || !data?.user?.id) {

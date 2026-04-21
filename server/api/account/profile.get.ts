@@ -78,7 +78,7 @@ export default defineEventHandler(async (event) => {
         about: '',
         currency: 'MDL',
         language: 'ru',
-        notificationsEnabled: true
+        notificationsEnabled: false
       }
 
   return {

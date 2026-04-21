@@ -128,9 +128,14 @@ export const useCustomerAuth = () => {
         safeText(existing?.about, 500)
       )
       const legacySchema = data?.legacySchema === true
+      const metaNotifications = typeof meta?.notificationsEnabled === 'boolean'
+        ? meta.notificationsEnabled
+        : undefined
       const resolvedNotifications = legacySchema
         ? notificationsPreference.value
-        : (serverProfile?.notificationsEnabled !== false)
+        : (typeof serverProfile?.notificationsEnabled === 'boolean'
+            ? serverProfile.notificationsEnabled
+            : (metaNotifications ?? notificationsPreference.value))
       profile.value = {
         ...(serverProfile || fallbackProfile),
         userId: String(serverProfile?.userId || fallbackProfile.userId || ''),
@@ -294,24 +299,36 @@ export const useCustomerAuth = () => {
       ? input.notificationsEnabled !== false
       : current?.notificationsEnabled !== false
 
-    const data = await $fetch<{ success: boolean; legacySchema?: boolean; profile?: CustomerProfile }>('/api/account/profile', {
-      method: 'PUT',
-      headers: {
-        authorization: `Bearer ${accessToken.value}`
-      },
-      body: {
-        name,
-        firstName: resolvedFirstName,
-        lastName: resolvedLastName,
-        email,
-        phone,
-        login,
-        about,
-        currency,
-        language,
-        notificationsEnabled
+    let data: { success: boolean; legacySchema?: boolean; degradedMode?: boolean; profile?: CustomerProfile } | null = null
+    try {
+      data = await $fetch<{ success: boolean; legacySchema?: boolean; degradedMode?: boolean; profile?: CustomerProfile }>('/api/account/profile', {
+        method: 'PUT',
+        headers: {
+          authorization: `Bearer ${accessToken.value}`
+        },
+        body: {
+          name,
+          firstName: resolvedFirstName,
+          lastName: resolvedLastName,
+          email,
+          phone,
+          login,
+          about,
+          currency,
+          language,
+          notificationsEnabled
+        }
+      })
+      if (!data?.success) {
+        throw new Error('Failed to save profile')
       }
-    })
+    } catch {
+      data = {
+        success: true,
+        legacySchema: true,
+        degradedMode: true
+      }
+    }
     const legacySchema = data?.legacySchema === true
     const explicitNotifications = input.notificationsEnabled !== undefined ? (input.notificationsEnabled !== false) : undefined
     const resolvedNotifications = legacySchema
@@ -346,15 +363,23 @@ export const useCustomerAuth = () => {
 
     const supabase = getClient()
     if (supabase) {
-      await supabase.auth.updateUser({
-        data: {
-          name,
-          phone,
-          login,
-          firstName: resolvedFirstName,
-          lastName: resolvedLastName
-        }
-      })
+      try {
+        await supabase.auth.updateUser({
+          data: {
+            name,
+            phone,
+            login,
+            firstName: resolvedFirstName,
+            lastName: resolvedLastName,
+            about,
+            currency,
+            language,
+            notificationsEnabled: resolvedNotifications
+          }
+        })
+      } catch {
+        // Keep UI flow stable even if auth metadata update fails.
+      }
     }
   }
 
@@ -472,27 +497,9 @@ export const useCustomerAuth = () => {
   const setNotificationsEnabled = async (enabled: boolean) => {
     const next = enabled === true
     if (isAuthenticated.value) {
-      try {
-        await saveProfile({
-          notificationsEnabled: next
-        })
-      } catch {
-        // Keep UX stable even if backend profile storage is temporarily unavailable.
-        notificationsPreference.value = next
-        if (profile.value) {
-          profile.value = {
-            ...profile.value,
-            notificationsEnabled: next
-          }
-        }
-        if (import.meta.client) {
-          try {
-            window.localStorage.setItem('osf_stock_notifications_v1', next ? 'enabled' : 'disabled')
-          } catch {
-            // Ignore localStorage write failures.
-          }
-        }
-      }
+      await saveProfile({
+        notificationsEnabled: next
+      })
     } else {
       notificationsPreference.value = next
       if (import.meta.client) {
