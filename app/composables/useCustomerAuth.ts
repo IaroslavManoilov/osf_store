@@ -472,9 +472,27 @@ export const useCustomerAuth = () => {
   const setNotificationsEnabled = async (enabled: boolean) => {
     const next = enabled === true
     if (isAuthenticated.value) {
-      await saveProfile({
-        notificationsEnabled: next
-      })
+      try {
+        await saveProfile({
+          notificationsEnabled: next
+        })
+      } catch {
+        // Keep UX stable even if backend profile storage is temporarily unavailable.
+        notificationsPreference.value = next
+        if (profile.value) {
+          profile.value = {
+            ...profile.value,
+            notificationsEnabled: next
+          }
+        }
+        if (import.meta.client) {
+          try {
+            window.localStorage.setItem('osf_stock_notifications_v1', next ? 'enabled' : 'disabled')
+          } catch {
+            // Ignore localStorage write failures.
+          }
+        }
+      }
     } else {
       notificationsPreference.value = next
       if (import.meta.client) {

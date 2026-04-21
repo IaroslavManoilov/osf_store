@@ -1,26 +1,38 @@
-import { createError, defineEventHandler } from 'h3'
+import { defineEventHandler } from 'h3'
 import { getSupabaseAdmin } from '../../utils/supabase-admin'
 import { requireCustomerAuth } from '../../utils/customer-auth'
 
 export default defineEventHandler(async (event) => {
   const customer = await requireCustomerAuth(event)
-  const supabase = getSupabaseAdmin(event)
+  let supabase: ReturnType<typeof getSupabaseAdmin> | null = null
+  try {
+    supabase = getSupabaseAdmin(event)
+  } catch {
+    supabase = null
+  }
 
   let data: any = null
   let error: any = null
   let usedLegacySchema = false
+  let degradedMode = false
 
-  const fullSelect = await supabase
-    .from('customer_profiles')
-    .select('user_id, full_name, first_name, last_name, login, phone, email, about, currency, preferred_language, notifications_enabled')
-    .eq('user_id', customer.userId)
-    .maybeSingle()
+  if (!supabase) {
+    degradedMode = true
+  }
 
-  data = fullSelect.data
-  error = fullSelect.error
+  if (supabase) {
+    const fullSelect = await supabase
+      .from('customer_profiles')
+      .select('user_id, full_name, first_name, last_name, login, phone, email, about, currency, preferred_language, notifications_enabled')
+      .eq('user_id', customer.userId)
+      .maybeSingle()
+
+    data = fullSelect.data
+    error = fullSelect.error
+  }
 
   // Backward-compatible fallback for databases where new profile columns are not migrated yet.
-  if (error && /column .* does not exist/i.test(String(error.message || ''))) {
+  if (supabase && error && /column .* does not exist/i.test(String(error.message || ''))) {
     usedLegacySchema = true
     const legacy = await supabase
       .from('customer_profiles')
@@ -32,10 +44,9 @@ export default defineEventHandler(async (event) => {
   }
 
   if (error) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: `Profile load failed: ${error.message}`
-    })
+    degradedMode = true
+    data = null
+    error = null
   }
 
   const fullName = String(data?.full_name || '').trim()
@@ -73,6 +84,7 @@ export default defineEventHandler(async (event) => {
   return {
     success: true,
     legacySchema: usedLegacySchema,
+    degradedMode,
     profile
   }
 })

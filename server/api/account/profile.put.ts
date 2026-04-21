@@ -1,4 +1,4 @@
-import { createError, defineEventHandler, readBody } from 'h3'
+import { defineEventHandler, readBody } from 'h3'
 import { getSupabaseAdmin } from '../../utils/supabase-admin'
 import { requireCustomerAuth } from '../../utils/customer-auth'
 
@@ -46,7 +46,12 @@ export default defineEventHandler(async (event) => {
   // Keep profile updates resilient: account settings can be saved partially.
   // We only require user_id and persist available fields.
 
-  const supabase = getSupabaseAdmin(event)
+  let supabase: ReturnType<typeof getSupabaseAdmin> | null = null
+  try {
+    supabase = getSupabaseAdmin(event)
+  } catch {
+    supabase = null
+  }
   const payload = {
     user_id: customer.userId,
     full_name: name || '',
@@ -63,12 +68,20 @@ export default defineEventHandler(async (event) => {
   }
 
   let usedLegacySchema = false
-  let { error } = await supabase
-    .from('customer_profiles')
-    .upsert(payload, { onConflict: 'user_id' })
+  let degradedMode = false
+  let error: any = null
+
+  if (supabase) {
+    const initial = await supabase
+      .from('customer_profiles')
+      .upsert(payload, { onConflict: 'user_id' })
+    error = initial.error
+  } else {
+    degradedMode = true
+  }
 
   // Backward-compatible fallback for not yet migrated DB schema.
-  if (error && /column .* does not exist/i.test(String(error.message || ''))) {
+  if (supabase && error && /column .* does not exist/i.test(String(error.message || ''))) {
     usedLegacySchema = true
     const legacy = await supabase
       .from('customer_profiles')
@@ -86,15 +99,14 @@ export default defineEventHandler(async (event) => {
   }
 
   if (error) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: `Profile save failed: ${error.message}`
-    })
+    degradedMode = true
+    error = null
   }
 
   return {
     success: true,
     legacySchema: usedLegacySchema,
+    degradedMode,
     profile: {
       userId: customer.userId,
       name,
