@@ -683,9 +683,7 @@ const toggleNotificationsSetting = async () => {
   errorMessage.value = ''
   infoMessage.value = ''
   try {
-    await auth.saveProfile({
-      notificationsEnabled: nextValue
-    })
+    await auth.setNotificationsEnabled(nextValue)
     if (import.meta.client) {
       try {
         window.localStorage.setItem('osf_stock_notifications_v1', nextValue ? 'enabled' : 'disabled')
@@ -749,6 +747,14 @@ onMounted(async () => {
   restoreProfileDraft()
   await Promise.all([loadOrders(), loadReviews(), loadCurrencyRates()])
 })
+
+watch(
+  () => auth.notificationsEnabled.value,
+  (value) => {
+    form.notificationsEnabled = value === true
+  },
+  { immediate: true }
+)
 
 watch(
   () => auth.profile.value,

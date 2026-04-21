@@ -52,6 +52,7 @@ export const useCustomerAuth = () => {
   const user = useState<User | null>('customer-auth-user', () => null)
   const profile = useState<CustomerProfile | null>('customer-auth-profile', () => null)
   const initialized = useState<boolean>('customer-auth-initialized', () => false)
+  const notificationsPreference = useState<boolean>('customer-auth-notifications-enabled', () => false)
 
   const accessToken = computed(() => String(session.value?.access_token || ''))
   const isAuthenticated = computed(() => !!user.value?.id && !!accessToken.value)
@@ -77,24 +78,35 @@ export const useCustomerAuth = () => {
       about: '',
       currency: 'MDL',
       language: 'ru',
-      notificationsEnabled: true
+      notificationsEnabled: notificationsPreference.value
     }
 
     try {
-      const data = await $fetch<{ success: boolean; profile?: CustomerProfile }>('/api/account/profile', {
+      const data = await $fetch<{ success: boolean; legacySchema?: boolean; profile?: CustomerProfile }>('/api/account/profile', {
         headers: {
           authorization: `Bearer ${accessToken.value}`
         }
       })
+      const legacySchema = data?.legacySchema === true
+      const resolvedNotifications = legacySchema
+        ? notificationsPreference.value
+        : (data?.profile?.notificationsEnabled !== false)
       profile.value = {
         ...(data?.profile || fallbackProfile),
         login: normalizeLogin(data?.profile?.login || metaLogin),
         currency: (data?.profile?.currency || fallbackProfile.currency || 'MDL') as CustomerProfile['currency'],
         language: (data?.profile?.language || fallbackProfile.language || 'ru') as CustomerProfile['language'],
-        notificationsEnabled: data?.profile?.notificationsEnabled ?? fallbackProfile.notificationsEnabled ?? true
+        notificationsEnabled: resolvedNotifications
+      }
+      notificationsPreference.value = resolvedNotifications
+      try {
+        window.localStorage.setItem('osf_stock_notifications_v1', notificationsPreference.value ? 'enabled' : 'disabled')
+      } catch {
+        // Ignore localStorage write failures.
       }
     } catch {
       profile.value = fallbackProfile
+      notificationsPreference.value = fallbackProfile.notificationsEnabled !== false
     }
   }
 
@@ -104,6 +116,13 @@ export const useCustomerAuth = () => {
     if (initPromise) return initPromise
 
     initPromise = (async () => {
+      try {
+        const rawMode = String(window.localStorage.getItem('osf_stock_notifications_v1') || '').trim().toLowerCase()
+        notificationsPreference.value = rawMode === 'enabled'
+      } catch {
+        notificationsPreference.value = false
+      }
+
       const supabase = getClient()
       if (!supabase) {
         initialized.value = true
@@ -228,7 +247,7 @@ export const useCustomerAuth = () => {
       ? input.notificationsEnabled !== false
       : current?.notificationsEnabled !== false
 
-    const data = await $fetch<{ success: boolean; profile?: CustomerProfile }>('/api/account/profile', {
+    const data = await $fetch<{ success: boolean; legacySchema?: boolean; profile?: CustomerProfile }>('/api/account/profile', {
       method: 'PUT',
       headers: {
         authorization: `Bearer ${accessToken.value}`
@@ -246,6 +265,10 @@ export const useCustomerAuth = () => {
         notificationsEnabled
       }
     })
+    const legacySchema = data?.legacySchema === true
+    const resolvedNotifications = legacySchema
+      ? notificationsPreference.value
+      : notificationsEnabled
     profile.value = {
       ...(data?.profile || current || {
         userId: String(user.value?.id || ''),
@@ -262,7 +285,15 @@ export const useCustomerAuth = () => {
       about,
       currency,
       language,
-      notificationsEnabled
+      notificationsEnabled: resolvedNotifications
+    }
+    notificationsPreference.value = resolvedNotifications
+    if (import.meta.client) {
+      try {
+        window.localStorage.setItem('osf_stock_notifications_v1', notificationsPreference.value ? 'enabled' : 'disabled')
+      } catch {
+        // Ignore localStorage write failures.
+      }
     }
 
     const supabase = getClient()
@@ -387,6 +418,25 @@ export const useCustomerAuth = () => {
     session.value = null
     user.value = null
     profile.value = null
+    notificationsPreference.value = false
+  }
+
+  const setNotificationsEnabled = async (enabled: boolean) => {
+    const next = enabled === true
+    if (isAuthenticated.value) {
+      await saveProfile({
+        notificationsEnabled: next
+      })
+    } else {
+      notificationsPreference.value = next
+      if (import.meta.client) {
+        try {
+          window.localStorage.setItem('osf_stock_notifications_v1', next ? 'enabled' : 'disabled')
+        } catch {
+          // Ignore localStorage write failures.
+        }
+      }
+    }
   }
 
   return {
@@ -397,6 +447,7 @@ export const useCustomerAuth = () => {
     signUpWithEmail,
     signInWithOAuth,
     saveProfile,
+    setNotificationsEnabled,
     updatePassword,
     refreshProfile,
     logout,
@@ -404,5 +455,7 @@ export const useCustomerAuth = () => {
     accessToken,
     user,
     profile
+    ,
+    notificationsEnabled: notificationsPreference
   }
 }

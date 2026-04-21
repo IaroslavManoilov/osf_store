@@ -62,12 +62,14 @@ export default defineEventHandler(async (event) => {
     updated_at: new Date().toISOString()
   }
 
+  let usedLegacySchema = false
   let { error } = await supabase
     .from('customer_profiles')
     .upsert(payload, { onConflict: 'user_id' })
 
   // Backward-compatible fallback for not yet migrated DB schema.
   if (error && /column .* does not exist/i.test(String(error.message || ''))) {
+    usedLegacySchema = true
     const legacy = await supabase
       .from('customer_profiles')
       .upsert(
@@ -92,6 +94,7 @@ export default defineEventHandler(async (event) => {
 
   return {
     success: true,
+    legacySchema: usedLegacySchema,
     profile: {
       userId: customer.userId,
       name,

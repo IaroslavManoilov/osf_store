@@ -8,6 +8,7 @@ export default defineEventHandler(async (event) => {
 
   let data: any = null
   let error: any = null
+  let usedLegacySchema = false
 
   const fullSelect = await supabase
     .from('customer_profiles')
@@ -20,6 +21,7 @@ export default defineEventHandler(async (event) => {
 
   // Backward-compatible fallback for databases where new profile columns are not migrated yet.
   if (error && /column .* does not exist/i.test(String(error.message || ''))) {
+    usedLegacySchema = true
     const legacy = await supabase
       .from('customer_profiles')
       .select('user_id, full_name, phone, email')
@@ -70,6 +72,7 @@ export default defineEventHandler(async (event) => {
 
   return {
     success: true,
+    legacySchema: usedLegacySchema,
     profile
   }
 })
