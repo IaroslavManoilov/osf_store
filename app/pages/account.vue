@@ -204,7 +204,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 
 type AccountOrder = {
   id: string
@@ -588,6 +588,8 @@ const saveProfile = async () => {
       language: form.language,
       notificationsEnabled: form.notificationsEnabled
     })
+    await auth.refreshProfile()
+    syncFormFromProfile()
 
     if (import.meta.client) {
       try {
@@ -657,6 +659,14 @@ onMounted(async () => {
   syncFormFromProfile()
   await Promise.all([loadOrders(), loadReviews(), loadCurrencyRates()])
 })
+
+watch(
+  () => auth.profile.value,
+  () => {
+    syncFormFromProfile()
+  },
+  { deep: true }
+)
 </script>
 
 <style scoped>

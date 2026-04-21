@@ -262,6 +262,7 @@ const customerAuth = useCustomerAuth()
 const mobileMenuOpen = ref(false)
 const headerRootRef = ref<HTMLElement | null>(null)
 const notificationsEnabled = ref(false)
+const syncingNotifications = ref(false)
 const notificationsStorageKey = 'osf_stock_notifications_v1'
 const marketingSnapshotKey = 'osf_marketing_snapshot_v1'
 const marketingSeenKey = 'osf_marketing_alerts_seen_v1'
@@ -317,16 +318,33 @@ const notifyLabel = computed(() => {
   return 'Уведомления о поступлении'
 })
 
+const persistNotificationsPreference = async (enabled: boolean) => {
+  if (syncingNotifications.value) return
+  syncingNotifications.value = true
+  try {
+    notificationsEnabled.value = enabled
+    try {
+      window.localStorage.setItem(notificationsStorageKey, enabled ? 'enabled' : 'disabled')
+    } catch {
+      // Ignore storage write failures.
+    }
+    if (customerAuth.isAuthenticated.value) {
+      await customerAuth.saveProfile({
+        notificationsEnabled: enabled
+      })
+    }
+  } catch {
+    // Ignore profile sync failures, keep local value.
+  } finally {
+    syncingNotifications.value = false
+  }
+}
+
 const toggleNotifications = async () => {
   if (!import.meta.client) return
 
   if (notificationsEnabled.value) {
-    notificationsEnabled.value = false
-    try {
-      window.localStorage.setItem(notificationsStorageKey, 'disabled')
-    } catch {
-      // Ignore storage write failures.
-    }
+    await persistNotificationsPreference(false)
     if (locale.value === 'ro') uiStore.showToast('Notificările au fost dezactivate.', 'info')
     else if (locale.value === 'en') uiStore.showToast('Notifications are disabled.', 'info')
     else uiStore.showToast('Уведомления выключены.', 'info')
@@ -351,12 +369,7 @@ const toggleNotifications = async () => {
     return
   }
 
-  notificationsEnabled.value = true
-  try {
-    window.localStorage.setItem(notificationsStorageKey, 'enabled')
-  } catch {
-    // Ignore storage write failures.
-  }
+  await persistNotificationsPreference(true)
 
   if (locale.value === 'ro') uiStore.showToast('Notificările au fost activate.', 'success')
   else if (locale.value === 'en') uiStore.showToast('Notifications are enabled.', 'success')
@@ -509,6 +522,32 @@ watch(
     remindAbandonedCart()
   }, 90_000)
 })
+
+watch(
+  () => customerAuth.profile.value?.notificationsEnabled,
+  (value) => {
+    if (typeof value !== 'boolean') return
+    notificationsEnabled.value = value
+    if (!import.meta.client) return
+    try {
+      window.localStorage.setItem(notificationsStorageKey, value ? 'enabled' : 'disabled')
+    } catch {
+      // Ignore storage write failures.
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => customerAuth.isAuthenticated.value,
+  async (isAuth) => {
+    if (!import.meta.client || !isAuth) return
+    if (!customerAuth.profile.value) {
+      await customerAuth.refreshProfile()
+    }
+  },
+  { immediate: true }
+)
 
 onBeforeUnmount(() => {
   if (!import.meta.client) return
