@@ -162,7 +162,5 @@ export const useShopStore = defineStore('shop', {
     isInWishlist(id: string): boolean {
       return this.wishlist.some((item) => item.id === id)
     }
-  },
-
-  persist: true
+  }
 })
