@@ -23,6 +23,13 @@ const safeText = (value: unknown, max = 120) => String(value || '').trim().slice
 const normalizePhone = (value: unknown) => String(value || '').replace(/[^\d+]/g, '').slice(0, 30)
 const normalizeEmail = (value: unknown) => safeText(value, 160).toLowerCase()
 const normalizeLogin = (value: unknown) => safeText(value, 60).replace(/\s+/g, '')
+const preferNonEmpty = (...values: unknown[]) => {
+  for (const value of values) {
+    const normalized = String(value || '').trim()
+    if (normalized) return normalized
+  }
+  return ''
+}
 
 const getUserMeta = (currentUser: User | null) => {
   const meta = currentUser?.user_metadata
@@ -87,15 +94,55 @@ export const useCustomerAuth = () => {
           authorization: `Bearer ${accessToken.value}`
         }
       })
+      const serverProfile = data?.profile || null
+      const existing = profile.value
+      const serverFirstName = safeText(serverProfile?.firstName, 60)
+      const serverLastName = safeText(serverProfile?.lastName, 60)
+      const fallbackFirstName = safeText(existing?.firstName || meta?.firstName || meta?.given_name, 60)
+      const fallbackLastName = safeText(existing?.lastName || meta?.lastName || meta?.family_name, 60)
+      const resolvedFirstName = preferNonEmpty(serverFirstName, fallbackFirstName)
+      const resolvedLastName = preferNonEmpty(serverLastName, fallbackLastName)
+      const resolvedName = preferNonEmpty(
+        safeText(serverProfile?.name, 100),
+        [resolvedFirstName, resolvedLastName].filter(Boolean).join(' ').trim(),
+        safeText(existing?.name, 100),
+        metaName
+      )
+      const resolvedPhone = preferNonEmpty(
+        normalizePhone(serverProfile?.phone),
+        normalizePhone(existing?.phone),
+        metaPhone
+      )
+      const resolvedEmail = preferNonEmpty(
+        normalizeEmail(serverProfile?.email),
+        normalizeEmail(existing?.email),
+        normalizeEmail(user.value?.email)
+      )
+      const resolvedLogin = preferNonEmpty(
+        normalizeLogin(serverProfile?.login),
+        normalizeLogin(existing?.login),
+        metaLogin
+      )
+      const resolvedAbout = preferNonEmpty(
+        safeText(serverProfile?.about, 500),
+        safeText(existing?.about, 500)
+      )
       const legacySchema = data?.legacySchema === true
       const resolvedNotifications = legacySchema
         ? notificationsPreference.value
-        : (data?.profile?.notificationsEnabled !== false)
+        : (serverProfile?.notificationsEnabled !== false)
       profile.value = {
-        ...(data?.profile || fallbackProfile),
-        login: normalizeLogin(data?.profile?.login || metaLogin),
-        currency: (data?.profile?.currency || fallbackProfile.currency || 'MDL') as CustomerProfile['currency'],
-        language: (data?.profile?.language || fallbackProfile.language || 'ru') as CustomerProfile['language'],
+        ...(serverProfile || fallbackProfile),
+        userId: String(serverProfile?.userId || fallbackProfile.userId || ''),
+        name: resolvedName,
+        firstName: resolvedFirstName,
+        lastName: resolvedLastName,
+        phone: resolvedPhone,
+        email: resolvedEmail,
+        login: resolvedLogin,
+        about: resolvedAbout,
+        currency: (serverProfile?.currency || existing?.currency || fallbackProfile.currency || 'MDL') as CustomerProfile['currency'],
+        language: (serverProfile?.language || existing?.language || fallbackProfile.language || 'ru') as CustomerProfile['language'],
         notificationsEnabled: resolvedNotifications
       }
       notificationsPreference.value = resolvedNotifications
@@ -266,8 +313,9 @@ export const useCustomerAuth = () => {
       }
     })
     const legacySchema = data?.legacySchema === true
+    const explicitNotifications = input.notificationsEnabled !== undefined ? (input.notificationsEnabled !== false) : undefined
     const resolvedNotifications = legacySchema
-      ? notificationsPreference.value
+      ? (explicitNotifications !== undefined ? explicitNotifications : notificationsPreference.value)
       : notificationsEnabled
     profile.value = {
       ...(data?.profile || current || {

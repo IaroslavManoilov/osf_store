@@ -62,7 +62,7 @@
             <section id="settings" class="surface-card account-card">
               <h2>{{ ui.settings }}</h2>
               <p class="account-help">{{ ui.settingsHelp }}</p>
-              <div class="account-settings-grid">
+              <form class="account-settings-grid" @submit.prevent="saveSettings">
                 <label class="field">
                   <span>{{ ui.currency }}</span>
                   <select v-model="form.currency">
@@ -95,7 +95,12 @@
                     <small>{{ ui.notificationsHint }}</small>
                   </div>
                 </label>
-              </div>
+                <div class="field-wide account-form-actions">
+                  <button type="submit" class="btn-main" :disabled="savingSettings || savingNotifications">
+                    {{ savingSettings ? ui.saving : ui.saveSettings }}
+                  </button>
+                </div>
+              </form>
             </section>
 
             <section id="security" class="surface-card account-card">
@@ -230,6 +235,7 @@ const auth = useCustomerAuth()
 const profileDraftStorageKey = 'osf_account_profile_draft_v1'
 
 const savingProfile = ref(false)
+const savingSettings = ref(false)
 const savingPassword = ref(false)
 const savingNotifications = ref(false)
 const showPassword = ref(false)
@@ -338,6 +344,7 @@ const ui = computed(() => {
       about: 'About me',
       aboutPlaceholder: 'Add short info about yourself',
       saveProfile: 'Save profile',
+      saveSettings: 'Save settings',
       settingsHelp: 'Preferred language, currency, and notifications.',
       currency: 'Currency',
       language: 'Language',
@@ -392,6 +399,7 @@ const ui = computed(() => {
       about: 'Despre mine',
       aboutPlaceholder: 'Adaugă câteva informații despre tine',
       saveProfile: 'Salvează profilul',
+      saveSettings: 'Salvează setările',
       settingsHelp: 'Limba, valuta și notificările preferate.',
       currency: 'Valută',
       language: 'Limbă',
@@ -445,6 +453,7 @@ const ui = computed(() => {
     about: 'Обо мне',
     aboutPlaceholder: 'Коротко расскажи о себе',
     saveProfile: 'Сохранить профиль',
+    saveSettings: 'Сохранить настройки',
     settingsHelp: 'Предпочитаемый язык, валюта и уведомления.',
     currency: 'Валюта',
     language: 'Язык',
@@ -673,6 +682,43 @@ const saveProfile = async () => {
     errorMessage.value = error instanceof Error ? error.message : 'Failed to save profile'
   } finally {
     savingProfile.value = false
+  }
+}
+
+const saveSettings = async () => {
+  errorMessage.value = ''
+  infoMessage.value = ''
+  savingSettings.value = true
+  try {
+    await auth.saveProfile({
+      currency: form.currency,
+      language: form.language,
+      notificationsEnabled: form.notificationsEnabled
+    })
+    await auth.refreshProfile()
+    syncFormFromProfile()
+
+    if (import.meta.client) {
+      try {
+        window.localStorage.setItem('osf_pref_currency_v1', form.currency)
+        window.localStorage.setItem('osf_pref_language_v1', form.language)
+        window.localStorage.setItem('osf_stock_notifications_v1', form.notificationsEnabled ? 'enabled' : 'disabled')
+      } catch {
+        // ignore localStorage write failures
+      }
+    }
+
+    if (form.language !== locale.value) {
+      await navigateTo(switchLocalePath(form.language) || localePath('/account'))
+      return
+    }
+
+    infoMessage.value = ui.value.profileSaved
+    saveProfileDraft()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Failed to save settings'
+  } finally {
+    savingSettings.value = false
   }
 }
 
