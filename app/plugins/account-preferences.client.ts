@@ -1,6 +1,14 @@
+import type { Ref } from 'vue'
+
 export default defineNuxtPlugin(async () => {
   const auth = useCustomerAuth()
-  const { locale, setLocale } = useI18n()
+  const nuxtApp = useNuxtApp()
+  const i18n = nuxtApp.$i18n as
+    | {
+        locale?: Ref<string>
+        setLocale?: (locale: 'ru' | 'ro' | 'en') => Promise<void> | void
+      }
+    | undefined
 
   if (!import.meta.client) return
 
@@ -18,8 +26,12 @@ export default defineNuxtPlugin(async () => {
       ? savedLanguage
       : ''
 
-  if (targetLanguage && targetLanguage !== locale.value) {
-    await setLocale(targetLanguage as 'ru' | 'ro' | 'en')
+  if (targetLanguage && targetLanguage !== i18n?.locale?.value) {
+    if (typeof i18n?.setLocale === 'function') {
+      await i18n.setLocale(targetLanguage as 'ru' | 'ro' | 'en')
+    } else if (i18n?.locale) {
+      i18n.locale.value = targetLanguage
+    }
   }
 
   const profileNotices = auth.profile.value?.notificationsEnabled
