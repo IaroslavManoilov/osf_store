@@ -192,20 +192,41 @@ export const useCustomerAuth = () => {
     notificationsEnabled?: boolean
   }) => {
     if (!isAuthenticated.value) throw new Error('Unauthorized')
-    const name = safeText(input.name, 100)
-    const email = safeText(input.email, 120)
-    const phone = normalizePhone(input.phone)
-    const login = normalizeLogin(input.login)
-    const firstName = safeText(input.firstName, 60)
-    const lastName = safeText(input.lastName, 60)
-    const about = safeText(input.about, 500)
-    const currency = ['MDL', 'EUR', 'USD', 'RON'].includes(String(input.currency || '').toUpperCase())
-      ? (String(input.currency || '').toUpperCase() as CustomerProfile['currency'])
-      : 'MDL'
-    const language = ['ru', 'ro', 'en'].includes(String(input.language || '').toLowerCase())
-      ? (String(input.language || '').toLowerCase() as CustomerProfile['language'])
-      : 'ru'
-    const notificationsEnabled = input.notificationsEnabled !== false
+    const current = profile.value
+    const resolvedFirstName = input.firstName !== undefined
+      ? safeText(input.firstName, 60)
+      : safeText(current?.firstName, 60)
+    const resolvedLastName = input.lastName !== undefined
+      ? safeText(input.lastName, 60)
+      : safeText(current?.lastName, 60)
+    const resolvedJoinedName = [resolvedFirstName, resolvedLastName].filter(Boolean).join(' ').trim()
+    const resolvedName = input.name !== undefined
+      ? safeText(input.name, 100)
+      : safeText(current?.name, 100)
+    const name = resolvedName || resolvedJoinedName || safeText(user.value?.user_metadata?.name || user.value?.user_metadata?.full_name, 100)
+    const email = input.email !== undefined
+      ? safeText(input.email, 120)
+      : safeText(current?.email || user.value?.email, 120)
+    const phone = input.phone !== undefined
+      ? normalizePhone(input.phone)
+      : normalizePhone(current?.phone || user.value?.phone || user.value?.user_metadata?.phone)
+    const login = input.login !== undefined
+      ? normalizeLogin(input.login)
+      : normalizeLogin(current?.login || user.value?.user_metadata?.login)
+    const about = input.about !== undefined
+      ? safeText(input.about, 500)
+      : safeText(current?.about, 500)
+    const currencyCandidate = input.currency !== undefined ? String(input.currency) : String(current?.currency || 'MDL')
+    const currency = ['MDL', 'EUR', 'USD', 'RON'].includes(currencyCandidate.toUpperCase())
+      ? (currencyCandidate.toUpperCase() as CustomerProfile['currency'])
+      : ('MDL' as CustomerProfile['currency'])
+    const languageCandidate = input.language !== undefined ? String(input.language) : String(current?.language || 'ru')
+    const language = ['ru', 'ro', 'en'].includes(languageCandidate.toLowerCase())
+      ? (languageCandidate.toLowerCase() as CustomerProfile['language'])
+      : ('ru' as CustomerProfile['language'])
+    const notificationsEnabled = input.notificationsEnabled !== undefined
+      ? input.notificationsEnabled !== false
+      : current?.notificationsEnabled !== false
 
     const data = await $fetch<{ success: boolean; profile?: CustomerProfile }>('/api/account/profile', {
       method: 'PUT',
@@ -214,8 +235,8 @@ export const useCustomerAuth = () => {
       },
       body: {
         name,
-        firstName,
-        lastName,
+        firstName: resolvedFirstName,
+        lastName: resolvedLastName,
         email,
         phone,
         login,
@@ -226,14 +247,17 @@ export const useCustomerAuth = () => {
       }
     })
     profile.value = {
-      ...(data?.profile || profile.value || {
+      ...(data?.profile || current || {
         userId: String(user.value?.id || ''),
         name,
-        firstName,
-        lastName,
+        firstName: resolvedFirstName,
+        lastName: resolvedLastName,
         phone,
         email
       }),
+      name,
+      firstName: resolvedFirstName,
+      lastName: resolvedLastName,
       login,
       about,
       currency,
@@ -248,8 +272,8 @@ export const useCustomerAuth = () => {
           name,
           phone,
           login,
-          firstName,
-          lastName
+          firstName: resolvedFirstName,
+          lastName: resolvedLastName
         }
       })
     }

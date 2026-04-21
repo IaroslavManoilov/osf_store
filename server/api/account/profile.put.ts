@@ -43,28 +43,17 @@ export default defineEventHandler(async (event) => {
   const notificationsEnabled = body?.notificationsEnabled === false ? false : true
   const phone = normalizePhone(body?.phone || customer.phone)
 
-  if (!name) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Name is required'
-    })
-  }
-
-  if (!phone) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Phone is required'
-    })
-  }
+  // Keep profile updates resilient: account settings can be saved partially.
+  // We only require user_id and persist available fields.
 
   const supabase = getSupabaseAdmin(event)
   const payload = {
     user_id: customer.userId,
-    full_name: name,
+    full_name: name || '',
     first_name: firstName,
     last_name: lastName,
     login: login || null,
-    phone,
+    phone: phone || '',
     email: email || null,
     about: about || null,
     currency,

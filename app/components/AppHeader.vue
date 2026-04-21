@@ -321,6 +321,7 @@ const notifyLabel = computed(() => {
 const persistNotificationsPreference = async (enabled: boolean) => {
   if (syncingNotifications.value) return
   syncingNotifications.value = true
+  const previous = notificationsEnabled.value
   try {
     notificationsEnabled.value = enabled
     try {
@@ -334,7 +335,12 @@ const persistNotificationsPreference = async (enabled: boolean) => {
       })
     }
   } catch {
-    // Ignore profile sync failures, keep local value.
+    notificationsEnabled.value = previous
+    try {
+      window.localStorage.setItem(notificationsStorageKey, previous ? 'enabled' : 'disabled')
+    } catch {
+      // Ignore storage write failures.
+    }
   } finally {
     syncingNotifications.value = false
   }
