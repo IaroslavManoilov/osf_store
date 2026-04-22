@@ -6,6 +6,13 @@
           <span class="section-label">{{ ui.label }}</span>
           <h1 class="section-title account-title">{{ ui.title }}</h1>
           <p class="section-text account-subtitle">{{ ui.subtitle }}</p>
+          <div class="hero-meta">
+            <span class="hero-pill">{{ ui.profileCompletion }}: {{ profileCompletionPercent }}%</span>
+            <span class="hero-pill">{{ ui.notifications }}: {{ form.notificationsEnabled ? ui.notificationsOn : ui.notificationsOff }}</span>
+            <span class="hero-pill">{{ ui.currency }}: {{ form.currency }}</span>
+            <span class="hero-pill">{{ ui.language }}: {{ form.language.toUpperCase() }}</span>
+            <span v-if="lastSavedLabel" class="hero-pill">{{ lastSavedLabel }}</span>
+          </div>
         </div>
       </div>
     </section>
@@ -19,12 +26,22 @@
             <a href="#profile" class="account-side-link">{{ ui.profile }}</a>
             <a href="#settings" class="account-side-link">{{ ui.settings }}</a>
             <a href="#security" class="account-side-link">{{ ui.security }}</a>
+            <div class="side-health">
+              <span>{{ ui.profileCompletion }}</span>
+              <div class="side-progress">
+                <span :style="{ width: `${profileCompletionPercent}%` }" />
+              </div>
+              <small>{{ profileCompletionPercent }}%</small>
+            </div>
             <button type="button" class="btn-alt logout-btn" @click="logout">{{ ui.logout }}</button>
           </aside>
 
           <div class="account-main">
             <section id="profile" class="surface-card account-card">
-              <h2>{{ ui.profile }}</h2>
+              <div class="section-head">
+                <h2>{{ ui.profile }}</h2>
+                <span v-if="profileDirty" class="dirty-pill">{{ ui.unsaved }}</span>
+              </div>
               <p class="account-help">{{ ui.profileHelp }}</p>
               <form class="account-form" @submit.prevent="saveProfile">
                 <label class="field">
@@ -52,7 +69,7 @@
                   <textarea v-model.trim="form.about" rows="4" :placeholder="ui.aboutPlaceholder" />
                 </label>
                 <div class="field-wide account-form-actions">
-                  <button type="submit" class="btn-main" :disabled="savingProfile">
+                  <button type="submit" class="btn-main" :disabled="savingProfile || !profileDirty">
                     {{ savingProfile ? ui.saving : ui.saveProfile }}
                   </button>
                 </div>
@@ -60,7 +77,10 @@
             </section>
 
             <section id="settings" class="surface-card account-card">
-              <h2>{{ ui.settings }}</h2>
+              <div class="section-head">
+                <h2>{{ ui.settings }}</h2>
+                <span v-if="settingsDirty" class="dirty-pill">{{ ui.unsaved }}</span>
+              </div>
               <p class="account-help">{{ ui.settingsHelp }}</p>
               <form class="account-settings-grid" @submit.prevent="saveSettings">
                 <label class="field">
@@ -96,8 +116,11 @@
                   </div>
                 </label>
                 <div class="field-wide account-form-actions">
-                  <button type="submit" class="btn-main" :disabled="savingSettings || savingNotifications">
+                  <button type="submit" class="btn-main" :disabled="savingSettings || savingNotifications || !settingsDirty">
                     {{ savingSettings ? ui.saving : ui.saveSettings }}
+                  </button>
+                  <button type="button" class="btn-alt" :disabled="savingSettings || savingNotifications" @click="resetSettings">
+                    {{ ui.resetSettings }}
                   </button>
                 </div>
               </form>
@@ -268,6 +291,23 @@ const passwordForm = reactive({
   confirmPassword: ''
 })
 
+const baselineProfile = reactive({
+  firstName: '',
+  lastName: '',
+  login: '',
+  phone: '',
+  email: '',
+  about: ''
+})
+
+const baselineSettings = reactive({
+  currency: 'MDL' as 'MDL' | 'EUR' | 'USD' | 'RON',
+  language: 'ru' as 'ru' | 'ro' | 'en',
+  notificationsEnabled: true
+})
+
+const lastSavedAt = ref<number | null>(null)
+
 const ui = computed(() => {
   if (locale.value === 'en') {
     return {
@@ -304,6 +344,10 @@ const ui = computed(() => {
       show: 'Show',
       hide: 'Hide',
       saving: 'Saving...',
+      unsaved: 'Unsaved changes',
+      profileCompletion: 'Profile completion',
+      resetSettings: 'Reset settings',
+      savedAt: 'Saved',
       ordersHelp: 'Recent orders and current status.',
       ordersCount: 'Total orders',
       activeOrders: 'Active',
@@ -359,6 +403,10 @@ const ui = computed(() => {
       show: 'Arată',
       hide: 'Ascunde',
       saving: 'Se salvează...',
+      unsaved: 'Modificări nesalvate',
+      profileCompletion: 'Completare profil',
+      resetSettings: 'Resetează setările',
+      savedAt: 'Salvat',
       ordersHelp: 'Comenzi recente și statusul lor.',
       ordersCount: 'Total comenzi',
       activeOrders: 'Active',
@@ -413,6 +461,10 @@ const ui = computed(() => {
     show: 'Показать',
     hide: 'Скрыть',
     saving: 'Сохраняем...',
+    unsaved: 'Есть несохраненные изменения',
+    profileCompletion: 'Заполненность профиля',
+    resetSettings: 'Сбросить настройки',
+    savedAt: 'Сохранено',
     ordersHelp: 'Последние заказы и текущие статусы.',
     ordersCount: 'Всего заказов',
     activeOrders: 'Активные',
@@ -493,6 +545,39 @@ const messages = computed(() => {
 const ratesSourceLabel = computed(() =>
   ratesSource.value === 'curs.md' ? ui.value.ratesSourceLive : ui.value.ratesSourceFallback
 )
+
+const profileDirty = computed(() =>
+  form.firstName !== baselineProfile.firstName
+  || form.lastName !== baselineProfile.lastName
+  || form.login !== baselineProfile.login
+  || form.phone !== baselineProfile.phone
+  || form.email !== baselineProfile.email
+  || form.about !== baselineProfile.about
+)
+
+const settingsDirty = computed(() =>
+  form.currency !== baselineSettings.currency
+  || form.language !== baselineSettings.language
+  || form.notificationsEnabled !== baselineSettings.notificationsEnabled
+)
+
+const profileCompletionPercent = computed(() => {
+  const checks = [
+    form.firstName.trim().length > 0,
+    form.lastName.trim().length > 0,
+    form.login.trim().length > 0,
+    form.phone.trim().length > 0,
+    form.email.trim().length > 0,
+    form.about.trim().length > 0
+  ]
+  const filled = checks.filter(Boolean).length
+  return Math.round((filled / checks.length) * 100)
+})
+
+const lastSavedLabel = computed(() => {
+  if (!lastSavedAt.value) return ''
+  return `${ui.value.savedAt}: ${new Date(lastSavedAt.value).toLocaleTimeString()}`
+})
 
 const convertFromMDL = (value: number) => {
   const target = form.currency
@@ -580,6 +665,17 @@ const syncFormFromProfile = () => {
   form.currency = (profile.currency || 'MDL') as typeof form.currency
   form.language = (profile.language || locale.value || 'ru') as typeof form.language
   form.notificationsEnabled = profile.notificationsEnabled !== false
+
+  baselineProfile.firstName = form.firstName
+  baselineProfile.lastName = form.lastName
+  baselineProfile.login = form.login
+  baselineProfile.phone = form.phone
+  baselineProfile.email = form.email
+  baselineProfile.about = form.about
+
+  baselineSettings.currency = form.currency
+  baselineSettings.language = form.language
+  baselineSettings.notificationsEnabled = form.notificationsEnabled
 }
 
 const saveProfile = async () => {
@@ -616,6 +712,7 @@ const saveProfile = async () => {
     }
 
     infoMessage.value = ui.value.profileSaved
+    lastSavedAt.value = Date.now()
   } catch (error) {
     syncFormFromProfile()
     errorMessage.value = error instanceof Error ? error.message : 'Failed to save profile'
@@ -651,6 +748,7 @@ const saveSettings = async () => {
     }
 
     infoMessage.value = ui.value.profileSaved
+    lastSavedAt.value = Date.now()
   } catch (error) {
     syncFormFromProfile()
     errorMessage.value = error instanceof Error ? error.message : 'Failed to save settings'
@@ -669,12 +767,19 @@ const toggleNotificationsSetting = async () => {
     await auth.setNotificationsEnabled(nextValue)
     syncFormFromProfile()
     infoMessage.value = ui.value.profileSaved
+    lastSavedAt.value = Date.now()
   } catch (error) {
     form.notificationsEnabled = !nextValue
     errorMessage.value = error instanceof Error ? error.message : 'Failed to update notifications'
   } finally {
     savingNotifications.value = false
   }
+}
+
+const resetSettings = () => {
+  form.currency = baselineSettings.currency
+  form.language = baselineSettings.language
+  form.notificationsEnabled = baselineSettings.notificationsEnabled
 }
 
 const changePassword = async () => {
@@ -757,6 +862,25 @@ watch(
   margin: 0;
 }
 
+.hero-meta {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hero-pill {
+  min-height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .account-layout {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
@@ -787,9 +911,62 @@ watch(
   width: 100%;
 }
 
+.side-health {
+  margin-top: 6px;
+  display: grid;
+  gap: 6px;
+}
+
+.side-health span {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.side-progress {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #edf2ec;
+  overflow: hidden;
+}
+
+.side-progress span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2a7b4f, #66a677);
+}
+
+.side-health small {
+  font-size: 12px;
+  font-weight: 800;
+  color: #1f6b43;
+}
+
 .account-main {
   display: grid;
   gap: 14px;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dirty-pill {
+  min-height: 28px;
+  border-radius: 999px;
+  border: 1px solid #e8d6a8;
+  background: #fff9ea;
+  color: #8a6428;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .account-card h2 {
@@ -952,6 +1129,11 @@ watch(
 
 .orders-link {
   margin-top: 12px;
+}
+
+.empty-note {
+  margin: 10px 0 0;
+  color: var(--muted);
 }
 
 .message-item p,
