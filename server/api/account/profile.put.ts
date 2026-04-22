@@ -30,6 +30,10 @@ const normalizeLanguage = (value: unknown) => {
 export default defineEventHandler(async (event) => {
   const customer = await requireCustomerAuth(event)
   const body = await readBody<ProfilePayload>(event)
+  const hasNotificationsEnabled =
+    !!body &&
+    Object.prototype.hasOwnProperty.call(body, 'notificationsEnabled') &&
+    typeof body.notificationsEnabled === 'boolean'
 
   const firstName = safeText(body?.firstName, 60)
   const lastName = safeText(body?.lastName, 60)
@@ -40,7 +44,7 @@ export default defineEventHandler(async (event) => {
   const about = safeText(body?.about, 500)
   const currency = normalizeCurrency(body?.currency)
   const language = normalizeLanguage(body?.language)
-  const notificationsEnabled = body?.notificationsEnabled === false ? false : true
+  const notificationsEnabled = hasNotificationsEnabled ? body.notificationsEnabled !== false : undefined
   const phone = normalizePhone(body?.phone || customer.phone)
 
   // Keep profile updates resilient: account settings can be saved partially.
@@ -52,7 +56,7 @@ export default defineEventHandler(async (event) => {
   } catch {
     supabase = null
   }
-  const payload = {
+  const payload: Record<string, unknown> = {
     user_id: customer.userId,
     full_name: name || '',
     first_name: firstName,
@@ -63,8 +67,10 @@ export default defineEventHandler(async (event) => {
     about: about || null,
     currency,
     preferred_language: language,
-    notifications_enabled: notificationsEnabled,
     updated_at: new Date().toISOString()
+  }
+  if (typeof notificationsEnabled === 'boolean') {
+    payload.notifications_enabled = notificationsEnabled
   }
 
   let usedLegacySchema = false

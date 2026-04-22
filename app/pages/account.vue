@@ -599,7 +599,6 @@ const saveProfile = async () => {
       language: form.language,
       notificationsEnabled: form.notificationsEnabled
     })
-    await auth.refreshProfile()
     syncFormFromProfile()
 
     if (import.meta.client) {
@@ -618,6 +617,7 @@ const saveProfile = async () => {
 
     infoMessage.value = ui.value.profileSaved
   } catch (error) {
+    syncFormFromProfile()
     errorMessage.value = error instanceof Error ? error.message : 'Failed to save profile'
   } finally {
     savingProfile.value = false
@@ -634,7 +634,6 @@ const saveSettings = async () => {
       language: form.language,
       notificationsEnabled: form.notificationsEnabled
     })
-    await auth.refreshProfile()
     syncFormFromProfile()
 
     if (import.meta.client) {
@@ -653,6 +652,7 @@ const saveSettings = async () => {
 
     infoMessage.value = ui.value.profileSaved
   } catch (error) {
+    syncFormFromProfile()
     errorMessage.value = error instanceof Error ? error.message : 'Failed to save settings'
   } finally {
     savingSettings.value = false
@@ -667,7 +667,6 @@ const toggleNotificationsSetting = async () => {
   infoMessage.value = ''
   try {
     await auth.setNotificationsEnabled(nextValue)
-    await auth.refreshProfile()
     syncFormFromProfile()
     infoMessage.value = ui.value.profileSaved
   } catch (error) {

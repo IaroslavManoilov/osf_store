@@ -315,9 +315,68 @@
 
     <section v-if="loaded && orders.length" class="section-space">
       <div class="site-container">
+        <div class="kpi-grid">
+          <article class="kpi-item">
+            <span>{{ ui.kpiTotal }}</span>
+            <strong>{{ adminKpis.total }}</strong>
+          </article>
+          <article class="kpi-item">
+            <span>{{ ui.kpiNew }}</span>
+            <strong>{{ adminKpis.newOrders }}</strong>
+          </article>
+          <article class="kpi-item">
+            <span>{{ ui.kpiProgress }}</span>
+            <strong>{{ adminKpis.progress }}</strong>
+          </article>
+          <article class="kpi-item">
+            <span>{{ ui.kpiDelivered }}</span>
+            <strong>{{ adminKpis.delivered }}</strong>
+          </article>
+          <article class="kpi-item">
+            <span>{{ ui.kpiPendingPayment }}</span>
+            <strong>{{ adminKpis.pendingPayment }}</strong>
+          </article>
+          <article class="kpi-item">
+            <span>{{ ui.kpiPaid }}</span>
+            <strong>{{ adminKpis.paid }}</strong>
+          </article>
+          <article
+            class="kpi-item"
+            :class="{ active: quickFilter === 'attention' }"
+            role="button"
+            tabindex="0"
+            @click="applyQuickFilter('attention')"
+            @keydown.enter.prevent="applyQuickFilter('attention')"
+            @keydown.space.prevent="applyQuickFilter('attention')"
+          >
+            <span>{{ ui.kpiAttention }}</span>
+            <strong>{{ adminKpis.attention }}</strong>
+          </article>
+          <article class="kpi-item kpi-wide">
+            <span>{{ ui.kpiRevenue }}</span>
+            <strong>{{ Math.round(adminKpis.revenue) }} MDL</strong>
+          </article>
+        </div>
+
         <div class="admin-topbar">
           <div class="orders-filters">
-            <strong>{{ ui.ordersCount }}: {{ orders.length }}</strong>
+            <strong>{{ ui.ordersCount }}: {{ sortedOrders.length }} / {{ orders.length }}</strong>
+            <input
+              v-model.trim="orderSearch"
+              class="status-filter orders-search"
+              type="search"
+              :placeholder="ui.searchOrders"
+            />
+            <select v-model="sortBy" class="status-filter sort-filter">
+              <option value="newest">{{ ui.sortNewest }}</option>
+              <option value="oldest">{{ ui.sortOldest }}</option>
+              <option value="total_desc">{{ ui.sortTotalDesc }}</option>
+              <option value="total_asc">{{ ui.sortTotalAsc }}</option>
+              <option value="priority">{{ ui.sortPriority }}</option>
+            </select>
+            <select v-model.number="pageSize" class="status-filter page-size-filter">
+              <option v-for="size in pageSizeOptions" :key="`ps-${size}`" :value="size">{{ ui.perPage }}: {{ size }}</option>
+            </select>
             <select v-model="statusFilter" class="status-filter" @change="loadOrders">
               <option value="">{{ ui.statusAll }}</option>
               <option v-for="status in statuses" :key="status" :value="status">{{ statusLabel(status) }}</option>
@@ -330,6 +389,62 @@
             <button type="button" class="btn-alt" @click="loadOrders">{{ ui.applyFilters }}</button>
             <button type="button" class="btn-alt" @click="resetOrderFilters">{{ ui.resetFilters }}</button>
           </div>
+        </div>
+
+        <div class="surface-card ai-insights-card">
+          <div class="ai-insights-head">
+            <h2>{{ ui.aiTitle }}</h2>
+            <button type="button" class="btn-main" :disabled="aiLoading" @click="generateAiInsights">
+              {{ aiLoading ? ui.loading : ui.aiRun }}
+            </button>
+          </div>
+          <p class="ai-insights-subtitle">{{ ui.aiSubtitle }}</p>
+          <p v-if="aiError" class="admin-error">{{ aiError }}</p>
+
+          <template v-if="aiInsights">
+            <p class="ai-summary">
+              <strong>{{ ui.aiSummary }}:</strong> {{ aiInsights.summary }}
+              <span class="ai-source" :class="`src-${aiInsights.source}`">
+                {{ aiInsights.source === 'ai' ? ui.aiSourceAi : ui.aiSourceFallback }}
+              </span>
+            </p>
+            <div class="ai-columns">
+              <div>
+                <strong>{{ ui.aiRisks }}</strong>
+                <ul>
+                  <li v-for="(risk, index) in aiInsights.topRisks" :key="`risk-${index}`">{{ risk }}</li>
+                </ul>
+              </div>
+              <div>
+                <strong>{{ ui.aiActions }}</strong>
+                <ul>
+                  <li v-for="(action, index) in aiInsights.actions" :key="`action-${index}`">{{ action }}</li>
+                </ul>
+              </div>
+            </div>
+            <div v-if="aiInsights.priorityOrderIds.length" class="ai-priority-row">
+              <strong>{{ ui.aiPriority }}</strong>
+              <div class="ai-priority-chips">
+                <span v-for="id in aiInsights.priorityOrderIds" :key="`prio-${id}`" class="priority-pill priority-high">{{ id }}</span>
+              </div>
+              <button type="button" class="btn-main" :disabled="savingId !== ''" @click="applyAiPriorityQueue">
+                {{ ui.aiTakePriority }}
+              </button>
+            </div>
+          </template>
+        </div>
+
+        <div class="quick-filters">
+          <button
+            v-for="filter in quickFilters"
+            :key="`quick-${filter.value}`"
+            type="button"
+            class="quick-filter-btn"
+            :class="{ active: quickFilter === filter.value }"
+            @click="applyQuickFilter(filter.value as 'all' | 'new' | 'progress' | 'delivered' | 'pending_payment' | 'paid' | 'attention')"
+          >
+            {{ filter.label }}
+          </button>
         </div>
 
         <div class="surface-card bulk-status-card">
@@ -363,8 +478,8 @@
           </div>
         </div>
 
-        <div class="orders-grid">
-          <article v-for="order in orders" :key="order.id" class="surface-card order-card">
+        <div class="orders-grid" v-if="pagedOrders.length">
+          <article v-for="order in pagedOrders" :key="order.id" class="surface-card order-card" :class="{ 'order-card-risk': isAttentionOrder(order) }">
             <div class="order-head">
               <div>
                 <label class="order-select-row">
@@ -374,7 +489,12 @@
                 <h2>{{ order.id }}</h2>
                 <p>{{ formatDate(order.createdAt) }}</p>
               </div>
-              <span class="status-pill" :class="`s-${order.status}`">{{ statusLabel(order.status) }}</span>
+              <div class="order-head-statuses">
+                <span v-if="isAttentionOrder(order)" class="attention-pill">{{ ui.attentionLabel }}</span>
+                <span class="priority-pill" :class="`priority-${orderPriority(order)}`">{{ orderPriorityLabel(order) }}</span>
+                <span class="sla-pill" :class="`sla-${slaState(order).level}`">{{ slaState(order).label }}</span>
+                <span class="status-pill" :class="`s-${order.status}`">{{ statusLabel(order.status) }}</span>
+              </div>
             </div>
 
             <div class="order-meta">
@@ -400,6 +520,22 @@
                   <span v-if="item.selectedSize"> · {{ ui.size }}: {{ item.selectedSize }}</span>
                 </li>
               </ul>
+            </div>
+
+            <div class="order-quick-actions">
+              <button
+                v-if="canTakeInWork(order)"
+                type="button"
+                class="btn-main"
+                :disabled="savingId === order.id"
+                @click="takeInWork(order)"
+              >
+                {{ savingId === order.id ? ui.saving : ui.takeInWork }}
+              </button>
+              <button type="button" class="btn-alt" @click="applyQuickStatus(order, 'confirmed')">{{ ui.quickConfirm }}</button>
+              <button type="button" class="btn-alt" @click="applyQuickStatus(order, 'shipped')">{{ ui.quickShip }}</button>
+              <button type="button" class="btn-alt" @click="applyQuickStatus(order, 'delivered')">{{ ui.quickDeliver }}</button>
+              <button type="button" class="btn-alt danger" @click="applyQuickStatus(order, 'cancelled')">{{ ui.quickCancel }}</button>
             </div>
 
 	            <div class="order-foot">
@@ -448,6 +584,23 @@
             </div>
           </article>
         </div>
+
+        <div v-if="sortedOrders.length" class="orders-pagination">
+          <span class="orders-pagination-info">{{ paginationText }}</span>
+          <div class="orders-pagination-actions">
+            <button type="button" class="btn-alt" :disabled="currentPage <= 1" @click="goToPage(currentPage - 1)">
+              {{ ui.prevPage }}
+            </button>
+            <button type="button" class="btn-alt" :disabled="currentPage >= totalPages" @click="goToPage(currentPage + 1)">
+              {{ ui.nextPage }}
+            </button>
+          </div>
+        </div>
+
+        <div v-else class="surface-card empty-box">
+          <h2>{{ ui.noMatchesTitle }}</h2>
+          <p>{{ ui.noMatchesText }}</p>
+        </div>
       </div>
     </section>
 
@@ -463,7 +616,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getProducts } from '../data/products'
 
@@ -598,12 +751,21 @@ type EnvMissingItem = {
   fix: string
 }
 
+type AdminAiInsights = {
+  source: 'ai' | 'heuristic'
+  summary: string
+  topRisks: string[]
+  actions: string[]
+  priorityOrderIds: string[]
+}
+
 const { locale } = useI18n()
 const uiStore = useUiStore()
 const runtimeConfig = useRuntimeConfig()
 
 const statuses: OrderStatus[] = ['new', 'confirmed', 'assembled', 'shipped', 'delivered', 'cancelled', 'returned']
 const adminActorStorageKey = 'osf_admin_actor_v1'
+const adminFiltersStorageKey = 'osf_admin_filters_v1'
 
 const adminKey = ref('')
 const adminActor = ref('Owner')
@@ -612,8 +774,13 @@ const loaded = ref(false)
 const savingId = ref('')
 const statusFilter = ref('')
 const paymentFilter = ref<'all' | 'pending' | 'paid' | 'cash_on_delivery'>('all')
+const quickFilter = ref<'all' | 'new' | 'progress' | 'delivered' | 'pending_payment' | 'paid' | 'attention'>('all')
+const orderSearch = ref('')
 const dateFrom = ref('')
 const dateTo = ref('')
+const sortBy = ref<'newest' | 'oldest' | 'total_desc' | 'total_asc' | 'priority'>('newest')
+const pageSize = ref(12)
+const currentPage = ref(1)
 const errorMessage = ref('')
 const csrfToken = ref('')
 const orders = ref<AdminOrder[]>([])
@@ -645,15 +812,19 @@ const readinessLoading = ref(false)
 const readinessUpdatedAt = ref('')
 const readinessData = ref<ReadinessChecks | null>(null)
 const showEnvChecklist = ref(false)
+const aiLoading = ref(false)
+const aiError = ref('')
+const aiInsights = ref<AdminAiInsights | null>(null)
 const paymentFilters = [
   { value: 'all' },
   { value: 'pending' },
   { value: 'paid' },
   { value: 'cash_on_delivery' }
 ] as const
+const pageSizeOptions = [12, 24, 48] as const
 
 const selectedCount = computed(() => selectedOrderIds.value.length)
-const allVisibleSelected = computed(() => !!orders.value.length && orders.value.every((order) => selectedOrderIds.value.includes(order.id)))
+const allVisibleSelected = computed(() => !!pagedOrders.value.length && pagedOrders.value.every((order) => selectedOrderIds.value.includes(order.id)))
 const launchHeaderText = computed(() => locale.value === 'en' ? 'Go-live checklist 1-5' : locale.value === 'ro' ? 'Checklist lansare 1-5' : 'Боевой запуск 1-5')
 const launchRefreshText = computed(() => locale.value === 'en' ? 'Refresh checklist' : locale.value === 'ro' ? 'Reîncarcă checklist' : 'Обновить чеклист')
 const launchUpdatedText = computed(() => locale.value === 'en' ? 'Updated' : locale.value === 'ro' ? 'Actualizat' : 'Обновлено')
@@ -1111,6 +1282,51 @@ const ui = computed(() => {
       changedBy: 'De:',
       auditUnknown: 'admin',
       auditEmpty: 'Nu există istoric de status.',
+      kpiTotal: 'Total comenzi',
+      kpiNew: 'Noi',
+      kpiProgress: 'În lucru',
+      kpiDelivered: 'Livrate',
+      kpiPendingPayment: 'Plată în așteptare',
+      kpiPaid: 'Plătite',
+      kpiAttention: 'Necesită atenție',
+      kpiRevenue: 'Venit (filtru curent)',
+      quickAll: 'Toate',
+      quickNew: 'Noi',
+      quickProgress: 'În lucru',
+      quickDelivered: 'Livrate',
+      quickPendingPayment: 'Așteaptă plată',
+      quickPaid: 'Plătite',
+      quickAttention: 'Necesită atenție',
+      attentionLabel: 'Atenție',
+      searchOrders: 'Caută după ID, telefon, email, nume',
+      sortNewest: 'Mai noi primele',
+      sortOldest: 'Mai vechi primele',
+      sortTotalDesc: 'Suma: mare -> mic',
+      sortTotalAsc: 'Suma: mic -> mare',
+      sortPriority: 'Prioritate',
+      perPage: 'Pe pagină',
+      prevPage: 'Pagina anterioară',
+      nextPage: 'Pagina următoare',
+      noMatchesTitle: 'Nu există rezultate pentru acest filtru',
+      noMatchesText: 'Schimbă filtrul rapid sau resetează căutarea.',
+      quickConfirm: 'Confirmă',
+      quickShip: 'Expediază',
+      quickDeliver: 'Livrează',
+      quickCancel: 'Anulează',
+      takeInWork: 'Preia în lucru',
+      priorityHigh: 'Prioritate mare',
+      priorityMedium: 'Prioritate medie',
+      priorityNormal: 'Normal',
+      aiTitle: 'AI operațional',
+      aiSubtitle: 'Analiză automată a comenzilor: riscuri SLA, blocaje și acțiuni recomandate.',
+      aiRun: 'Rulează analiză AI',
+      aiSummary: 'Sumar',
+      aiRisks: 'Riscuri cheie',
+      aiActions: 'Acțiuni recomandate',
+      aiPriority: 'Coada AI prioritară',
+      aiTakePriority: 'Preia top-risc în lucru',
+      aiSourceAi: 'Sursă: AI',
+      aiSourceFallback: 'Sursă: fallback',
       emptyTitle: 'Nu există comenzi',
       emptyText: 'După checkout, comenzile vor apărea aici.',
       sessionExpired: 'Sesiunea admin a expirat. Conectează-te din nou.'
@@ -1188,6 +1404,51 @@ const ui = computed(() => {
       changedBy: 'By:',
       auditUnknown: 'admin',
       auditEmpty: 'No status history yet.',
+      kpiTotal: 'Total orders',
+      kpiNew: 'New',
+      kpiProgress: 'In progress',
+      kpiDelivered: 'Delivered',
+      kpiPendingPayment: 'Pending payment',
+      kpiPaid: 'Paid',
+      kpiAttention: 'Needs attention',
+      kpiRevenue: 'Revenue (current filter)',
+      quickAll: 'All',
+      quickNew: 'New',
+      quickProgress: 'In progress',
+      quickDelivered: 'Delivered',
+      quickPendingPayment: 'Pending pay',
+      quickPaid: 'Paid',
+      quickAttention: 'Needs attention',
+      attentionLabel: 'Attention',
+      searchOrders: 'Search by ID, phone, email, customer',
+      sortNewest: 'Newest first',
+      sortOldest: 'Oldest first',
+      sortTotalDesc: 'Amount: high to low',
+      sortTotalAsc: 'Amount: low to high',
+      sortPriority: 'Priority',
+      perPage: 'Per page',
+      prevPage: 'Previous',
+      nextPage: 'Next',
+      noMatchesTitle: 'No matches for this filter',
+      noMatchesText: 'Change quick filter or reset search.',
+      quickConfirm: 'Confirm',
+      quickShip: 'Ship',
+      quickDeliver: 'Deliver',
+      quickCancel: 'Cancel',
+      takeInWork: 'Take in work',
+      priorityHigh: 'High priority',
+      priorityMedium: 'Medium priority',
+      priorityNormal: 'Normal',
+      aiTitle: 'AI operations',
+      aiSubtitle: 'Automatic order analysis for SLA risk, bottlenecks, and next best actions.',
+      aiRun: 'Run AI insights',
+      aiSummary: 'Summary',
+      aiRisks: 'Top risks',
+      aiActions: 'Recommended actions',
+      aiPriority: 'AI priority queue',
+      aiTakePriority: 'Take top-risk in work',
+      aiSourceAi: 'Source: AI',
+      aiSourceFallback: 'Source: fallback',
       emptyTitle: 'No orders yet',
       emptyText: 'Orders from checkout will appear here.',
       sessionExpired: 'Admin session expired. Please sign in again.'
@@ -1264,11 +1525,269 @@ const ui = computed(() => {
     changedBy: 'Кто:',
     auditUnknown: 'admin',
     auditEmpty: 'История статусов пока пуста.',
+    kpiTotal: 'Всего заказов',
+    kpiNew: 'Новые',
+    kpiProgress: 'В работе',
+    kpiDelivered: 'Доставлены',
+    kpiPendingPayment: 'Ожидают оплату',
+    kpiPaid: 'Оплачены',
+    kpiAttention: 'Требуют внимания',
+    kpiRevenue: 'Выручка (текущий фильтр)',
+    quickAll: 'Все',
+    quickNew: 'Новые',
+    quickProgress: 'В работе',
+    quickDelivered: 'Доставлены',
+    quickPendingPayment: 'К оплате',
+    quickPaid: 'Оплачены',
+    quickAttention: 'Требуют внимания',
+    attentionLabel: 'Внимание',
+    searchOrders: 'Поиск по ID, телефону, email, имени',
+    sortNewest: 'Сначала новые',
+    sortOldest: 'Сначала старые',
+    sortTotalDesc: 'Сумма: больше -> меньше',
+    sortTotalAsc: 'Сумма: меньше -> больше',
+    sortPriority: 'По приоритету',
+    perPage: 'На странице',
+    prevPage: 'Назад',
+    nextPage: 'Вперёд',
+    noMatchesTitle: 'По этому фильтру ничего не найдено',
+    noMatchesText: 'Смени быстрый фильтр или сбрось поиск.',
+    quickConfirm: 'Подтвердить',
+    quickShip: 'Отправить',
+    quickDeliver: 'Доставлен',
+    quickCancel: 'Отменить',
+    takeInWork: 'Взять в работу',
+    priorityHigh: 'Высокий приоритет',
+    priorityMedium: 'Средний приоритет',
+    priorityNormal: 'Нормальный',
+    aiTitle: 'AI-оператор',
+    aiSubtitle: 'Автоанализ заказов: SLA-риск, узкие места и конкретные действия.',
+    aiRun: 'Запустить AI-анализ',
+    aiSummary: 'Сводка',
+    aiRisks: 'Ключевые риски',
+    aiActions: 'Рекомендованные действия',
+    aiPriority: 'Приоритетная очередь AI',
+    aiTakePriority: 'Взять top-risk в работу',
+    aiSourceAi: 'Источник: AI',
+    aiSourceFallback: 'Источник: fallback',
     emptyTitle: 'Заказов пока нет',
     emptyText: 'После checkout заказы появятся здесь.',
     sessionExpired: 'Сессия админа истекла. Войдите снова.'
   }
 })
+
+const orderSearchNormalized = computed(() => orderSearch.value.trim().toLowerCase())
+
+const orderAgeHours = (order: AdminOrder) => {
+  const ageMs = Date.now() - new Date(order.createdAt).getTime()
+  return Math.max(0, ageMs / (1000 * 60 * 60))
+}
+
+const statusSlaHours = (status: OrderStatus) => {
+  if (status === 'new') return 2
+  if (status === 'confirmed' || status === 'assembled') return 24
+  if (status === 'shipped') return 72
+  return Number.POSITIVE_INFINITY
+}
+
+const formatSlaHours = (hours: number) => {
+  if (locale.value === 'en') return `${Math.round(hours)}h`
+  if (locale.value === 'ro') return `${Math.round(hours)}h`
+  return `${Math.round(hours)}ч`
+}
+
+const slaState = (order: AdminOrder) => {
+  const maxHours = statusSlaHours(order.status)
+  if (!Number.isFinite(maxHours)) {
+    return {
+      level: 'done' as const,
+      label: locale.value === 'en' ? 'SLA completed' : locale.value === 'ro' ? 'SLA finalizat' : 'SLA завершен'
+    }
+  }
+  const ageHours = orderAgeHours(order)
+  const remaining = maxHours - ageHours
+
+  if (remaining <= 0) {
+    return {
+      level: 'risk' as const,
+      label: locale.value === 'en' ? `SLA overdue ${formatSlaHours(Math.abs(remaining))}` : locale.value === 'ro' ? `SLA depășit ${formatSlaHours(Math.abs(remaining))}` : `SLA просрочен ${formatSlaHours(Math.abs(remaining))}`
+    }
+  }
+
+  const ratio = ageHours / maxHours
+  if (ratio >= 0.75) {
+    return {
+      level: 'warn' as const,
+      label: locale.value === 'en' ? `SLA left ${formatSlaHours(remaining)}` : locale.value === 'ro' ? `SLA rămas ${formatSlaHours(remaining)}` : `До SLA ${formatSlaHours(remaining)}`
+    }
+  }
+
+  return {
+    level: 'ok' as const,
+    label: locale.value === 'en' ? `SLA ${formatSlaHours(remaining)} left` : locale.value === 'ro' ? `SLA ${formatSlaHours(remaining)} rămas` : `SLA: ${formatSlaHours(remaining)}`
+  }
+}
+
+const isAttentionOrder = (order: AdminOrder) => {
+  const ageHours = orderAgeHours(order)
+  if (order.status === 'cancelled' || order.status === 'returned' || order.status === 'delivered') return false
+  if (order.status === 'new' && ageHours >= 2) return true
+  if (order.payment.status === 'pending' && ageHours >= 6) return true
+  if ((order.status === 'confirmed' || order.status === 'assembled') && ageHours >= 24) return true
+  if (order.status === 'shipped' && ageHours >= 72) return true
+  return false
+}
+
+const matchesQuickFilter = (order: AdminOrder) => {
+  if (quickFilter.value === 'all') return true
+  if (quickFilter.value === 'new') return order.status === 'new'
+  if (quickFilter.value === 'progress') return order.status === 'confirmed' || order.status === 'assembled' || order.status === 'shipped'
+  if (quickFilter.value === 'delivered') return order.status === 'delivered'
+  if (quickFilter.value === 'pending_payment') return order.payment.status === 'pending'
+  if (quickFilter.value === 'paid') return order.payment.status === 'paid'
+  if (quickFilter.value === 'attention') return isAttentionOrder(order)
+  return true
+}
+
+const matchesSearch = (order: AdminOrder) => {
+  const query = orderSearchNormalized.value
+  if (!query) return true
+  const haystack = [
+    order.id,
+    order.customer.name,
+    order.customer.phone,
+    order.customer.email || '',
+    order.customer.address
+  ]
+    .join(' ')
+    .toLowerCase()
+  return haystack.includes(query)
+}
+
+const displayOrders = computed(() => orders.value.filter((order) => matchesQuickFilter(order) && matchesSearch(order)))
+
+const sortRank = (order: AdminOrder) => {
+  const value = orderPriority(order)
+  if (value === 'high') return 3
+  if (value === 'medium') return 2
+  return 1
+}
+
+const sortedOrders = computed(() => {
+  const list = [...displayOrders.value]
+  if (sortBy.value === 'oldest') {
+    return list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+  }
+  if (sortBy.value === 'total_desc') {
+    return list.sort((a, b) => Number(b.total || 0) - Number(a.total || 0))
+  }
+  if (sortBy.value === 'total_asc') {
+    return list.sort((a, b) => Number(a.total || 0) - Number(b.total || 0))
+  }
+  if (sortBy.value === 'priority') {
+    return list.sort((a, b) => {
+      const diff = sortRank(b) - sortRank(a)
+      if (diff !== 0) return diff
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
+  }
+  return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+})
+
+const totalPages = computed(() => Math.max(1, Math.ceil(sortedOrders.value.length / pageSize.value)))
+
+const pagedOrders = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return sortedOrders.value.slice(start, start + pageSize.value)
+})
+
+const paginationText = computed(() => {
+  const total = sortedOrders.value.length
+  if (!total) return ''
+  const from = (currentPage.value - 1) * pageSize.value + 1
+  const to = Math.min(total, from + pageSize.value - 1)
+  if (locale.value === 'en') return `${from}-${to} of ${total} · Page ${currentPage.value}/${totalPages.value}`
+  if (locale.value === 'ro') return `${from}-${to} din ${total} · Pagina ${currentPage.value}/${totalPages.value}`
+  return `${from}-${to} из ${total} · Страница ${currentPage.value}/${totalPages.value}`
+})
+
+const adminKpis = computed(() => {
+  const list = displayOrders.value
+  const progress = list.filter((order) => order.status === 'confirmed' || order.status === 'assembled' || order.status === 'shipped').length
+  const revenue = list.reduce((sum, order) => sum + Number(order.total || 0), 0)
+  return {
+    total: list.length,
+    newOrders: list.filter((order) => order.status === 'new').length,
+    progress,
+    delivered: list.filter((order) => order.status === 'delivered').length,
+    pendingPayment: list.filter((order) => order.payment.status === 'pending').length,
+    paid: list.filter((order) => order.payment.status === 'paid').length,
+    attention: list.filter((order) => isAttentionOrder(order)).length,
+    revenue
+  }
+})
+
+const quickFilters = computed(() => [
+  { value: 'all', label: ui.value.quickAll },
+  { value: 'new', label: ui.value.quickNew },
+  { value: 'progress', label: ui.value.quickProgress },
+  { value: 'delivered', label: ui.value.quickDelivered },
+  { value: 'pending_payment', label: ui.value.quickPendingPayment },
+  { value: 'paid', label: ui.value.quickPaid },
+  { value: 'attention', label: ui.value.quickAttention }
+])
+
+const orderPriority = (order: AdminOrder): 'high' | 'medium' | 'normal' => {
+  if (isAttentionOrder(order)) return 'high'
+  if (order.payment.status === 'pending' || order.status === 'new') return 'medium'
+  return 'normal'
+}
+
+const orderPriorityLabel = (order: AdminOrder) => {
+  const value = orderPriority(order)
+  if (value === 'high') return ui.value.priorityHigh
+  if (value === 'medium') return ui.value.priorityMedium
+  return ui.value.priorityNormal
+}
+
+const canTakeInWork = (order: AdminOrder) => {
+  if (['cancelled', 'returned', 'delivered'].includes(order.status)) return false
+  return orderPriority(order) === 'high'
+}
+
+const takeInWork = async (order: AdminOrder) => {
+  const nextStatus: OrderStatus =
+    order.status === 'new'
+      ? 'confirmed'
+      : order.status === 'confirmed'
+        ? 'assembled'
+        : order.status
+
+  if (nextStatus === order.status) return
+
+  draftStatus[order.id] = nextStatus
+  draftNote[order.id] =
+    locale.value === 'en'
+      ? 'Taken in work from priority queue'
+      : locale.value === 'ro'
+        ? 'Preluată în lucru din coada prioritară'
+        : 'Взято в работу из приоритетной очереди'
+  await updateStatus(order.id)
+}
+
+const applyQuickFilter = (value: 'all' | 'new' | 'progress' | 'delivered' | 'pending_payment' | 'paid' | 'attention') => {
+  quickFilter.value = value
+  currentPage.value = 1
+}
+
+const applyQuickStatus = async (order: AdminOrder, nextStatus: OrderStatus) => {
+  if (order.status === nextStatus) return
+  draftStatus[order.id] = nextStatus
+  const from = statusLabel(order.status)
+  const to = statusLabel(nextStatus)
+  draftNote[order.id] = `${from} -> ${to}`
+  await updateStatus(order.id)
+}
 
 const statusLabel = (status: OrderStatus) => {
   if (locale.value === 'ro') {
@@ -1429,11 +1948,15 @@ const toggleAllVisible = (event: Event) => {
   const checked = !!target?.checked
 
   if (checked) {
-    selectedOrderIds.value = Array.from(new Set([...selectedOrderIds.value, ...orders.value.map((item) => item.id)]))
+    selectedOrderIds.value = Array.from(new Set([...selectedOrderIds.value, ...pagedOrders.value.map((item) => item.id)]))
   } else {
-    const visible = new Set(orders.value.map((item) => item.id))
+    const visible = new Set(pagedOrders.value.map((item) => item.id))
     selectedOrderIds.value = selectedOrderIds.value.filter((id) => !visible.has(id))
   }
+}
+
+const goToPage = (page: number) => {
+  currentPage.value = Math.min(totalPages.value, Math.max(1, Math.floor(page || 1)))
 }
 
 const loadInventory = async () => {
@@ -2003,9 +2526,77 @@ const loadOrders = async () => {
   await loadReadiness()
 }
 
+const generateAiInsights = async () => {
+  aiLoading.value = true
+  aiError.value = ''
+  try {
+    const response = await $fetch<{
+      success: boolean
+      source: 'ai' | 'heuristic'
+      summary: string
+      topRisks: string[]
+      actions: string[]
+      priorityOrderIds?: string[]
+    }>('/api/admin/ai/orders-insights', {
+      method: 'POST',
+      headers: csrfToken.value
+        ? {
+            'x-csrf-token': csrfToken.value
+          }
+        : undefined,
+      body: {
+        locale: locale.value === 'en' || locale.value === 'ro' ? locale.value : 'ru',
+        orders: displayOrders.value.map((order) => ({
+          id: order.id,
+          createdAt: order.createdAt,
+          total: order.total,
+          status: order.status,
+          payment: {
+            status: order.payment.status
+          },
+          customer: {
+            phone: order.customer.phone,
+            address: order.customer.address
+          },
+          items: order.items.map((item) => ({
+            quantity: item.quantity
+          }))
+        }))
+      }
+    })
+
+    aiInsights.value = {
+      source: response.source,
+      summary: response.summary,
+      topRisks: Array.isArray(response.topRisks) ? response.topRisks.filter(Boolean).slice(0, 3) : [],
+      actions: Array.isArray(response.actions) ? response.actions.filter(Boolean).slice(0, 3) : [],
+      priorityOrderIds: Array.isArray(response.priorityOrderIds) ? response.priorityOrderIds.filter(Boolean).slice(0, 3) : []
+    }
+  } catch (error) {
+    aiError.value = resolveErrorMessage(error)
+  } finally {
+    aiLoading.value = false
+  }
+}
+
+const applyAiPriorityQueue = async () => {
+  const ids = (aiInsights.value?.priorityOrderIds || []).filter(Boolean)
+  if (!ids.length) return
+
+  const map = new Map(orders.value.map((order) => [order.id, order]))
+  for (const id of ids) {
+    const order = map.get(id)
+    if (!order) continue
+    if (!canTakeInWork(order)) continue
+    await takeInWork(order)
+  }
+}
+
 const resetOrderFilters = async () => {
   statusFilter.value = ''
   paymentFilter.value = 'all'
+  quickFilter.value = 'all'
+  orderSearch.value = ''
   dateFrom.value = ''
   dateTo.value = ''
   await loadOrders()
@@ -2169,6 +2760,49 @@ const persistAdminActor = () => {
   window.localStorage.setItem(adminActorStorageKey, adminActor.value.trim() || 'Owner')
 }
 
+const persistAdminFilters = () => {
+  if (!import.meta.client) return
+  const payload = {
+    statusFilter: statusFilter.value,
+    paymentFilter: paymentFilter.value,
+    quickFilter: quickFilter.value,
+    orderSearch: orderSearch.value,
+    dateFrom: dateFrom.value,
+    dateTo: dateTo.value,
+    sortBy: sortBy.value,
+    pageSize: pageSize.value
+  }
+  window.localStorage.setItem(adminFiltersStorageKey, JSON.stringify(payload))
+}
+
+const loadPersistedAdminFilters = () => {
+  if (!import.meta.client) return
+  try {
+    const raw = window.localStorage.getItem(adminFiltersStorageKey)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as Partial<{
+      statusFilter: string
+      paymentFilter: 'all' | 'pending' | 'paid' | 'cash_on_delivery'
+      quickFilter: 'all' | 'new' | 'progress' | 'delivered' | 'pending_payment' | 'paid' | 'attention'
+      orderSearch: string
+      dateFrom: string
+      dateTo: string
+      sortBy: 'newest' | 'oldest' | 'total_desc' | 'total_asc' | 'priority'
+      pageSize: number
+    }>
+    statusFilter.value = typeof parsed.statusFilter === 'string' ? parsed.statusFilter : ''
+    paymentFilter.value = parsed.paymentFilter && paymentFilters.some((item) => item.value === parsed.paymentFilter) ? parsed.paymentFilter : 'all'
+    quickFilter.value = parsed.quickFilter || 'all'
+    orderSearch.value = typeof parsed.orderSearch === 'string' ? parsed.orderSearch : ''
+    dateFrom.value = typeof parsed.dateFrom === 'string' ? parsed.dateFrom : ''
+    dateTo.value = typeof parsed.dateTo === 'string' ? parsed.dateTo : ''
+    sortBy.value = parsed.sortBy || 'newest'
+    pageSize.value = pageSizeOptions.includes(Number(parsed.pageSize) as 12 | 24 | 48) ? Number(parsed.pageSize) : 12
+  } catch {
+    // Ignore corrupted localStorage.
+  }
+}
+
 const logout = async (showToast = false) => {
   try {
     await $fetch('/api/admin/session/logout', {
@@ -2190,6 +2824,11 @@ const logout = async (showToast = false) => {
   dateTo.value = ''
   bulkNote.value = ''
   paymentFilter.value = 'all'
+  quickFilter.value = 'all'
+  orderSearch.value = ''
+  sortBy.value = 'newest'
+  pageSize.value = 12
+  currentPage.value = 1
   orders.value = []
   stockBySize.value = {}
   inventoryHistory.value = []
@@ -2197,6 +2836,8 @@ const logout = async (showToast = false) => {
   auditEntries.value = []
   readinessUpdatedAt.value = ''
   readinessData.value = null
+  aiInsights.value = null
+  aiError.value = ''
   for (const key of Object.keys(inventoryDraft)) {
     delete inventoryDraft[key]
   }
@@ -2217,6 +2858,7 @@ onMounted(() => {
   if (savedActor) {
     adminActor.value = savedActor
   }
+  loadPersistedAdminFilters()
 
   $fetch<{ success: boolean; actor?: string; csrfToken?: string }>('/api/admin/session/me')
     .then((response) => {
@@ -2235,6 +2877,20 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   persistAdminActor()
+  persistAdminFilters()
+})
+
+watch([statusFilter, paymentFilter, quickFilter, orderSearch, dateFrom, dateTo, sortBy, pageSize], () => {
+  if (currentPage.value !== 1) {
+    currentPage.value = 1
+  }
+  persistAdminFilters()
+})
+
+watch([totalPages, sortedOrders], () => {
+  if (currentPage.value > totalPages.value) {
+    currentPage.value = totalPages.value
+  }
 })
 
 useSeoMeta({
@@ -2293,11 +2949,149 @@ useSeoMeta({
 }
 
 .admin-topbar {
+  margin-top: 12px;
   margin-bottom: 12px;
   display: flex;
   justify-content: space-between;
   gap: 12px;
   align-items: center;
+}
+
+.ai-insights-card {
+  margin-bottom: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.ai-insights-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.ai-insights-head h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.ai-insights-subtitle {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.ai-summary {
+  margin: 10px 0 0;
+  font-size: 14px;
+  color: #2d3f53;
+}
+
+.ai-source {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.src-ai {
+  background: #edf9f0;
+  color: #1f6f41;
+  border-color: #bfe0c9;
+}
+
+.src-heuristic {
+  background: #eef3ff;
+  color: #2e4f90;
+  border-color: #cad8f4;
+}
+
+.ai-columns {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ai-columns strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.ai-columns ul {
+  margin: 0;
+  padding-left: 16px;
+  color: #334b62;
+  font-size: 13px;
+  display: grid;
+  gap: 4px;
+}
+
+.ai-priority-row {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.ai-priority-row strong {
+  font-size: 14px;
+}
+
+.ai-priority-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.kpi-item {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.kpi-item[role="button"] {
+  cursor: pointer;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, background .16s ease;
+}
+
+.kpi-item[role="button"]:hover {
+  border-color: #b7d7bf;
+  box-shadow: 0 10px 24px rgba(35, 56, 80, .08);
+  transform: translateY(-1px);
+}
+
+.kpi-item.active {
+  background: #edf7ef;
+  border-color: #b7d7bf;
+}
+
+.kpi-item span {
+  color: #5f7188;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.kpi-item strong {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.kpi-item.kpi-wide {
+  grid-column: span 2;
 }
 
 .orders-filters {
@@ -2307,8 +3101,43 @@ useSeoMeta({
   align-items: center;
 }
 
+.orders-search {
+  min-width: 290px;
+}
+
+.quick-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.quick-filter-btn {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .18s ease;
+}
+
+.quick-filter-btn.active {
+  background: #edf7ef;
+  border-color: #bcdac4;
+  color: #1f6f41;
+}
+
 .date-filter {
   min-width: 168px;
+}
+
+.sort-filter,
+.page-size-filter {
+  min-width: 188px;
 }
 
 .inventory-card {
@@ -2771,8 +3600,33 @@ useSeoMeta({
   gap: 12px;
 }
 
+.orders-pagination {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.orders-pagination-info {
+  color: #4b6078;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.orders-pagination-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .order-card {
   padding: 16px;
+}
+
+.order-card-risk {
+  border-color: #e6d2a8;
+  box-shadow: 0 8px 22px rgba(146, 98, 0, 0.08);
 }
 
 .order-head {
@@ -2780,6 +3634,62 @@ useSeoMeta({
   justify-content: space-between;
   gap: 10px;
   align-items: flex-start;
+}
+
+.order-head-statuses {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.attention-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #f1d49a;
+  background: #fff9ec;
+  color: #966100;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .01em;
+}
+
+.sla-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sla-risk {
+  background: #fff1f1;
+  color: #8a2a2a;
+  border-color: #efcaca;
+}
+
+.sla-warn {
+  background: #fff7eb;
+  color: #80511f;
+  border-color: #edd7bb;
+}
+
+.sla-ok {
+  background: #edf9f0;
+  color: #1f6f41;
+  border-color: #bfe0c9;
+}
+
+.sla-done {
+  background: #edf4fb;
+  color: #2a5678;
+  border-color: #c7d9ec;
 }
 
 .order-head h2 {
@@ -2812,6 +3722,21 @@ useSeoMeta({
   display: inline-flex;
   align-items: center;
 }
+
+.priority-pill {
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+}
+
+.priority-high { background: #fff1f1; color: #8a2a2a; border-color: #efcaca; }
+.priority-medium { background: #fff7eb; color: #80511f; border-color: #edd7bb; }
+.priority-normal { background: #edf4fb; color: #2a5678; border-color: #c7d9ec; }
 
 .payment-pill {
   margin-left: 6px;
@@ -2880,6 +3805,24 @@ useSeoMeta({
   flex-wrap: wrap;
 }
 
+.order-quick-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.order-quick-actions .btn-alt {
+  min-height: 34px;
+  padding-inline: 12px;
+}
+
+.order-quick-actions .btn-alt.danger {
+  border-color: #e8c8c8;
+  color: #8a2a2a;
+  background: #fff6f6;
+}
+
 .order-audit {
   margin-top: 12px;
   padding-top: 12px;
@@ -2915,6 +3858,11 @@ useSeoMeta({
   margin-bottom: 12px;
   padding: 12px;
   border: 1px solid var(--border);
+  position: sticky;
+  top: 88px;
+  z-index: 5;
+  backdrop-filter: blur(4px);
+  background: rgba(255, 255, 255, 0.95);
 }
 
 .bulk-row {
@@ -2966,9 +3914,25 @@ useSeoMeta({
     align-items: stretch;
   }
 
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .kpi-item.kpi-wide {
+    grid-column: span 2;
+  }
+
   .orders-filters {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .orders-search {
+    min-width: 0;
+  }
+
+  .ai-columns {
+    grid-template-columns: 1fr;
   }
 
   .inventory-grid {
@@ -3004,6 +3968,15 @@ useSeoMeta({
     width: 100%;
   }
 
+  .bulk-status-card {
+    position: static;
+    top: auto;
+  }
+
+  .order-head-statuses {
+    align-items: flex-start;
+  }
+
   .products-row,
   .products-row.columns-3 {
     grid-template-columns: 1fr;
@@ -3016,6 +3989,7 @@ useSeoMeta({
 
   .status-note-input,
   .status-select,
+  .order-quick-actions .btn-alt,
   .update-row .btn-alt,
   .bulk-row .btn-main,
   .csv-import-actions .btn-alt,

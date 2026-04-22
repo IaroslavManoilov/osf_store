@@ -23,6 +23,19 @@ const safeText = (value: unknown, max = 120) => String(value || '').trim().slice
 const normalizePhone = (value: unknown) => String(value || '').replace(/[^\d+]/g, '').slice(0, 30)
 const normalizeEmail = (value: unknown) => safeText(value, 160).toLowerCase()
 const normalizeLogin = (value: unknown) => safeText(value, 60).replace(/\s+/g, '')
+const normalizeCurrency = (value: unknown): CustomerProfile['currency'] => {
+  const candidate = String(value || '').toUpperCase().trim()
+  return ['MDL', 'EUR', 'USD', 'RON'].includes(candidate)
+    ? (candidate as CustomerProfile['currency'])
+    : 'MDL'
+}
+const normalizeLanguage = (value: unknown): CustomerProfile['language'] => {
+  const candidate = String(value || '').toLowerCase().trim()
+  return ['ru', 'ro', 'en'].includes(candidate)
+    ? (candidate as CustomerProfile['language'])
+    : 'ru'
+}
+const profileCacheKey = 'osf_customer_profile_cache_v1'
 const preferNonEmpty = (...values: unknown[]) => {
   for (const value of values) {
     const normalized = String(value || '').trim()
@@ -70,6 +83,72 @@ export const useCustomerAuth = () => {
     return notificationsPreference.value === true
   })
 
+  const readProfileCache = (userId: string): CustomerProfile | null => {
+    if (!import.meta.client || !userId) return null
+    try {
+      const raw = window.localStorage.getItem(profileCacheKey)
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as Record<string, CustomerProfile>
+      const cached = parsed?.[userId]
+      if (!cached || typeof cached !== 'object') return null
+      return {
+        ...cached,
+        userId,
+        name: safeText(cached.name, 100),
+        firstName: safeText(cached.firstName, 60),
+        lastName: safeText(cached.lastName, 60),
+        phone: normalizePhone(cached.phone),
+        email: normalizeEmail(cached.email),
+        login: normalizeLogin(cached.login),
+        about: safeText(cached.about, 500),
+        currency: normalizeCurrency(cached.currency || 'MDL'),
+        language: normalizeLanguage(cached.language || 'ru'),
+        notificationsEnabled: cached.notificationsEnabled !== false
+      }
+    } catch {
+      return null
+    }
+  }
+
+  const writeProfileCache = (nextProfile: CustomerProfile | null) => {
+    if (!import.meta.client || !nextProfile?.userId) return
+    try {
+      const raw = window.localStorage.getItem(profileCacheKey)
+      const current = raw ? (JSON.parse(raw) as Record<string, CustomerProfile>) : {}
+      current[nextProfile.userId] = {
+        ...nextProfile,
+        userId: String(nextProfile.userId || ''),
+        name: safeText(nextProfile.name, 100),
+        firstName: safeText(nextProfile.firstName, 60),
+        lastName: safeText(nextProfile.lastName, 60),
+        phone: normalizePhone(nextProfile.phone),
+        email: normalizeEmail(nextProfile.email),
+        login: normalizeLogin(nextProfile.login),
+        about: safeText(nextProfile.about, 500),
+        currency: normalizeCurrency(nextProfile.currency || 'MDL'),
+        language: normalizeLanguage(nextProfile.language || 'ru'),
+        notificationsEnabled: nextProfile.notificationsEnabled !== false
+      }
+      window.localStorage.setItem(profileCacheKey, JSON.stringify(current))
+    } catch {
+      // Ignore cache write failures.
+    }
+  }
+
+  const clearProfileCache = (userId: string) => {
+    if (!import.meta.client || !userId) return
+    try {
+      const raw = window.localStorage.getItem(profileCacheKey)
+      if (!raw) return
+      const current = JSON.parse(raw) as Record<string, CustomerProfile>
+      if (!current || typeof current !== 'object') return
+      delete current[userId]
+      window.localStorage.setItem(profileCacheKey, JSON.stringify(current))
+    } catch {
+      // Ignore cache cleanup failures.
+    }
+  }
+
   const refreshProfile = async () => {
     if (!import.meta.client || !isAuthenticated.value) {
       profile.value = null
@@ -88,14 +167,17 @@ export const useCustomerAuth = () => {
       phone: preferNonEmpty(normalizePhone(profile.value?.phone), metaPhone),
       email: preferNonEmpty(normalizeEmail(profile.value?.email), normalizeEmail(user.value?.email || '')),
       login: preferNonEmpty(normalizeLogin(profile.value?.login), metaLogin),
-      about: safeText(profile.value?.about, 500),
-      currency: (profile.value?.currency || 'MDL') as CustomerProfile['currency'],
-      language: (profile.value?.language || 'ru') as CustomerProfile['language'],
+      about: preferNonEmpty(
+        safeText(profile.value?.about, 500),
+        safeText(meta?.about, 500)
+      ),
+      currency: normalizeCurrency(profile.value?.currency || meta?.currency || 'MDL'),
+      language: normalizeLanguage(profile.value?.language || meta?.language || 'ru'),
       notificationsEnabled: notificationsPreference.value
     }
 
     try {
-      const data = await $fetch<{ success: boolean; legacySchema?: boolean; profile?: CustomerProfile }>('/api/account/profile', {
+      const data = await $fetch<{ success: boolean; legacySchema?: boolean; degradedMode?: boolean; profile?: CustomerProfile }>('/api/account/profile', {
         headers: {
           authorization: `Bearer ${accessToken.value}`
         }
@@ -134,10 +216,11 @@ export const useCustomerAuth = () => {
         safeText(existing?.about, 500)
       )
       const legacySchema = data?.legacySchema === true
+      const degradedMode = data?.degradedMode === true
       const metaNotifications = typeof meta?.notificationsEnabled === 'boolean'
         ? meta.notificationsEnabled
         : undefined
-      const resolvedNotifications = legacySchema
+      const resolvedNotifications = legacySchema || degradedMode
         ? notificationsPreference.value
         : (typeof serverProfile?.notificationsEnabled === 'boolean'
             ? serverProfile.notificationsEnabled
@@ -152,10 +235,11 @@ export const useCustomerAuth = () => {
         email: resolvedEmail,
         login: resolvedLogin,
         about: resolvedAbout,
-        currency: (serverProfile?.currency || existing?.currency || fallbackProfile.currency || 'MDL') as CustomerProfile['currency'],
-        language: (serverProfile?.language || existing?.language || fallbackProfile.language || 'ru') as CustomerProfile['language'],
+        currency: normalizeCurrency(serverProfile?.currency || existing?.currency || fallbackProfile.currency || 'MDL'),
+        language: normalizeLanguage(serverProfile?.language || existing?.language || fallbackProfile.language || 'ru'),
         notificationsEnabled: resolvedNotifications
       }
+      writeProfileCache(profile.value)
       notificationsPreference.value = resolvedNotifications
       try {
         window.localStorage.setItem('osf_stock_notifications_v1', notificationsPreference.value ? 'enabled' : 'disabled')
@@ -167,6 +251,7 @@ export const useCustomerAuth = () => {
         ...(profile.value || {}),
         ...fallbackProfile
       }
+      writeProfileCache(profile.value)
       notificationsPreference.value = fallbackProfile.notificationsEnabled !== false
     }
   }
@@ -193,6 +278,11 @@ export const useCustomerAuth = () => {
       const { data } = await supabase.auth.getSession()
       session.value = data.session || null
       user.value = data.session?.user || null
+      const cachedProfile = readProfileCache(String(user.value?.id || ''))
+      if (cachedProfile) {
+        profile.value = cachedProfile
+        notificationsPreference.value = cachedProfile.notificationsEnabled !== false
+      }
 
       if (!authSubscriptionSet) {
         const { data: authData } = supabase.auth.onAuthStateChange((_event, nextSession) => {
@@ -296,14 +386,8 @@ export const useCustomerAuth = () => {
     const about = input.about !== undefined
       ? safeText(input.about, 500)
       : safeText(current?.about, 500)
-    const currencyCandidate = input.currency !== undefined ? String(input.currency) : String(current?.currency || 'MDL')
-    const currency = ['MDL', 'EUR', 'USD', 'RON'].includes(currencyCandidate.toUpperCase())
-      ? (currencyCandidate.toUpperCase() as CustomerProfile['currency'])
-      : ('MDL' as CustomerProfile['currency'])
-    const languageCandidate = input.language !== undefined ? String(input.language) : String(current?.language || 'ru')
-    const language = ['ru', 'ro', 'en'].includes(languageCandidate.toLowerCase())
-      ? (languageCandidate.toLowerCase() as CustomerProfile['language'])
-      : ('ru' as CustomerProfile['language'])
+    const currency = normalizeCurrency(input.currency !== undefined ? input.currency : (current?.currency || 'MDL'))
+    const language = normalizeLanguage(input.language !== undefined ? input.language : (current?.language || 'ru'))
     const notificationsEnabled = input.notificationsEnabled !== undefined
       ? input.notificationsEnabled !== false
       : current?.notificationsEnabled !== false
@@ -361,6 +445,7 @@ export const useCustomerAuth = () => {
       language,
       notificationsEnabled: resolvedNotifications
     }
+    writeProfileCache(profile.value)
     notificationsPreference.value = resolvedNotifications
     if (import.meta.client) {
       try {
@@ -493,6 +578,7 @@ export const useCustomerAuth = () => {
   }
 
   const logout = async () => {
+    const previousUserId = String(user.value?.id || '')
     const supabase = getClient()
     if (supabase) {
       await supabase.auth.signOut()
@@ -501,14 +587,30 @@ export const useCustomerAuth = () => {
     user.value = null
     profile.value = null
     notificationsPreference.value = false
+    clearProfileCache(previousUserId)
   }
 
   const setNotificationsEnabled = async (enabled: boolean) => {
     const next = enabled === true
     if (isAuthenticated.value) {
-      await saveProfile({
-        notificationsEnabled: next
-      })
+      const previousPreference = notificationsPreference.value
+      const previousProfile = profile.value ? { ...profile.value } : null
+      notificationsPreference.value = next
+      if (profile.value) {
+        profile.value = {
+          ...profile.value,
+          notificationsEnabled: next
+        }
+      }
+      try {
+        await saveProfile({
+          notificationsEnabled: next
+        })
+      } catch (error) {
+        notificationsPreference.value = previousPreference
+        profile.value = previousProfile
+        throw error
+      }
     } else {
       notificationsPreference.value = next
       if (import.meta.client) {
