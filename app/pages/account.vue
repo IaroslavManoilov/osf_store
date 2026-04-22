@@ -606,7 +606,6 @@ const saveProfile = async () => {
       try {
         window.localStorage.setItem('osf_pref_currency_v1', form.currency)
         window.localStorage.setItem('osf_pref_language_v1', form.language)
-        window.localStorage.setItem('osf_stock_notifications_v1', form.notificationsEnabled ? 'enabled' : 'disabled')
       } catch {
         // ignore localStorage write failures
       }
@@ -642,7 +641,6 @@ const saveSettings = async () => {
       try {
         window.localStorage.setItem('osf_pref_currency_v1', form.currency)
         window.localStorage.setItem('osf_pref_language_v1', form.language)
-        window.localStorage.setItem('osf_stock_notifications_v1', form.notificationsEnabled ? 'enabled' : 'disabled')
       } catch {
         // ignore localStorage write failures
       }
@@ -669,13 +667,8 @@ const toggleNotificationsSetting = async () => {
   infoMessage.value = ''
   try {
     await auth.setNotificationsEnabled(nextValue)
-    if (import.meta.client) {
-      try {
-        window.localStorage.setItem('osf_stock_notifications_v1', nextValue ? 'enabled' : 'disabled')
-      } catch {
-        // ignore localStorage write failures
-      }
-    }
+    await auth.refreshProfile()
+    syncFormFromProfile()
     infoMessage.value = ui.value.profileSaved
   } catch (error) {
     form.notificationsEnabled = !nextValue

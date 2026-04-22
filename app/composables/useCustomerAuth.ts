@@ -63,6 +63,12 @@ export const useCustomerAuth = () => {
 
   const accessToken = computed(() => String(session.value?.access_token || ''))
   const isAuthenticated = computed(() => !!user.value?.id && !!accessToken.value)
+  const notificationsEnabled = computed(() => {
+    if (isAuthenticated.value && profile.value) {
+      return profile.value.notificationsEnabled !== false
+    }
+    return notificationsPreference.value === true
+  })
 
   const refreshProfile = async () => {
     if (!import.meta.client || !isAuthenticated.value) {
@@ -76,15 +82,15 @@ export const useCustomerAuth = () => {
     const metaLogin = normalizeLogin(meta?.login)
     const fallbackProfile: CustomerProfile = {
       userId: String(user.value?.id || ''),
-      name: metaName,
-      firstName: '',
-      lastName: '',
-      phone: metaPhone,
-      email: normalizeEmail(user.value?.email || ''),
-      login: metaLogin,
-      about: '',
-      currency: 'MDL',
-      language: 'ru',
+      name: preferNonEmpty(safeText(profile.value?.name, 100), metaName),
+      firstName: preferNonEmpty(safeText(profile.value?.firstName, 60), safeText(meta?.firstName || meta?.given_name, 60)),
+      lastName: preferNonEmpty(safeText(profile.value?.lastName, 60), safeText(meta?.lastName || meta?.family_name, 60)),
+      phone: preferNonEmpty(normalizePhone(profile.value?.phone), metaPhone),
+      email: preferNonEmpty(normalizeEmail(profile.value?.email), normalizeEmail(user.value?.email || '')),
+      login: preferNonEmpty(normalizeLogin(profile.value?.login), metaLogin),
+      about: safeText(profile.value?.about, 500),
+      currency: (profile.value?.currency || 'MDL') as CustomerProfile['currency'],
+      language: (profile.value?.language || 'ru') as CustomerProfile['language'],
       notificationsEnabled: notificationsPreference.value
     }
 
@@ -157,7 +163,10 @@ export const useCustomerAuth = () => {
         // Ignore localStorage write failures.
       }
     } catch {
-      profile.value = fallbackProfile
+      profile.value = {
+        ...(profile.value || {}),
+        ...fallbackProfile
+      }
       notificationsPreference.value = fallbackProfile.notificationsEnabled !== false
     }
   }
@@ -527,8 +536,7 @@ export const useCustomerAuth = () => {
     isAuthenticated,
     accessToken,
     user,
-    profile
-    ,
-    notificationsEnabled: notificationsPreference
+    profile,
+    notificationsEnabled
   }
 }

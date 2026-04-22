@@ -261,12 +261,7 @@ const uiStore = useUiStore()
 const customerAuth = useCustomerAuth()
 const mobileMenuOpen = ref(false)
 const headerRootRef = ref<HTMLElement | null>(null)
-const notificationsEnabled = computed({
-  get: () => customerAuth.notificationsEnabled.value,
-  set: (value: boolean) => {
-    customerAuth.notificationsEnabled.value = value
-  }
-})
+const notificationsEnabled = computed(() => customerAuth.notificationsEnabled.value)
 const syncingNotifications = ref(false)
 const notificationsStorageKey = 'osf_stock_notifications_v1'
 const marketingSnapshotKey = 'osf_marketing_snapshot_v1'
@@ -326,16 +321,10 @@ const notifyLabel = computed(() => {
 const persistNotificationsPreference = async (enabled: boolean) => {
   if (syncingNotifications.value) return
   syncingNotifications.value = true
-  const previous = notificationsEnabled.value
   try {
     await customerAuth.setNotificationsEnabled(enabled)
   } catch {
-    notificationsEnabled.value = previous
-    try {
-      window.localStorage.setItem(notificationsStorageKey, previous ? 'enabled' : 'disabled')
-    } catch {
-      // Ignore storage write failures.
-    }
+    // Leave previous state untouched when request fails.
   } finally {
     syncingNotifications.value = false
   }
@@ -518,10 +507,8 @@ watch(
 })
 
 watch(
-  () => customerAuth.profile.value?.notificationsEnabled,
+  () => notificationsEnabled.value,
   (value) => {
-    if (typeof value !== 'boolean') return
-    customerAuth.notificationsEnabled.value = value
     if (!import.meta.client) return
     try {
       window.localStorage.setItem(notificationsStorageKey, value ? 'enabled' : 'disabled')
