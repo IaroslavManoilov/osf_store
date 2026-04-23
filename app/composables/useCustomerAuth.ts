@@ -78,7 +78,7 @@ export const useCustomerAuth = () => {
   const isAuthenticated = computed(() => !!user.value?.id && !!accessToken.value)
   const notificationsEnabled = computed(() => {
     if (isAuthenticated.value && profile.value) {
-      return profile.value.notificationsEnabled !== false
+      return profile.value.notificationsEnabled === true
     }
     return notificationsPreference.value === true
   })
@@ -103,7 +103,7 @@ export const useCustomerAuth = () => {
         about: safeText(cached.about, 500),
         currency: normalizeCurrency(cached.currency || 'MDL'),
         language: normalizeLanguage(cached.language || 'ru'),
-        notificationsEnabled: cached.notificationsEnabled !== false
+        notificationsEnabled: cached.notificationsEnabled === true
       }
     } catch {
       return null
@@ -127,7 +127,7 @@ export const useCustomerAuth = () => {
         about: safeText(nextProfile.about, 500),
         currency: normalizeCurrency(nextProfile.currency || 'MDL'),
         language: normalizeLanguage(nextProfile.language || 'ru'),
-        notificationsEnabled: nextProfile.notificationsEnabled !== false
+        notificationsEnabled: nextProfile.notificationsEnabled === true
       }
       window.localStorage.setItem(profileCacheKey, JSON.stringify(current))
     } catch {
@@ -217,6 +217,9 @@ export const useCustomerAuth = () => {
       )
       const legacySchema = data?.legacySchema === true
       const degradedMode = data?.degradedMode === true
+      const existingNotifications = typeof existing?.notificationsEnabled === 'boolean'
+        ? existing.notificationsEnabled
+        : undefined
       const metaNotifications = typeof meta?.notificationsEnabled === 'boolean'
         ? meta.notificationsEnabled
         : undefined
@@ -224,7 +227,7 @@ export const useCustomerAuth = () => {
         ? notificationsPreference.value
         : (typeof serverProfile?.notificationsEnabled === 'boolean'
             ? serverProfile.notificationsEnabled
-            : (metaNotifications ?? notificationsPreference.value))
+            : (existingNotifications ?? notificationsPreference.value ?? metaNotifications ?? false))
       profile.value = {
         ...(serverProfile || fallbackProfile),
         userId: String(serverProfile?.userId || fallbackProfile.userId || ''),
@@ -252,7 +255,7 @@ export const useCustomerAuth = () => {
         ...fallbackProfile
       }
       writeProfileCache(profile.value)
-      notificationsPreference.value = fallbackProfile.notificationsEnabled !== false
+      notificationsPreference.value = fallbackProfile.notificationsEnabled === true
     }
   }
 
@@ -281,7 +284,7 @@ export const useCustomerAuth = () => {
       const cachedProfile = readProfileCache(String(user.value?.id || ''))
       if (cachedProfile) {
         profile.value = cachedProfile
-        notificationsPreference.value = cachedProfile.notificationsEnabled !== false
+        notificationsPreference.value = cachedProfile.notificationsEnabled === true
       }
 
       if (!authSubscriptionSet) {
@@ -362,6 +365,17 @@ export const useCustomerAuth = () => {
     notificationsEnabled?: boolean
   }) => {
     if (!isAuthenticated.value) throw new Error('Unauthorized')
+    const hasName = Object.prototype.hasOwnProperty.call(input, 'name')
+    const hasFirstName = Object.prototype.hasOwnProperty.call(input, 'firstName')
+    const hasLastName = Object.prototype.hasOwnProperty.call(input, 'lastName')
+    const hasEmail = Object.prototype.hasOwnProperty.call(input, 'email')
+    const hasPhone = Object.prototype.hasOwnProperty.call(input, 'phone')
+    const hasLogin = Object.prototype.hasOwnProperty.call(input, 'login')
+    const hasAbout = Object.prototype.hasOwnProperty.call(input, 'about')
+    const hasCurrency = Object.prototype.hasOwnProperty.call(input, 'currency')
+    const hasLanguage = Object.prototype.hasOwnProperty.call(input, 'language')
+    const hasNotificationsEnabled = Object.prototype.hasOwnProperty.call(input, 'notificationsEnabled')
+
     const current = profile.value
     const resolvedFirstName = input.firstName !== undefined
       ? safeText(input.firstName, 60)
@@ -389,8 +403,40 @@ export const useCustomerAuth = () => {
     const currency = normalizeCurrency(input.currency !== undefined ? input.currency : (current?.currency || 'MDL'))
     const language = normalizeLanguage(input.language !== undefined ? input.language : (current?.language || 'ru'))
     const notificationsEnabled = input.notificationsEnabled !== undefined
-      ? input.notificationsEnabled !== false
-      : current?.notificationsEnabled !== false
+      ? (input.notificationsEnabled === true)
+      : (current?.notificationsEnabled === true)
+
+    const requestBody: Record<string, unknown> = {}
+    if (hasName || hasFirstName || hasLastName) {
+      requestBody.name = name
+    }
+    if (hasFirstName) {
+      requestBody.firstName = resolvedFirstName
+    }
+    if (hasLastName) {
+      requestBody.lastName = resolvedLastName
+    }
+    if (hasEmail) {
+      requestBody.email = email
+    }
+    if (hasPhone) {
+      requestBody.phone = phone
+    }
+    if (hasLogin) {
+      requestBody.login = login
+    }
+    if (hasAbout) {
+      requestBody.about = about
+    }
+    if (hasCurrency) {
+      requestBody.currency = currency
+    }
+    if (hasLanguage) {
+      requestBody.language = language
+    }
+    if (hasNotificationsEnabled) {
+      requestBody.notificationsEnabled = notificationsEnabled
+    }
 
     let data: { success: boolean; legacySchema?: boolean; degradedMode?: boolean; profile?: CustomerProfile } | null = null
     try {
@@ -399,18 +445,7 @@ export const useCustomerAuth = () => {
         headers: {
           authorization: `Bearer ${accessToken.value}`
         },
-        body: {
-          name,
-          firstName: resolvedFirstName,
-          lastName: resolvedLastName,
-          email,
-          phone,
-          login,
-          about,
-          currency,
-          language,
-          notificationsEnabled
-        }
+        body: requestBody
       })
       if (!data?.success) {
         throw new Error('Failed to save profile')
@@ -423,7 +458,7 @@ export const useCustomerAuth = () => {
       }
     }
     const legacySchema = data?.legacySchema === true
-    const explicitNotifications = input.notificationsEnabled !== undefined ? (input.notificationsEnabled !== false) : undefined
+    const explicitNotifications = input.notificationsEnabled !== undefined ? (input.notificationsEnabled === true) : undefined
     const resolvedNotifications = legacySchema
       ? (explicitNotifications !== undefined ? explicitNotifications : notificationsPreference.value)
       : notificationsEnabled
@@ -436,13 +471,15 @@ export const useCustomerAuth = () => {
         phone,
         email
       }),
-      name,
-      firstName: resolvedFirstName,
-      lastName: resolvedLastName,
-      login,
-      about,
-      currency,
-      language,
+      name: hasName || hasFirstName || hasLastName ? name : safeText((data?.profile || current)?.name, 100),
+      firstName: hasFirstName ? resolvedFirstName : safeText((data?.profile || current)?.firstName, 60),
+      lastName: hasLastName ? resolvedLastName : safeText((data?.profile || current)?.lastName, 60),
+      login: hasLogin ? login : normalizeLogin((data?.profile || current)?.login),
+      about: hasAbout ? about : safeText((data?.profile || current)?.about, 500),
+      phone: hasPhone ? phone : normalizePhone((data?.profile || current)?.phone),
+      email: hasEmail ? email : normalizeEmail((data?.profile || current)?.email || user.value?.email),
+      currency: hasCurrency ? currency : normalizeCurrency((data?.profile || current)?.currency || 'MDL'),
+      language: hasLanguage ? language : normalizeLanguage((data?.profile || current)?.language || 'ru'),
       notificationsEnabled: resolvedNotifications
     }
     writeProfileCache(profile.value)

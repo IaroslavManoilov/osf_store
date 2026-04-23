@@ -30,6 +30,15 @@ const normalizeLanguage = (value: unknown) => {
 export default defineEventHandler(async (event) => {
   const customer = await requireCustomerAuth(event)
   const body = await readBody<ProfilePayload>(event)
+  const hasName = !!body && Object.prototype.hasOwnProperty.call(body, 'name')
+  const hasFirstName = !!body && Object.prototype.hasOwnProperty.call(body, 'firstName')
+  const hasLastName = !!body && Object.prototype.hasOwnProperty.call(body, 'lastName')
+  const hasLogin = !!body && Object.prototype.hasOwnProperty.call(body, 'login')
+  const hasPhone = !!body && Object.prototype.hasOwnProperty.call(body, 'phone')
+  const hasEmail = !!body && Object.prototype.hasOwnProperty.call(body, 'email')
+  const hasAbout = !!body && Object.prototype.hasOwnProperty.call(body, 'about')
+  const hasCurrency = !!body && Object.prototype.hasOwnProperty.call(body, 'currency')
+  const hasLanguage = !!body && Object.prototype.hasOwnProperty.call(body, 'language')
   const hasNotificationsEnabled =
     !!body &&
     Object.prototype.hasOwnProperty.call(body, 'notificationsEnabled') &&
@@ -44,8 +53,8 @@ export default defineEventHandler(async (event) => {
   const about = safeText(body?.about, 500)
   const currency = normalizeCurrency(body?.currency)
   const language = normalizeLanguage(body?.language)
-  const notificationsEnabled = hasNotificationsEnabled ? body.notificationsEnabled !== false : undefined
-  const phone = normalizePhone(body?.phone || customer.phone)
+  const notificationsEnabled = hasNotificationsEnabled ? body.notificationsEnabled === true : undefined
+  const phone = normalizePhone(body?.phone)
 
   // Keep profile updates resilient: account settings can be saved partially.
   // We only require user_id and persist available fields.
@@ -58,16 +67,35 @@ export default defineEventHandler(async (event) => {
   }
   const payload: Record<string, unknown> = {
     user_id: customer.userId,
-    full_name: name || '',
-    first_name: firstName,
-    last_name: lastName,
-    login: login || null,
-    phone: phone || '',
-    email: email || null,
-    about: about || null,
-    currency,
-    preferred_language: language,
     updated_at: new Date().toISOString()
+  }
+
+  if (hasName || hasFirstName || hasLastName) {
+    payload.full_name = name || ''
+  }
+  if (hasFirstName) {
+    payload.first_name = firstName
+  }
+  if (hasLastName) {
+    payload.last_name = lastName
+  }
+  if (hasLogin) {
+    payload.login = login || null
+  }
+  if (hasPhone) {
+    payload.phone = phone || ''
+  }
+  if (hasEmail) {
+    payload.email = email || null
+  }
+  if (hasAbout) {
+    payload.about = about || null
+  }
+  if (hasCurrency) {
+    payload.currency = currency
+  }
+  if (hasLanguage) {
+    payload.preferred_language = language
   }
   if (typeof notificationsEnabled === 'boolean') {
     payload.notifications_enabled = notificationsEnabled
@@ -111,9 +139,9 @@ export default defineEventHandler(async (event) => {
       .upsert(
         {
           user_id: customer.userId,
-          full_name: name,
-          phone,
-          email: email || null,
+          ...(hasName || hasFirstName || hasLastName ? { full_name: name || '' } : {}),
+          ...(hasPhone ? { phone: phone || '' } : {}),
+          ...(hasEmail ? { email: email || null } : {}),
           updated_at: new Date().toISOString()
         },
         { onConflict: 'user_id' }
@@ -129,15 +157,15 @@ export default defineEventHandler(async (event) => {
       degradedMode,
       profile: {
         userId: customer.userId,
-        name,
-        firstName,
-        lastName,
-        login,
-        phone,
-        email,
-        about,
-        currency,
-        language,
+        name: hasName || hasFirstName || hasLastName ? name : '',
+        firstName: hasFirstName ? firstName : '',
+        lastName: hasLastName ? lastName : '',
+        login: hasLogin ? login : '',
+        phone: hasPhone ? phone : '',
+        email: hasEmail ? email : '',
+        about: hasAbout ? about : '',
+        currency: hasCurrency ? currency : 'MDL',
+        language: hasLanguage ? language : 'ru',
         notificationsEnabled
       }
     }
@@ -149,15 +177,15 @@ export default defineEventHandler(async (event) => {
     degradedMode,
     profile: {
       userId: customer.userId,
-      name,
-      firstName,
-      lastName,
-      login,
-      phone,
-      email,
-      about,
-      currency,
-      language,
+      name: hasName || hasFirstName || hasLastName ? name : '',
+      firstName: hasFirstName ? firstName : '',
+      lastName: hasLastName ? lastName : '',
+      login: hasLogin ? login : '',
+      phone: hasPhone ? phone : '',
+      email: hasEmail ? email : '',
+      about: hasAbout ? about : '',
+      currency: hasCurrency ? currency : 'MDL',
+      language: hasLanguage ? language : 'ru',
       notificationsEnabled
     }
   }

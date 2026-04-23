@@ -283,7 +283,7 @@ const form = reactive({
   about: '',
   currency: 'MDL' as 'MDL' | 'EUR' | 'USD' | 'RON',
   language: 'ru' as 'ru' | 'ro' | 'en',
-  notificationsEnabled: true
+  notificationsEnabled: false
 })
 
 const passwordForm = reactive({
@@ -303,7 +303,7 @@ const baselineProfile = reactive({
 const baselineSettings = reactive({
   currency: 'MDL' as 'MDL' | 'EUR' | 'USD' | 'RON',
   language: 'ru' as 'ru' | 'ro' | 'en',
-  notificationsEnabled: true
+  notificationsEnabled: false
 })
 
 const lastSavedAt = ref<number | null>(null)
@@ -664,7 +664,7 @@ const syncFormFromProfile = () => {
   form.about = String(profile.about || '').trim()
   form.currency = (profile.currency || 'MDL') as typeof form.currency
   form.language = (profile.language || locale.value || 'ru') as typeof form.language
-  form.notificationsEnabled = profile.notificationsEnabled !== false
+  form.notificationsEnabled = profile.notificationsEnabled === true
 
   baselineProfile.firstName = form.firstName
   baselineProfile.lastName = form.lastName

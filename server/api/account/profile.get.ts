@@ -65,7 +65,9 @@ export default defineEventHandler(async (event) => {
         about: String(data.about || '').trim(),
         currency: String(data.currency || 'MDL').trim() || 'MDL',
         language: String(data.preferred_language || 'ru').trim() || 'ru',
-        notificationsEnabled: data.notifications_enabled === false ? false : true
+        // Legacy rows can contain NULL after migrations.
+        // Treat only explicit true as enabled to avoid false-positive "green bell".
+        notificationsEnabled: data.notifications_enabled === true
       }
     : {
         userId: customer.userId,
