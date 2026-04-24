@@ -64,11 +64,18 @@
             </div>
 
             <div class="product-content">
-              <span class="section-label">{{ product.categoryLabel }}</span>
+              <div class="product-topline">
+                <span class="section-label">{{ product.categoryLabel }}</span>
+                <span class="topline-stock" :class="{ out: Number(stockLeftValue) <= 0 }">
+                  {{ Number(stockLeftValue) > 0 ? ui.inStock : ui.outOfStock }}
+                </span>
+              </div>
               <h1 class="product-title">{{ product.title }}</h1>
               <p class="product-description">{{ product.description }}</p>
-              <div class="urgency-note">{{ ui.stockLeftPrefix }} {{ stockLeftValue }} {{ ui.stockLeftSuffix }}</div>
-              <div class="delivery-note">{{ ui.deliverByPrefix }} {{ deliveryDateLabel }}</div>
+              <div class="delivery-pack">
+                <div class="urgency-note">{{ ui.stockLeftPrefix }} {{ stockLeftValue }} {{ ui.stockLeftSuffix }}</div>
+                <div class="delivery-note">{{ ui.deliverByPrefix }} {{ deliveryDateLabel }}</div>
+              </div>
 
               <div class="rating-summary">
                 <div class="stars-row" aria-hidden="true">
@@ -1812,39 +1819,41 @@ useHead(
 .product-box,
 .related-box,
 .not-found-box {
-  padding: 32px;
+  padding: 30px;
 }
 
 .product-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-  gap: 22px;
+  grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr);
+  gap: 24px;
   align-items: start;
 }
 
 .gallery {
   display: grid;
   gap: 12px;
+  position: sticky;
+  top: 108px;
 }
 
 .main-image {
-  min-height: 560px;
+  min-height: 620px;
   border-radius: 30px;
-  border: 1px solid #d4e1d5;
+  border: 1px solid #d4dfd6;
   background: linear-gradient(180deg, #ffffff 0%, #fbfdfb 100%);
   display: grid;
   place-items: center;
-  padding: 26px;
+  padding: 24px;
   position: relative;
   overflow: hidden;
   perspective: 1000px;
-  box-shadow: 0 16px 36px rgba(17, 31, 23, 0.08);
+  box-shadow: 0 20px 42px rgba(17, 31, 23, 0.09);
 }
 
 .main-image-media {
   width: 100%;
-  max-width: 510px;
-  max-height: 520px;
+  max-width: 580px;
+  max-height: 588px;
   object-fit: contain;
   will-change: transform;
   transition: transform 0.2s ease;
@@ -1941,29 +1950,63 @@ useHead(
 .product-content {
   display: grid;
   align-content: start;
-  padding: 18px 18px 16px;
-  border: 1px solid #d5e1d6;
-  border-radius: 24px;
+  padding: 20px 20px 18px;
+  border: 1px solid #d6e0d8;
+  border-radius: 28px;
   background: linear-gradient(180deg, #ffffff 0%, #fdfefd 100%);
-  box-shadow: 0 10px 24px rgba(17, 31, 23, 0.06);
+  box-shadow: 0 16px 36px rgba(17, 31, 23, 0.08);
+  gap: 2px;
+}
+
+.product-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.topline-stock {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #cbe0d0;
+  background: #f3faf5;
+  color: #1f6a43;
+  font-size: 12px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+}
+
+.topline-stock.out {
+  border-color: #e4c9c2;
+  background: #fff4f1;
+  color: #a3503e;
 }
 
 .product-title {
-  margin: 0;
-  font-size: clamp(32px, 4vw, 48px);
-  line-height: 0.92;
-  letter-spacing: -0.03em;
+  margin: 4px 0 0;
+  font-size: clamp(34px, 4.1vw, 50px);
+  line-height: 0.9;
+  letter-spacing: -0.032em;
 }
 
 .product-description {
-  margin: 14px 0 0;
+  margin: 12px 0 0;
   color: #4a5a70;
-  font-size: 16px;
-  line-height: 1.7;
+  font-size: 17px;
+  line-height: 1.62;
+}
+
+.delivery-pack {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .urgency-note {
-  margin-top: 12px;
   min-height: 34px;
   width: fit-content;
   padding: 0 12px;
@@ -1978,14 +2021,13 @@ useHead(
 }
 
 .delivery-note {
-  margin-top: 8px;
   color: #2f6c47;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .meta-grid {
-  margin-top: 20px;
+  margin-top: 18px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
@@ -2012,7 +2054,7 @@ useHead(
 }
 
 .size-section {
-  margin-top: 20px;
+  margin-top: 18px;
   display: grid;
   gap: 10px;
 }
@@ -2046,7 +2088,7 @@ useHead(
 }
 
 .actions-row {
-  margin-top: 22px;
+  margin-top: 18px;
   display: grid;
   grid-template-columns: minmax(0, 190px) minmax(0, 1fr);
   align-items: end;
@@ -2078,7 +2120,7 @@ useHead(
 .action-btn {
   min-width: 0;
   width: 100%;
-  min-height: 46px;
+  min-height: 48px;
 }
 
 .action-buttons .action-btn:last-child {
@@ -2092,7 +2134,7 @@ useHead(
 }
 
 .cta-guarantees {
-  margin-top: 14px;
+  margin-top: 16px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 9px;
@@ -2118,7 +2160,7 @@ useHead(
 }
 
 .inline-faq {
-  margin-top: 14px;
+  margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid #e0e9e1;
 }
@@ -2131,7 +2173,7 @@ useHead(
 }
 
 .social-proof-card {
-  margin-top: 12px;
+  margin-top: 14px;
   border-radius: 14px;
   border: 1px dashed #b8d4c1;
   background: #fbfefb;
@@ -2155,7 +2197,7 @@ useHead(
 }
 
 .benefits-row {
-  margin-top: 14px;
+  margin-top: 16px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -2175,7 +2217,7 @@ useHead(
 }
 
 .proof-row {
-  margin-top: 12px;
+  margin-top: 16px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
@@ -2222,6 +2264,12 @@ useHead(
   background: #fff;
   overflow: hidden;
   box-shadow: 0 10px 24px rgba(18, 30, 22, 0.07);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.related-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 30px rgba(17, 31, 23, 0.11);
 }
 
 .related-link {
@@ -2757,12 +2805,17 @@ useHead(
     grid-template-columns: 1fr;
   }
 
+  .gallery {
+    position: static;
+    top: auto;
+  }
+
   .main-image {
-    min-height: 460px;
+    min-height: 520px;
   }
 
   .product-content {
-    padding: 16px;
+    padding: 18px;
   }
 }
 
@@ -2793,20 +2846,30 @@ useHead(
     border-radius: 18px;
   }
 
+  .product-topline {
+    align-items: center;
+  }
+
+  .topline-stock {
+    min-height: 28px;
+    font-size: 11px;
+    padding: 0 9px;
+  }
+
   .main-image {
-    min-height: 340px;
+    min-height: 392px;
     border-radius: 18px;
-    padding: 10px;
+    padding: 8px;
   }
 
   .main-image-media {
     width: 100%;
     max-width: 100%;
-    max-height: 320px;
+    max-height: 378px;
   }
 
   .product-title {
-    font-size: 28px;
+    font-size: 30px;
     line-height: 0.96;
     letter-spacing: -0.03em;
   }
@@ -2856,7 +2919,7 @@ useHead(
   }
 
   .price-box strong {
-    font-size: 32px;
+    font-size: 34px;
   }
 
   .action-buttons {
@@ -3006,12 +3069,16 @@ useHead(
   }
 
   .main-image {
-    min-height: 308px;
+    min-height: 360px;
     padding: 8px;
   }
 
+  .main-image-media {
+    max-height: 344px;
+  }
+
   .product-title {
-    font-size: 26px;
+    font-size: 28px;
     line-height: 0.95;
   }
 
@@ -3027,17 +3094,25 @@ useHead(
 
 @media (min-width: 390px) and (max-width: 429px) {
   .main-image {
-    min-height: 332px;
+    min-height: 396px;
+  }
+
+  .main-image-media {
+    max-height: 382px;
   }
 
   .product-title {
-    font-size: 27px;
+    font-size: 29px;
   }
 }
 
 @media (min-width: 430px) and (max-width: 479px) {
   .main-image {
-    min-height: 350px;
+    min-height: 410px;
+  }
+
+  .main-image-media {
+    max-height: 396px;
   }
 }
 </style>
