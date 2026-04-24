@@ -18,6 +18,8 @@ type CustomerProfile = {
 let client: SupabaseClient | null = null
 let initPromise: Promise<void> | null = null
 let authSubscriptionSet = false
+let notificationsSyncBound = false
+const notificationsStorageKey = 'osf_stock_notifications_v1'
 
 const safeText = (value: unknown, max = 120) => String(value || '').trim().slice(0, max)
 const normalizePhone = (value: unknown) => String(value || '').replace(/[^\d+]/g, '').slice(0, 30)
@@ -42,6 +44,26 @@ const preferNonEmpty = (...values: unknown[]) => {
     if (normalized) return normalized
   }
   return ''
+}
+
+const chooseNotifications = (
+  ...values: Array<boolean | undefined | null>
+): boolean | undefined => {
+  for (const value of values) {
+    if (typeof value === 'boolean') return value
+  }
+  return undefined
+}
+
+const splitFullName = (value: unknown): { firstName: string; lastName: string } => {
+  const normalized = safeText(value, 100)
+  if (!normalized) return { firstName: '', lastName: '' }
+  const parts = normalized.split(/\s+/).filter(Boolean)
+  if (!parts.length) return { firstName: '', lastName: '' }
+  return {
+    firstName: parts[0] || '',
+    lastName: parts.slice(1).join(' ').trim()
+  }
 }
 
 const getUserMeta = (currentUser: User | null) => {
@@ -73,6 +95,7 @@ export const useCustomerAuth = () => {
   const profile = useState<CustomerProfile | null>('customer-auth-profile', () => null)
   const initialized = useState<boolean>('customer-auth-initialized', () => false)
   const notificationsPreference = useState<boolean>('customer-auth-notifications-enabled', () => false)
+  const hasExplicitNotificationsPreference = useState<boolean>('customer-auth-notifications-explicit', () => false)
 
   const accessToken = computed(() => String(session.value?.access_token || ''))
   const isAuthenticated = computed(() => !!user.value?.id && !!accessToken.value)
@@ -82,6 +105,34 @@ export const useCustomerAuth = () => {
     }
     return notificationsPreference.value === true
   })
+
+  const syncNotificationsState = (enabled: boolean, options?: { broadcast?: boolean; markExplicit?: boolean }) => {
+    const next = enabled === true
+    notificationsPreference.value = next
+    if (options?.markExplicit !== false) {
+      hasExplicitNotificationsPreference.value = true
+    }
+
+    if (profile.value) {
+      profile.value = {
+        ...profile.value,
+        notificationsEnabled: next
+      }
+      writeProfileCache(profile.value)
+    }
+
+    if (!import.meta.client) return
+    try {
+      window.localStorage.setItem(notificationsStorageKey, next ? 'enabled' : 'disabled')
+      if (options?.broadcast !== false) {
+        window.dispatchEvent(new CustomEvent('osf:notifications-changed', {
+          detail: { enabled: next }
+        }))
+      }
+    } catch {
+      // Ignore localStorage write failures.
+    }
+  }
 
   const readProfileCache = (userId: string): CustomerProfile | null => {
     if (!import.meta.client || !userId) return null
@@ -106,6 +157,11 @@ export const useCustomerAuth = () => {
         notificationsEnabled: cached.notificationsEnabled === true
       }
     } catch {
+      try {
+        window.localStorage.removeItem(profileCacheKey)
+      } catch {
+        // Ignore invalid cache cleanup failures.
+      }
       return null
     }
   }
@@ -184,14 +240,16 @@ export const useCustomerAuth = () => {
       })
       const serverProfile = data?.profile || null
       const existing = profile.value
+      const serverName = safeText(serverProfile?.name, 100)
+      const parsedServerName = splitFullName(serverName)
       const serverFirstName = safeText(serverProfile?.firstName, 60)
       const serverLastName = safeText(serverProfile?.lastName, 60)
       const fallbackFirstName = safeText(existing?.firstName || meta?.firstName || meta?.given_name, 60)
       const fallbackLastName = safeText(existing?.lastName || meta?.lastName || meta?.family_name, 60)
-      const resolvedFirstName = preferNonEmpty(serverFirstName, fallbackFirstName)
-      const resolvedLastName = preferNonEmpty(serverLastName, fallbackLastName)
+      const resolvedFirstName = preferNonEmpty(serverFirstName, parsedServerName.firstName, fallbackFirstName)
+      const resolvedLastName = preferNonEmpty(serverLastName, parsedServerName.lastName, fallbackLastName)
       const resolvedName = preferNonEmpty(
-        safeText(serverProfile?.name, 100),
+        serverName,
         [resolvedFirstName, resolvedLastName].filter(Boolean).join(' ').trim(),
         safeText(existing?.name, 100),
         metaName
@@ -213,7 +271,8 @@ export const useCustomerAuth = () => {
       )
       const resolvedAbout = preferNonEmpty(
         safeText(serverProfile?.about, 500),
-        safeText(existing?.about, 500)
+        safeText(existing?.about, 500),
+        safeText(meta?.about, 500)
       )
       const legacySchema = data?.legacySchema === true
       const degradedMode = data?.degradedMode === true
@@ -224,10 +283,21 @@ export const useCustomerAuth = () => {
         ? meta.notificationsEnabled
         : undefined
       const resolvedNotifications = legacySchema || degradedMode
-        ? notificationsPreference.value
-        : (typeof serverProfile?.notificationsEnabled === 'boolean'
-            ? serverProfile.notificationsEnabled
-            : (existingNotifications ?? notificationsPreference.value ?? metaNotifications ?? false))
+        ? (chooseNotifications(existingNotifications, notificationsPreference.value, metaNotifications, false) === true)
+        : (chooseNotifications(
+            typeof serverProfile?.notificationsEnabled === 'boolean' ? serverProfile.notificationsEnabled : undefined,
+            existingNotifications,
+            hasExplicitNotificationsPreference.value ? notificationsPreference.value : undefined,
+            notificationsPreference.value,
+            metaNotifications,
+            false
+          ) === true)
+      const resolvedCurrency = legacySchema || degradedMode
+        ? normalizeCurrency(existing?.currency || fallbackProfile.currency || 'MDL')
+        : normalizeCurrency(serverProfile?.currency || existing?.currency || fallbackProfile.currency || 'MDL')
+      const resolvedLanguage = legacySchema || degradedMode
+        ? normalizeLanguage(existing?.language || fallbackProfile.language || 'ru')
+        : normalizeLanguage(serverProfile?.language || existing?.language || fallbackProfile.language || 'ru')
       profile.value = {
         ...(serverProfile || fallbackProfile),
         userId: String(serverProfile?.userId || fallbackProfile.userId || ''),
@@ -238,24 +308,19 @@ export const useCustomerAuth = () => {
         email: resolvedEmail,
         login: resolvedLogin,
         about: resolvedAbout,
-        currency: normalizeCurrency(serverProfile?.currency || existing?.currency || fallbackProfile.currency || 'MDL'),
-        language: normalizeLanguage(serverProfile?.language || existing?.language || fallbackProfile.language || 'ru'),
+        currency: resolvedCurrency,
+        language: resolvedLanguage,
         notificationsEnabled: resolvedNotifications
       }
       writeProfileCache(profile.value)
-      notificationsPreference.value = resolvedNotifications
-      try {
-        window.localStorage.setItem('osf_stock_notifications_v1', notificationsPreference.value ? 'enabled' : 'disabled')
-      } catch {
-        // Ignore localStorage write failures.
-      }
+      syncNotificationsState(resolvedNotifications, { broadcast: false, markExplicit: false })
     } catch {
       profile.value = {
         ...(profile.value || {}),
         ...fallbackProfile
       }
       writeProfileCache(profile.value)
-      notificationsPreference.value = fallbackProfile.notificationsEnabled === true
+      syncNotificationsState(fallbackProfile.notificationsEnabled === true, { broadcast: false, markExplicit: false })
     }
   }
 
@@ -265,10 +330,31 @@ export const useCustomerAuth = () => {
     if (initPromise) return initPromise
 
     initPromise = (async () => {
+      const bindNotificationsSync = () => {
+        if (!import.meta.client || notificationsSyncBound) return
+        notificationsSyncBound = true
+
+        window.addEventListener('osf:notifications-changed', (event: Event) => {
+          const custom = event as CustomEvent<{ enabled?: boolean }>
+          if (!custom?.detail || typeof custom.detail.enabled !== 'boolean') return
+          syncNotificationsState(custom.detail.enabled === true, { broadcast: false, markExplicit: true })
+        })
+
+        window.addEventListener('storage', (event: StorageEvent) => {
+          if (event.key !== notificationsStorageKey) return
+          const raw = String(event.newValue || '').trim().toLowerCase()
+          if (raw !== 'enabled' && raw !== 'disabled') return
+          syncNotificationsState(raw === 'enabled', { broadcast: false, markExplicit: true })
+        })
+      }
+
       try {
-        const rawMode = String(window.localStorage.getItem('osf_stock_notifications_v1') || '').trim().toLowerCase()
-        notificationsPreference.value = rawMode === 'enabled'
+        const rawMode = String(window.localStorage.getItem(notificationsStorageKey) || '').trim().toLowerCase()
+        const hasStoredMode = rawMode === 'enabled' || rawMode === 'disabled'
+        hasExplicitNotificationsPreference.value = hasStoredMode
+        notificationsPreference.value = hasStoredMode ? rawMode === 'enabled' : false
       } catch {
+        hasExplicitNotificationsPreference.value = false
         notificationsPreference.value = false
       }
 
@@ -277,6 +363,7 @@ export const useCustomerAuth = () => {
         initialized.value = true
         return
       }
+      bindNotificationsSync()
 
       const { data } = await supabase.auth.getSession()
       session.value = data.session || null
@@ -285,6 +372,7 @@ export const useCustomerAuth = () => {
       if (cachedProfile) {
         profile.value = cachedProfile
         notificationsPreference.value = cachedProfile.notificationsEnabled === true
+        hasExplicitNotificationsPreference.value = true
       }
 
       if (!authSubscriptionSet) {
@@ -458,39 +546,92 @@ export const useCustomerAuth = () => {
       }
     }
     const legacySchema = data?.legacySchema === true
+    const degradedMode = data?.degradedMode === true
     const explicitNotifications = input.notificationsEnabled !== undefined ? (input.notificationsEnabled === true) : undefined
-    const resolvedNotifications = legacySchema
-      ? (explicitNotifications !== undefined ? explicitNotifications : notificationsPreference.value)
+    const resolvedNotifications = legacySchema || degradedMode
+      ? (explicitNotifications !== undefined
+          ? explicitNotifications
+          : (typeof current?.notificationsEnabled === 'boolean'
+              ? current.notificationsEnabled
+              : notificationsPreference.value))
       : notificationsEnabled
+    const serverProfile = data?.profile
+    const mergedBase = serverProfile || current || {
+      userId: String(user.value?.id || ''),
+      name,
+      firstName: resolvedFirstName,
+      lastName: resolvedLastName,
+      phone,
+      email
+    }
+    const preferString = (...values: unknown[]) => {
+      for (const value of values) {
+        const normalized = String(value || '').trim()
+        if (normalized) return normalized
+      }
+      return ''
+    }
     profile.value = {
-      ...(data?.profile || current || {
-        userId: String(user.value?.id || ''),
-        name,
-        firstName: resolvedFirstName,
-        lastName: resolvedLastName,
-        phone,
-        email
-      }),
-      name: hasName || hasFirstName || hasLastName ? name : safeText((data?.profile || current)?.name, 100),
-      firstName: hasFirstName ? resolvedFirstName : safeText((data?.profile || current)?.firstName, 60),
-      lastName: hasLastName ? resolvedLastName : safeText((data?.profile || current)?.lastName, 60),
-      login: hasLogin ? login : normalizeLogin((data?.profile || current)?.login),
-      about: hasAbout ? about : safeText((data?.profile || current)?.about, 500),
-      phone: hasPhone ? phone : normalizePhone((data?.profile || current)?.phone),
-      email: hasEmail ? email : normalizeEmail((data?.profile || current)?.email || user.value?.email),
-      currency: hasCurrency ? currency : normalizeCurrency((data?.profile || current)?.currency || 'MDL'),
-      language: hasLanguage ? language : normalizeLanguage((data?.profile || current)?.language || 'ru'),
+      ...mergedBase,
+      name: hasName || hasFirstName || hasLastName
+        ? name
+        : preferString(
+            safeText(current?.name, 100),
+            safeText(mergedBase.name, 100)
+          ),
+      firstName: hasFirstName
+        ? resolvedFirstName
+        : preferString(
+            safeText(current?.firstName, 60),
+            safeText(mergedBase.firstName, 60)
+          ),
+      lastName: hasLastName
+        ? resolvedLastName
+        : preferString(
+            safeText(current?.lastName, 60),
+            safeText(mergedBase.lastName, 60)
+          ),
+      login: hasLogin
+        ? login
+        : preferString(
+            normalizeLogin(current?.login),
+            normalizeLogin(mergedBase.login)
+          ),
+      about: hasAbout
+        ? about
+        : preferString(
+            safeText(current?.about, 500),
+            safeText(mergedBase.about, 500)
+          ),
+      phone: hasPhone
+        ? phone
+        : preferString(
+            normalizePhone(current?.phone),
+            normalizePhone(mergedBase.phone)
+          ),
+      email: hasEmail
+        ? email
+        : preferString(
+            normalizeEmail(current?.email),
+            normalizeEmail(mergedBase.email),
+            normalizeEmail(user.value?.email)
+          ),
+      currency: hasCurrency
+        ? currency
+        : normalizeCurrency(current?.currency || mergedBase.currency || 'MDL'),
+      language: hasLanguage
+        ? language
+        : normalizeLanguage(current?.language || mergedBase.language || 'ru'),
       notificationsEnabled: resolvedNotifications
     }
-    writeProfileCache(profile.value)
-    notificationsPreference.value = resolvedNotifications
-    if (import.meta.client) {
-      try {
-        window.localStorage.setItem('osf_stock_notifications_v1', notificationsPreference.value ? 'enabled' : 'disabled')
-      } catch {
-        // Ignore localStorage write failures.
+    if (!profile.value?.userId) {
+      profile.value = {
+        ...(profile.value || {}),
+        userId: String(user.value?.id || '')
       }
     }
+    writeProfileCache(profile.value)
+    syncNotificationsState(resolvedNotifications)
 
     const supabase = getClient()
     if (supabase) {
@@ -623,40 +764,31 @@ export const useCustomerAuth = () => {
     session.value = null
     user.value = null
     profile.value = null
-    notificationsPreference.value = false
+    syncNotificationsState(false)
     clearProfileCache(previousUserId)
   }
 
   const setNotificationsEnabled = async (enabled: boolean) => {
     const next = enabled === true
     if (isAuthenticated.value) {
-      const previousPreference = notificationsPreference.value
+      const previousPreference = notificationsEnabled.value
       const previousProfile = profile.value ? { ...profile.value } : null
-      notificationsPreference.value = next
-      if (profile.value) {
-        profile.value = {
-          ...profile.value,
-          notificationsEnabled: next
-        }
-      }
       try {
         await saveProfile({
           notificationsEnabled: next
         })
+        const resolved = profile.value?.notificationsEnabled === true
+        syncNotificationsState(resolved)
       } catch (error) {
-        notificationsPreference.value = previousPreference
+        syncNotificationsState(previousPreference)
         profile.value = previousProfile
+        if (profile.value) {
+          writeProfileCache(profile.value)
+        }
         throw error
       }
     } else {
-      notificationsPreference.value = next
-      if (import.meta.client) {
-        try {
-          window.localStorage.setItem('osf_stock_notifications_v1', next ? 'enabled' : 'disabled')
-        } catch {
-          // Ignore localStorage write failures.
-        }
-      }
+      syncNotificationsState(next)
     }
   }
 

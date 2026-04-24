@@ -3,15 +3,69 @@
     <section class="section-space">
       <div class="site-container">
         <div class="surface-card account-hero">
-          <span class="section-label">{{ ui.label }}</span>
-          <h1 class="section-title account-title">{{ ui.title }}</h1>
-          <p class="section-text account-subtitle">{{ ui.subtitle }}</p>
-          <div class="hero-meta">
-            <span class="hero-pill">{{ ui.profileCompletion }}: {{ profileCompletionPercent }}%</span>
-            <span class="hero-pill">{{ ui.notifications }}: {{ form.notificationsEnabled ? ui.notificationsOn : ui.notificationsOff }}</span>
-            <span class="hero-pill">{{ ui.currency }}: {{ form.currency }}</span>
-            <span class="hero-pill">{{ ui.language }}: {{ form.language.toUpperCase() }}</span>
-            <span v-if="lastSavedLabel" class="hero-pill">{{ lastSavedLabel }}</span>
+          <div class="account-hero-grid">
+            <div>
+              <span class="section-label">{{ ui.label }}</span>
+              <h1 class="section-title account-title">{{ ui.title }}</h1>
+              <p class="section-text account-subtitle">{{ ui.subtitle }}</p>
+              <div class="hero-meta">
+                <span class="hero-pill">{{ ui.profileCompletion }}: {{ profileCompletionPercent }}%</span>
+                <span class="hero-pill">{{ ui.notifications }}: {{ form.notificationsEnabled ? ui.notificationsOn : ui.notificationsOff }}</span>
+                <span class="hero-pill">{{ ui.currency }}: {{ form.currency }}</span>
+                <span class="hero-pill">{{ ui.language }}: {{ form.language.toUpperCase() }}</span>
+                <span v-if="lastSavedLabel" class="hero-pill">{{ lastSavedLabel }}</span>
+              </div>
+              <div class="account-toolbar">
+                <button
+                  type="button"
+                  class="btn-main toolbar-btn"
+                  :disabled="savingProfile || savingSettings || !hasUnsavedChanges"
+                  @click="saveAllChanges"
+                >
+                  {{ ui.saveAll }}
+                </button>
+                <button
+                  type="button"
+                  class="btn-alt toolbar-btn"
+                  :disabled="savingProfile || savingSettings || !hasUnsavedChanges"
+                  @click="resetAllChanges"
+                >
+                  {{ ui.discardAll }}
+                </button>
+                <NuxtLink :to="localePath('/orders')" class="btn-alt toolbar-btn">{{ ui.openOrders }}</NuxtLink>
+              </div>
+              <div class="hero-stats">
+                <article class="hero-stat">
+                  <strong>{{ orders.length }}</strong>
+                  <span>{{ ui.ordersCount }}</span>
+                </article>
+                <article class="hero-stat">
+                  <strong>{{ activeOrdersCount }}</strong>
+                  <span>{{ ui.activeOrders }}</span>
+                </article>
+                <article class="hero-stat">
+                  <strong>{{ deliveredOrdersCount }}</strong>
+                  <span>{{ ui.deliveredOrders }}</span>
+                </article>
+                <article class="hero-stat">
+                  <strong>{{ reviews.length }}</strong>
+                  <span>{{ ui.myReviews }}</span>
+                </article>
+              </div>
+            </div>
+            <div class="account-identity">
+              <div class="identity-avatar">{{ profileInitials }}</div>
+              <div class="identity-text">
+                <strong>{{ profileDisplayName }}</strong>
+                <span>{{ profileDisplayEmail }}</span>
+                <small>{{ ui.phone }}: {{ profileDisplayPhone }}</small>
+                <small>{{ ui.memberSince }}: {{ memberSince }}</small>
+              </div>
+              <div class="identity-actions">
+                <a href="#profile" class="btn-alt identity-btn">{{ ui.profile }}</a>
+                <NuxtLink :to="localePath('/orders')" class="btn-main identity-btn">{{ ui.myOrders }}</NuxtLink>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -19,6 +73,13 @@
 
     <section class="section-space">
       <div class="site-container">
+        <div class="surface-card account-sections">
+          <a href="#profile" class="section-chip">{{ ui.profile }}</a>
+          <a href="#settings" class="section-chip">{{ ui.settings }}</a>
+          <a href="#security" class="section-chip">{{ ui.security }}</a>
+          <a href="#messages" class="section-chip">{{ ui.messages }}</a>
+          <a href="#reviews" class="section-chip">{{ ui.myReviews }}</a>
+        </div>
         <div class="account-layout">
           <aside class="surface-card account-sidebar">
             <strong>{{ ui.quickMenu }}</strong>
@@ -26,6 +87,8 @@
             <a href="#profile" class="account-side-link">{{ ui.profile }}</a>
             <a href="#settings" class="account-side-link">{{ ui.settings }}</a>
             <a href="#security" class="account-side-link">{{ ui.security }}</a>
+            <a href="#messages" class="account-side-link">{{ ui.messages }}</a>
+            <a href="#reviews" class="account-side-link">{{ ui.myReviews }}</a>
             <div class="side-health">
               <span>{{ ui.profileCompletion }}</span>
               <div class="side-progress">
@@ -195,7 +258,7 @@
             </section>
 
             <section class="surface-card account-card">
-              <h2>{{ ui.messages }}</h2>
+              <h2 id="messages">{{ ui.messages }}</h2>
               <p class="account-help">{{ ui.messagesHelp }}</p>
               <div v-if="messages.length" class="messages-list">
                 <article v-for="message in messages.slice(0, 8)" :key="message.id" class="message-item">
@@ -207,7 +270,7 @@
               <p v-else class="empty-note">{{ ui.emptyMessages }}</p>
             </section>
 
-            <section class="surface-card account-card">
+            <section id="reviews" class="surface-card account-card">
               <h2>{{ ui.myReviews }}</h2>
               <p class="account-help">{{ ui.reviewsHelp }}</p>
               <div v-if="reviews.length" class="reviews-list">
@@ -229,11 +292,27 @@
         </div>
       </div>
     </section>
+
+    <transition name="dock-fade">
+      <div v-if="hasUnsavedChanges" class="account-save-dock">
+        <div class="site-container save-dock-inner">
+          <span>{{ ui.unsaved }}</span>
+          <div class="save-dock-actions">
+            <button type="button" class="btn-alt" :disabled="savingProfile || savingSettings" @click="resetAllChanges">
+              {{ ui.resetSettings }}
+            </button>
+            <button type="button" class="btn-main" :disabled="savingProfile || savingSettings" @click="saveAllChanges">
+              {{ ui.saveProfile }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
 type AccountOrder = {
   id: string
@@ -346,6 +425,7 @@ const ui = computed(() => {
       saving: 'Saving...',
       unsaved: 'Unsaved changes',
       profileCompletion: 'Profile completion',
+      memberSince: 'Member since',
       resetSettings: 'Reset settings',
       savedAt: 'Saved',
       ordersHelp: 'Recent orders and current status.',
@@ -364,7 +444,10 @@ const ui = computed(() => {
       passwordMismatch: 'Passwords do not match.',
       passwordLength: 'Password must be at least 8 characters.',
       ratesSourceLive: 'Exchange rate source: curs.md',
-      ratesSourceFallback: 'Exchange rate source: fallback'
+      ratesSourceFallback: 'Exchange rate source: fallback',
+      draftRestored: 'Draft restored from this device.',
+      saveAll: 'Save all changes',
+      discardAll: 'Discard changes'
     }
   }
 
@@ -405,6 +488,7 @@ const ui = computed(() => {
       saving: 'Se salvează...',
       unsaved: 'Modificări nesalvate',
       profileCompletion: 'Completare profil',
+      memberSince: 'Membru din',
       resetSettings: 'Resetează setările',
       savedAt: 'Salvat',
       ordersHelp: 'Comenzi recente și statusul lor.',
@@ -423,7 +507,10 @@ const ui = computed(() => {
       passwordMismatch: 'Parolele nu coincid.',
       passwordLength: 'Parola trebuie să aibă minim 8 caractere.',
       ratesSourceLive: 'Sursa cursului: curs.md',
-      ratesSourceFallback: 'Sursa cursului: rezervă'
+      ratesSourceFallback: 'Sursa cursului: rezervă',
+      draftRestored: 'Am restaurat schița de pe acest dispozitiv.',
+      saveAll: 'Salvează tot',
+      discardAll: 'Renunță la modificări'
     }
   }
 
@@ -463,6 +550,7 @@ const ui = computed(() => {
     saving: 'Сохраняем...',
     unsaved: 'Есть несохраненные изменения',
     profileCompletion: 'Заполненность профиля',
+    memberSince: 'С нами с',
     resetSettings: 'Сбросить настройки',
     savedAt: 'Сохранено',
     ordersHelp: 'Последние заказы и текущие статусы.',
@@ -481,7 +569,10 @@ const ui = computed(() => {
     passwordMismatch: 'Пароли не совпадают.',
     passwordLength: 'Пароль должен быть минимум 8 символов.',
     ratesSourceLive: 'Источник курса: curs.md',
-    ratesSourceFallback: 'Источник курса: резервный'
+    ratesSourceFallback: 'Источник курса: резервный',
+    draftRestored: 'Черновик восстановлен на этом устройстве.',
+    saveAll: 'Сохранить все',
+    discardAll: 'Отменить изменения'
   }
 })
 
@@ -579,6 +670,36 @@ const lastSavedLabel = computed(() => {
   return `${ui.value.savedAt}: ${new Date(lastSavedAt.value).toLocaleTimeString()}`
 })
 
+const profileDisplayName = computed(() => {
+  const full = [form.firstName, form.lastName].filter(Boolean).join(' ').trim()
+  return full || form.login || form.email || 'OSF Client'
+})
+
+const profileDisplayEmail = computed(() => form.email || 'email@account')
+const profileDisplayPhone = computed(() => form.phone || '—')
+const memberSince = computed(() => {
+  const createdAt = String(auth.user.value?.created_at || '')
+  if (!createdAt) return '—'
+  return formatDate(createdAt)
+})
+
+const profileInitials = computed(() => {
+  const source = [form.firstName, form.lastName].filter(Boolean).join(' ').trim() || form.login || form.email
+  const cleaned = String(source || '').replace(/[^a-zA-Zа-яА-Я0-9\s]/g, ' ').trim()
+  if (!cleaned) return 'OS'
+  const parts = cleaned.split(/\s+/).filter(Boolean)
+  const joined = parts.slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('')
+  return joined || cleaned.slice(0, 2).toUpperCase()
+})
+
+const hasUnsavedChanges = computed(() => profileDirty.value || settingsDirty.value)
+const accountDraftKey = computed(() => {
+  const userId = String(auth.user.value?.id || '').trim()
+  return userId ? `osf_account_draft_v1_${userId}` : ''
+})
+const draftHydrated = ref(false)
+let draftSaveTimer: ReturnType<typeof setTimeout> | null = null
+
 const convertFromMDL = (value: number) => {
   const target = form.currency
   const rate = Number(currencyRates.value[target] || 1)
@@ -656,15 +777,30 @@ const loadCurrencyRates = async () => {
 const syncFormFromProfile = () => {
   const profile = auth.profile.value
   if (!profile) return
-  form.firstName = String(profile.firstName || '').trim()
-  form.lastName = String(profile.lastName || '').trim()
-  form.login = String(profile.login || '').trim()
-  form.phone = String(profile.phone || '').trim()
-  form.email = String(profile.email || '').trim()
-  form.about = String(profile.about || '').trim()
-  form.currency = (profile.currency || 'MDL') as typeof form.currency
-  form.language = (profile.language || locale.value || 'ru') as typeof form.language
-  form.notificationsEnabled = profile.notificationsEnabled === true
+
+  const keep = (...values: unknown[]) => {
+    for (const value of values) {
+      const text = String(value || '').trim()
+      if (text) return text
+    }
+    return ''
+  }
+
+  form.firstName = keep(profile.firstName, baselineProfile.firstName, form.firstName)
+  form.lastName = keep(profile.lastName, baselineProfile.lastName, form.lastName)
+  form.login = keep(profile.login, baselineProfile.login, form.login)
+  form.phone = keep(profile.phone, baselineProfile.phone, form.phone)
+  form.email = keep(profile.email, baselineProfile.email, form.email)
+  form.about = keep(profile.about, baselineProfile.about, form.about)
+  form.currency = (['MDL', 'EUR', 'USD', 'RON'].includes(String(profile.currency || '').toUpperCase())
+    ? String(profile.currency).toUpperCase()
+    : baselineSettings.currency) as typeof form.currency
+  form.language = (['ru', 'ro', 'en'].includes(String(profile.language || '').toLowerCase())
+    ? String(profile.language).toLowerCase()
+    : baselineSettings.language) as typeof form.language
+  form.notificationsEnabled = typeof profile.notificationsEnabled === 'boolean'
+    ? profile.notificationsEnabled
+    : baselineSettings.notificationsEnabled
 
   baselineProfile.firstName = form.firstName
   baselineProfile.lastName = form.lastName
@@ -676,6 +812,92 @@ const syncFormFromProfile = () => {
   baselineSettings.currency = form.currency
   baselineSettings.language = form.language
   baselineSettings.notificationsEnabled = form.notificationsEnabled
+}
+
+const applyProfileBaselineFromForm = () => {
+  baselineProfile.firstName = String(form.firstName || '').trim()
+  baselineProfile.lastName = String(form.lastName || '').trim()
+  baselineProfile.login = String(form.login || '').trim()
+  baselineProfile.phone = String(form.phone || '').trim()
+  baselineProfile.email = String(form.email || '').trim()
+  baselineProfile.about = String(form.about || '').trim()
+}
+
+const applySettingsBaselineFromForm = () => {
+  baselineSettings.currency = form.currency
+  baselineSettings.language = form.language
+  baselineSettings.notificationsEnabled = form.notificationsEnabled === true
+}
+
+const saveDraft = () => {
+  if (!import.meta.client || !draftHydrated.value || !accountDraftKey.value) return
+  try {
+    const payload = {
+      updatedAt: Date.now(),
+      data: {
+        firstName: form.firstName,
+        lastName: form.lastName,
+        login: form.login,
+        phone: form.phone,
+        email: form.email,
+        about: form.about,
+        currency: form.currency,
+        language: form.language,
+        notificationsEnabled: form.notificationsEnabled
+      }
+    }
+    window.localStorage.setItem(accountDraftKey.value, JSON.stringify(payload))
+  } catch {
+    // Ignore draft write failures.
+  }
+}
+
+const clearDraft = () => {
+  if (!import.meta.client || !accountDraftKey.value) return
+  try {
+    window.localStorage.removeItem(accountDraftKey.value)
+  } catch {
+    // Ignore draft cleanup failures.
+  }
+}
+
+const restoreDraft = () => {
+  if (!import.meta.client || !accountDraftKey.value) return
+  try {
+    const raw = window.localStorage.getItem(accountDraftKey.value)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as {
+      updatedAt?: number
+      data?: Partial<typeof form>
+    }
+    if (!parsed || typeof parsed !== 'object' || !parsed.data || typeof parsed.data !== 'object') return
+
+    const draftUpdatedAt = Number(parsed.updatedAt || 0)
+    if (draftUpdatedAt && Date.now() - draftUpdatedAt > 1000 * 60 * 60 * 24 * 14) {
+      clearDraft()
+      return
+    }
+
+    const draft = parsed.data
+    form.firstName = String(draft.firstName || form.firstName || '').trim()
+    form.lastName = String(draft.lastName || form.lastName || '').trim()
+    form.login = String(draft.login || form.login || '').trim()
+    form.phone = String(draft.phone || form.phone || '').trim()
+    form.email = String(draft.email || form.email || '').trim()
+    form.about = String(draft.about || form.about || '').trim()
+    form.currency = (['MDL', 'EUR', 'USD', 'RON'].includes(String(draft.currency || '').toUpperCase())
+      ? String(draft.currency).toUpperCase()
+      : form.currency) as typeof form.currency
+    form.language = (['ru', 'ro', 'en'].includes(String(draft.language || '').toLowerCase())
+      ? String(draft.language).toLowerCase()
+      : form.language) as typeof form.language
+    if (typeof draft.notificationsEnabled === 'boolean') {
+      form.notificationsEnabled = draft.notificationsEnabled
+    }
+    infoMessage.value = ui.value.draftRestored
+  } catch {
+    // Ignore invalid draft content.
+  }
 }
 
 const saveProfile = async () => {
@@ -695,7 +917,8 @@ const saveProfile = async () => {
       language: form.language,
       notificationsEnabled: form.notificationsEnabled
     })
-    syncFormFromProfile()
+    applyProfileBaselineFromForm()
+    applySettingsBaselineFromForm()
 
     if (import.meta.client) {
       try {
@@ -706,6 +929,8 @@ const saveProfile = async () => {
       }
     }
 
+    saveDraft()
+
     if (form.language !== locale.value) {
       await navigateTo(switchLocalePath(form.language) || localePath('/account'))
       return
@@ -714,7 +939,6 @@ const saveProfile = async () => {
     infoMessage.value = ui.value.profileSaved
     lastSavedAt.value = Date.now()
   } catch (error) {
-    syncFormFromProfile()
     errorMessage.value = error instanceof Error ? error.message : 'Failed to save profile'
   } finally {
     savingProfile.value = false
@@ -731,7 +955,7 @@ const saveSettings = async () => {
       language: form.language,
       notificationsEnabled: form.notificationsEnabled
     })
-    syncFormFromProfile()
+    applySettingsBaselineFromForm()
 
     if (import.meta.client) {
       try {
@@ -742,6 +966,8 @@ const saveSettings = async () => {
       }
     }
 
+    saveDraft()
+
     if (form.language !== locale.value) {
       await navigateTo(switchLocalePath(form.language) || localePath('/account'))
       return
@@ -750,7 +976,6 @@ const saveSettings = async () => {
     infoMessage.value = ui.value.profileSaved
     lastSavedAt.value = Date.now()
   } catch (error) {
-    syncFormFromProfile()
     errorMessage.value = error instanceof Error ? error.message : 'Failed to save settings'
   } finally {
     savingSettings.value = false
@@ -765,7 +990,9 @@ const toggleNotificationsSetting = async () => {
   infoMessage.value = ''
   try {
     await auth.setNotificationsEnabled(nextValue)
-    syncFormFromProfile()
+    form.notificationsEnabled = auth.notificationsEnabled.value === true
+    applySettingsBaselineFromForm()
+    saveDraft()
     infoMessage.value = ui.value.profileSaved
     lastSavedAt.value = Date.now()
   } catch (error) {
@@ -780,6 +1007,26 @@ const resetSettings = () => {
   form.currency = baselineSettings.currency
   form.language = baselineSettings.language
   form.notificationsEnabled = baselineSettings.notificationsEnabled
+}
+
+const resetAllChanges = () => {
+  form.firstName = baselineProfile.firstName
+  form.lastName = baselineProfile.lastName
+  form.login = baselineProfile.login
+  form.phone = baselineProfile.phone
+  form.email = baselineProfile.email
+  form.about = baselineProfile.about
+  resetSettings()
+  errorMessage.value = ''
+}
+
+const saveAllChanges = async () => {
+  if (profileDirty.value) {
+    await saveProfile()
+  }
+  if (settingsDirty.value) {
+    await saveSettings()
+  }
 }
 
 const changePassword = async () => {
@@ -807,6 +1054,7 @@ const changePassword = async () => {
 }
 
 const logout = async () => {
+  clearDraft()
   await auth.logout()
   await navigateTo(localePath('/'))
 }
@@ -826,12 +1074,25 @@ onMounted(async () => {
   await auth.refreshProfile()
   syncFormFromProfile()
   await Promise.all([loadOrders(), loadReviews(), loadCurrencyRates()])
+  restoreDraft()
+  draftHydrated.value = true
+})
+
+onBeforeUnmount(() => {
+  if (draftSaveTimer) {
+    clearTimeout(draftSaveTimer)
+    draftSaveTimer = null
+  }
 })
 
 watch(
   () => auth.notificationsEnabled.value,
   (value) => {
-    form.notificationsEnabled = value === true
+    const next = value === true
+    form.notificationsEnabled = next
+    if (!savingNotifications.value && !savingSettings.value && !settingsDirty.value) {
+      baselineSettings.notificationsEnabled = next
+    }
   },
   { immediate: true }
 )
@@ -839,7 +1100,32 @@ watch(
 watch(
   () => auth.profile.value,
   () => {
+    if (hasUnsavedChanges.value && draftHydrated.value) return
     syncFormFromProfile()
+  },
+  { deep: true }
+)
+
+watch(
+  () => ({
+    firstName: form.firstName,
+    lastName: form.lastName,
+    login: form.login,
+    phone: form.phone,
+    email: form.email,
+    about: form.about,
+    currency: form.currency,
+    language: form.language,
+    notificationsEnabled: form.notificationsEnabled
+  }),
+  () => {
+    if (!draftHydrated.value) return
+    if (draftSaveTimer) {
+      clearTimeout(draftSaveTimer)
+    }
+    draftSaveTimer = setTimeout(() => {
+      saveDraft()
+    }, 220)
   },
   { deep: true }
 )
@@ -852,9 +1138,17 @@ watch(
 }
 
 .account-hero,
+.account-sections,
 .account-sidebar,
 .account-card {
   padding: clamp(16px, 2vw, 24px);
+}
+
+.account-hero {
+  background:
+    radial-gradient(1000px 360px at 5% -10%, #eef8f1 0%, transparent 42%),
+    radial-gradient(700px 280px at 95% 10%, #f6f8fc 0%, transparent 44%),
+    #fff;
 }
 
 .account-title,
@@ -862,11 +1156,123 @@ watch(
   margin: 0;
 }
 
+.account-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+  align-items: start;
+}
+
+.account-identity {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #fff;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.identity-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid #b8d8c3;
+  background: linear-gradient(135deg, #f3faf5, #e6f3ea);
+  color: #1f6b43;
+  font-size: 18px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.identity-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.identity-text strong,
+.identity-text span,
+.identity-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identity-text strong {
+  font-size: 16px;
+}
+
+.identity-text span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.identity-text small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.identity-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+}
+
+.identity-btn {
+  flex: 1;
+  justify-content: center;
+}
+
 .hero-meta {
   margin-top: 12px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.account-toolbar {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toolbar-btn {
+  min-width: 168px;
+}
+
+.hero-stats {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.hero-stat {
+  min-height: 78px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 10px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+}
+
+.hero-stat strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.hero-stat span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .hero-pill {
@@ -878,6 +1284,24 @@ watch(
   display: inline-flex;
   align-items: center;
   font-size: 12px;
+  font-weight: 800;
+}
+
+.account-sections {
+  margin-bottom: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.section-chip {
+  min-height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
   font-weight: 800;
 }
 
@@ -947,6 +1371,7 @@ watch(
 .account-main {
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .section-head {
@@ -1160,6 +1585,52 @@ watch(
   font-weight: 700;
 }
 
+.account-save-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  z-index: 85;
+  pointer-events: none;
+}
+
+.save-dock-inner {
+  min-height: 58px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 20px 45px rgba(21, 26, 42, 0.14);
+  backdrop-filter: blur(8px);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.save-dock-inner span {
+  font-size: 13px;
+  font-weight: 800;
+  color: #7d5a1f;
+}
+
+.save-dock-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.dock-fade-enter-active,
+.dock-fade-leave-active {
+  transition: opacity .2s ease, transform .2s ease;
+}
+
+.dock-fade-enter-from,
+.dock-fade-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
 @media (max-width: 1020px) {
   .account-layout {
     grid-template-columns: 1fr;
@@ -1167,6 +1638,14 @@ watch(
 
   .account-sidebar {
     position: static;
+  }
+
+  .account-hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1179,6 +1658,19 @@ watch(
   .account-settings-grid,
   .stats-row {
     grid-template-columns: 1fr;
+  }
+
+  .save-dock-inner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .save-dock-actions > * {
+    flex: 1;
+  }
+
+  .toolbar-btn {
+    width: 100%;
   }
 }
 </style>
