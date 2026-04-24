@@ -842,8 +842,7 @@ const saveDraft = () => {
         email: form.email,
         about: form.about,
         currency: form.currency,
-        language: form.language,
-        notificationsEnabled: form.notificationsEnabled
+        language: form.language
       }
     }
     window.localStorage.setItem(accountDraftKey.value, JSON.stringify(payload))
@@ -891,9 +890,6 @@ const restoreDraft = () => {
     form.language = (['ru', 'ro', 'en'].includes(String(draft.language || '').toLowerCase())
       ? String(draft.language).toLowerCase()
       : form.language) as typeof form.language
-    if (typeof draft.notificationsEnabled === 'boolean') {
-      form.notificationsEnabled = draft.notificationsEnabled
-    }
     infoMessage.value = ui.value.draftRestored
   } catch {
     // Ignore invalid draft content.
@@ -929,7 +925,7 @@ const saveProfile = async () => {
       }
     }
 
-    saveDraft()
+    clearDraft()
 
     if (form.language !== locale.value) {
       await navigateTo(switchLocalePath(form.language) || localePath('/account'))
@@ -966,7 +962,7 @@ const saveSettings = async () => {
       }
     }
 
-    saveDraft()
+    clearDraft()
 
     if (form.language !== locale.value) {
       await navigateTo(switchLocalePath(form.language) || localePath('/account'))
@@ -992,7 +988,7 @@ const toggleNotificationsSetting = async () => {
     await auth.setNotificationsEnabled(nextValue)
     form.notificationsEnabled = auth.notificationsEnabled.value === true
     applySettingsBaselineFromForm()
-    saveDraft()
+    clearDraft()
     infoMessage.value = ui.value.profileSaved
     lastSavedAt.value = Date.now()
   } catch (error) {
@@ -1090,9 +1086,7 @@ watch(
   (value) => {
     const next = value === true
     form.notificationsEnabled = next
-    if (!savingNotifications.value && !savingSettings.value && !settingsDirty.value) {
-      baselineSettings.notificationsEnabled = next
-    }
+    baselineSettings.notificationsEnabled = next
   },
   { immediate: true }
 )

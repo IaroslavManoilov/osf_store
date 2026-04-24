@@ -99,12 +99,9 @@ export const useCustomerAuth = () => {
 
   const accessToken = computed(() => String(session.value?.access_token || ''))
   const isAuthenticated = computed(() => !!user.value?.id && !!accessToken.value)
-  const notificationsEnabled = computed(() => {
-    if (isAuthenticated.value && profile.value) {
-      return profile.value.notificationsEnabled === true
-    }
-    return notificationsPreference.value === true
-  })
+  // Single source of truth for bell state in header/account.
+  // Profile value is synced into this preference on init/refresh/save.
+  const notificationsEnabled = computed(() => notificationsPreference.value === true)
 
   const syncNotificationsState = (enabled: boolean, options?: { broadcast?: boolean; markExplicit?: boolean }) => {
     const next = enabled === true
