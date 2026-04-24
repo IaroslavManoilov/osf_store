@@ -301,7 +301,7 @@
                       <span class="option-value">{{ product.colorLabel }}</span>
                     </div>
 
-                    <div class="option-row">
+                    <div class="option-row size-row">
                       <span class="option-label">{{ ui.size }}</span>
 
                       <div class="size-list">
@@ -1889,6 +1889,7 @@ useHead(
   position: relative;
   padding: 12px;
   background: #fff;
+  display: flex;
 }
 
 .product-media-link {
@@ -1897,7 +1898,9 @@ useHead(
   overflow: hidden;
   border: 1px solid var(--border);
   background: #fff;
-  aspect-ratio: 5 / 6;
+  width: 100%;
+  min-height: 320px;
+  height: 100%;
 }
 
 .product-media img {
@@ -1955,9 +1958,9 @@ useHead(
 
 .product-body {
   padding: 16px;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-content: start;
 }
 
 .product-meta-row {
@@ -2008,9 +2011,13 @@ useHead(
 .product-title-link h3 {
   margin: 0;
   color: var(--text);
-  font-size: clamp(20px, 1.9vw, 30px);
-  line-height: 1.08;
+  font-size: clamp(20px, 1.55vw, 26px);
+  line-height: 1.12;
   letter-spacing: -0.02em;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .product-body p {
@@ -2018,6 +2025,10 @@ useHead(
   color: var(--muted);
   font-size: 15px;
   line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .product-options {
@@ -2051,14 +2062,18 @@ useHead(
   justify-content: flex-end;
 }
 
+.size-row .size-list {
+  flex-wrap: nowrap;
+}
+
 .size-pill {
-  min-width: 40px;
-  height: 40px;
+  min-width: 44px;
+  height: 44px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: #fff;
   color: var(--text);
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 900;
   cursor: pointer;
 }
@@ -2078,21 +2093,24 @@ useHead(
 .product-bottom {
   display: grid;
   gap: 8px;
+  margin-top: auto;
 }
 
 .product-bottom > strong {
   color: var(--text);
-  font-size: clamp(30px, 2.8vw, 42px);
+  font-size: clamp(28px, 2.3vw, 38px);
   line-height: 0.95;
   letter-spacing: -0.03em;
 }
 
 .product-actions {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 
 .auto-size-note {
+  grid-column: 1 / -1;
   min-height: 40px;
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -2112,6 +2130,7 @@ useHead(
 }
 
 .mini-size-picker {
+  grid-column: 1 / -1;
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 10px;
@@ -2164,6 +2183,11 @@ useHead(
   padding: 0 16px;
 }
 
+.quick-btn,
+.buy-now-btn {
+  width: 100%;
+}
+
 .quick-btn {
   border: 1px solid var(--border);
   color: var(--text);
@@ -2178,6 +2202,7 @@ useHead(
 }
 
 .buy-btn {
+  grid-column: 1 / -1;
   border: 1px solid #2d8d5a;
   color: #fff;
   background: linear-gradient(180deg, #2f965f 0%, #237646 100%);
@@ -2192,10 +2217,15 @@ useHead(
 }
 
 .card-trust-row {
+  grid-column: 1 / -1;
   margin-top: 4px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.card-trust-row span:nth-child(n + 3) {
+  display: none;
 }
 
 .card-trust-row span {
@@ -2547,6 +2577,7 @@ useHead(
   }
 
   .product-media-link {
+    min-height: 250px;
     border-radius: 14px;
   }
 
@@ -2611,6 +2642,7 @@ useHead(
 
   .size-list {
     justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   .size-pill {
@@ -2628,6 +2660,7 @@ useHead(
   }
 
   .product-actions {
+    grid-template-columns: 1fr;
     gap: 6px;
   }
 
@@ -2741,7 +2774,7 @@ useHead(
   }
 
   .product-media-link {
-    aspect-ratio: 1 / 1;
+    min-height: 220px;
   }
 
   .product-badge {
@@ -2785,6 +2818,7 @@ useHead(
 
   .size-list {
     justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   .size-pill {
