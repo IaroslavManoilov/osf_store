@@ -755,11 +755,11 @@ watch(deliveryCity, (value) => {
 .cart-card,
 .summary-box,
 .empty-box {
-  padding: 26px;
+  padding: 22px;
 }
 
 .cart-intro {
-  padding: 16px 20px;
+  padding: 14px 18px;
 }
 
 .cart-intro-top {
@@ -813,8 +813,8 @@ watch(deliveryCity, (value) => {
 
 .cart-card {
   display: grid;
-  grid-template-columns: minmax(260px, 34%) minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: minmax(240px, 36%) minmax(0, 1fr);
+  gap: 16px;
   align-items: start;
 }
 
@@ -833,9 +833,9 @@ watch(deliveryCity, (value) => {
     0 8px 22px rgba(15, 28, 20, 0.05);
   display: grid;
   place-items: center;
-  padding: 8px;
+  padding: 10px;
   overflow: hidden;
-  max-width: 360px;
+  max-width: 380px;
   justify-self: start;
 }
 
@@ -847,14 +847,14 @@ watch(deliveryCity, (value) => {
   object-fit: contain;
   object-position: center;
   display: block;
-  transform: scale(1.14);
+  transform: scale(1.1);
 }
 
 .cart-content {
   min-width: 0;
   display: grid;
   grid-template-rows: auto auto;
-  gap: 12px;
+  gap: 10px;
 }
 
 .cart-top {
@@ -875,7 +875,7 @@ watch(deliveryCity, (value) => {
 
 .cart-title-link h2 {
   margin: 0;
-  font-size: 28px;
+  font-size: 26px;
   line-height: 1.08;
   transition: 0.2s ease;
 }
@@ -1389,11 +1389,11 @@ watch(deliveryCity, (value) => {
   .cart-card,
   .summary-box,
   .empty-box {
-    padding: 24px;
+    padding: 18px;
   }
 
   .cart-intro {
-    padding: 18px 20px;
+    padding: 12px 14px;
   }
 
   .cart-intro-top {
@@ -1445,11 +1445,11 @@ watch(deliveryCity, (value) => {
   .cart-card,
   .summary-box,
   .empty-box {
-    padding: 14px;
+    padding: 12px;
   }
 
   .cart-intro {
-    padding: 10px;
+    padding: 8px;
   }
 
   .cart-title {

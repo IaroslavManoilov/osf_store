@@ -1837,7 +1837,7 @@ useHead(
 }
 
 .main-image {
-  min-height: 620px;
+  min-height: 560px;
   border-radius: 30px;
   border: 1px solid #d4dfd6;
   background: linear-gradient(180deg, #ffffff 0%, #fbfdfb 100%);
@@ -1852,8 +1852,8 @@ useHead(
 
 .main-image-media {
   width: 100%;
-  max-width: 580px;
-  max-height: 588px;
+  max-width: 540px;
+  max-height: 540px;
   object-fit: contain;
   will-change: transform;
   transition: transform 0.2s ease;
@@ -2090,9 +2090,9 @@ useHead(
 .actions-row {
   margin-top: 18px;
   display: grid;
-  grid-template-columns: minmax(0, 190px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 170px) minmax(0, 1fr);
   align-items: end;
-  gap: 14px;
+  gap: 12px;
 }
 
 .price-box {
@@ -2113,18 +2113,14 @@ useHead(
 
 .action-buttons {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
 .action-btn {
   min-width: 0;
   width: 100%;
-  min-height: 48px;
-}
-
-.action-buttons .action-btn:last-child {
-  grid-column: 1 / -1;
+  min-height: 46px;
 }
 
 .buy-now-btn {
@@ -2811,11 +2807,21 @@ useHead(
   }
 
   .main-image {
-    min-height: 520px;
+    min-height: 500px;
   }
 
   .product-content {
     padding: 18px;
+  }
+}
+
+@media (max-width: 1400px) {
+  .action-buttons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .action-buttons .action-btn:last-child {
+    grid-column: 1 / -1;
   }
 }
 
@@ -2857,7 +2863,7 @@ useHead(
   }
 
   .main-image {
-    min-height: 392px;
+    min-height: 356px;
     border-radius: 18px;
     padding: 8px;
   }
@@ -2865,7 +2871,7 @@ useHead(
   .main-image-media {
     width: 100%;
     max-width: 100%;
-    max-height: 378px;
+    max-height: 340px;
   }
 
   .product-title {
@@ -3069,12 +3075,12 @@ useHead(
   }
 
   .main-image {
-    min-height: 360px;
+    min-height: 340px;
     padding: 8px;
   }
 
   .main-image-media {
-    max-height: 344px;
+    max-height: 324px;
   }
 
   .product-title {
@@ -3094,11 +3100,11 @@ useHead(
 
 @media (min-width: 390px) and (max-width: 429px) {
   .main-image {
-    min-height: 396px;
+    min-height: 374px;
   }
 
   .main-image-media {
-    max-height: 382px;
+    max-height: 358px;
   }
 
   .product-title {
@@ -3108,11 +3114,11 @@ useHead(
 
 @media (min-width: 430px) and (max-width: 479px) {
   .main-image {
-    min-height: 410px;
+    min-height: 388px;
   }
 
   .main-image-media {
-    max-height: 396px;
+    max-height: 372px;
   }
 }
 </style>
