@@ -1873,10 +1873,12 @@ useHead(
 .product-card {
   display: grid;
   grid-template-columns: minmax(240px, 35%) minmax(0, 1fr);
+  align-items: stretch;
   border: 1px solid var(--border);
   border-radius: 24px;
   background: #fff;
   overflow: hidden;
+  min-height: 560px;
   transition: box-shadow 0.22s ease, transform 0.22s ease;
 }
 
@@ -1899,7 +1901,7 @@ useHead(
   border: 1px solid var(--border);
   background: #fff;
   width: 100%;
-  min-height: 320px;
+  min-height: 300px;
   height: 100%;
 }
 
@@ -1960,7 +1962,7 @@ useHead(
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .product-meta-row {
@@ -2011,11 +2013,11 @@ useHead(
 .product-title-link h3 {
   margin: 0;
   color: var(--text);
-  font-size: clamp(20px, 1.55vw, 26px);
-  line-height: 1.12;
+  font-size: clamp(19px, 1.45vw, 24px);
+  line-height: 1.08;
   letter-spacing: -0.02em;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -2023,17 +2025,19 @@ useHead(
 .product-body p {
   margin: 0;
   color: var(--muted);
-  font-size: 15px;
-  line-height: 1.35;
+  font-size: 14px;
+  line-height: 1.32;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  min-height: 2.64em;
 }
 
 .product-options {
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  min-height: 116px;
 }
 
 .option-row {
@@ -2064,6 +2068,8 @@ useHead(
 
 .size-row .size-list {
   flex-wrap: nowrap;
+  min-height: 44px;
+  align-items: center;
 }
 
 .size-pill {
@@ -2086,20 +2092,20 @@ useHead(
 
 .product-delivery-note {
   color: #2d7c50;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
 }
 
 .product-bottom {
   display: grid;
-  gap: 8px;
+  gap: 7px;
   margin-top: auto;
 }
 
 .product-bottom > strong {
   color: var(--text);
-  font-size: clamp(28px, 2.3vw, 38px);
-  line-height: 0.95;
+  font-size: clamp(24px, 1.95vw, 34px);
+  line-height: 0.92;
   letter-spacing: -0.03em;
 }
 
@@ -2172,7 +2178,7 @@ useHead(
 .quick-btn,
 .buy-now-btn,
 .buy-btn {
-  min-height: 44px;
+  min-height: 42px;
   border-radius: 999px;
   text-decoration: none;
   font-size: 15px;
@@ -2218,10 +2224,10 @@ useHead(
 
 .card-trust-row {
   grid-column: 1 / -1;
-  margin-top: 4px;
+  margin-top: 2px;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 }
 
 .card-trust-row span:nth-child(n + 3) {
@@ -2229,12 +2235,12 @@ useHead(
 }
 
 .card-trust-row span {
-  min-height: 28px;
-  padding: 0 10px;
+  min-height: 26px;
+  padding: 0 9px;
   border-radius: 999px;
   border: 1px solid var(--border);
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
