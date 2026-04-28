@@ -906,20 +906,19 @@ useHead(
 }
 
 .product-bottom {
-  display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: 12px;
+  display: grid;
+  gap: 10px;
 }
 
 .product-bottom strong {
-  font-size: 22px;
-  line-height: 1.05;
+  font-size: 20px;
+  line-height: 1;
   white-space: nowrap;
 }
 
 .product-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 8px;
 }
 
@@ -928,13 +927,16 @@ useHead(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 38px;
-  padding: 0 12px;
+  min-height: 42px;
+  padding: 0 14px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 900;
   background: #fff;
+  line-height: 1.05;
+  text-align: center;
+  white-space: normal;
 }
 
 .buy-btn {
@@ -1400,18 +1402,16 @@ useHead(
     font-size: 11px;
   }
 
-  .product-actions,
   .product-bottom {
-    flex-direction: column;
-    align-items: stretch;
+    gap: 8px;
   }
 
   .quick-btn,
   .buy-btn {
     width: 100%;
-    min-height: 32px;
-    font-size: 11px;
-    padding: 0 8px;
+    min-height: 36px;
+    font-size: 12px;
+    padding: 0 10px;
   }
 }
 
